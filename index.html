@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VitCRM - Nền tảng Quản trị Quan hệ Khách hàng Y tế</title>
+    <meta name="description" content="Giải pháp chuyển đổi số y tế toàn diện: Quản trị dữ liệu bệnh nhân 360 độ, Lịch khám đa kênh, Marketing Automation, Sales B2B/B2C, HIS/LIS/PACS, Telemedicine và AI Health Assistant." />
+    
+    <!-- Defensive polyfill for window.fetch in iframe/sandboxed environments -->
+    <script>
+      (function() {
+        try {
+          if (typeof window !== 'undefined') {
+            var nativeFetch = window.fetch ? window.fetch.bind(window) : undefined;
+            var currentFetch = nativeFetch;
+            
+            function setupFetchProperty(target) {
+              if (!target) return;
+              try {
+                var descriptor = Object.getOwnPropertyDescriptor(target, 'fetch');
+                if (!descriptor || descriptor.configurable !== false) {
+                  Object.defineProperty(target, 'fetch', {
+                    configurable: true,
+                    enumerable: true,
+                    get: function() {
+                      return currentFetch;
+                    },
+                    set: function(fn) {
+                      currentFetch = fn;
+                    }
+                  });
+                }
+              } catch (e) {}
+            }
+
+            setupFetchProperty(window);
+            if (typeof Window !== 'undefined' && Window.prototype) {
+              setupFetchProperty(Window.prototype);
+            }
+          }
+        } catch (err) {}
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-slate-50 text-slate-900 antialiased font-sans">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

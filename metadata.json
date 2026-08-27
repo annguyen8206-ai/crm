@@ -1,0 +1,6 @@
+{
+  "name": "VitCRM - Nền tảng Quản trị Quan hệ Khách hàng Y tế",
+  "description": "Nền tảng Quản trị Quan hệ Khách hàng Y tế (Healthcare CRM) chuyên sâu: Quản lý hồ sơ khách hàng 360°, Hành trình chăm sóc sau khám & mạn tính, Tổng đài ảo VoIP & Click-to-Call, Phân luồng tiếp nhận đa kênh tự động (Zalo ZNS, Hotline, Fanpage), Lịch khám & CSKH theo SLA.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
