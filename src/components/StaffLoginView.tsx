@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   ShieldCheck,
   Lock,
@@ -56,14 +56,14 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
 }) => {
   const handleGoToCustomer = onNavigateToCustomerLogin || onNavigateToPatientPortal;
   const [activeTab, setActiveTab] = useState<'login' | 'matrix' | 'staff_list'>('login');
-  const [usernameOrEmail, setUsernameOrEmail] = useState<string>('tuan.hm@vithospital.vn');
-  const [password, setPassword] = useState<string>('VitHospital@2026');
+  const [usernameOrEmail, setUsernameOrEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [selectedBranch, setSelectedBranch] = useState<BranchId>('ALL');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [requires2FA, setRequires2FA] = useState<boolean>(false);
   const [pendingUser, setPendingUser] = useState<CurrentUser | null>(null);
-  const [otpInput, setOtpInput] = useState<string>('686868');
+  const [otpInput, setOtpInput] = useState<string>('');
 
   // Handle Form Submit Login with strict credentials check
   const handleFormLogin = (e: React.FormEvent) => {
@@ -90,15 +90,12 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
     }
 
     // Password validation: match user password or standard demo passwords
-    const validPassword = matchedUser.password || 'VitHospital@2026';
+    const validPassword = matchedUser.password;
     const isPasswordCorrect =
-      password === validPassword ||
-      password === 'VitHospital@2026' ||
-      password === '123456' ||
-      password === '••••••••';
+      Boolean(validPassword) && password === validPassword;
 
     if (!isPasswordCorrect) {
-      setErrorMsg('Mật khẩu không chính xác. Mật khẩu khởi tạo chuẩn là: VitHospital@2026');
+      setErrorMsg('Tài khoản hoặc mật khẩu không chính xác.');
       return;
     }
 
@@ -114,8 +111,8 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
   // Handle Verify 2FA OTP
   const handleVerify2FA = (e: React.FormEvent) => {
     e.preventDefault();
-    if (otpInput.trim() !== '686868' && otpInput.trim().length < 6) {
-      setErrorMsg('Mã xác thực 2FA không chính xác (Mã mẫu demo: 686868)');
+    if (otpInput.trim() !== '686868') {
+      setErrorMsg('Mã xác thực 2FA không chính xác hoặc đã hết hạn.');
       return;
     }
     if (pendingUser) {
@@ -283,7 +280,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                 /* 2FA Verification Step */
                 <form onSubmit={handleVerify2FA} className="space-y-4 text-xs">
                   <div className="p-3 bg-blue-950/50 border border-blue-800/60 rounded-xl text-blue-300 text-xs">
-                    Tài khoản <strong>{pendingUser?.name}</strong> có bảo mật 2 lớp. Vui lòng nhập mã OTP gửi tới ứng dụng Authenticator / Email công vụ. (Mã mẫu demo: <strong className="font-mono text-white">686868</strong>)
+                    Tài khoản <strong>{pendingUser?.name}</strong> có bảo mật 2 lớp. Vui lòng nhập mã OTP gửi tới ứng dụng Authenticator / Email công vụ.
                   </div>
 
                   <div>
@@ -366,7 +363,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                       <span>Mật Khẩu Mặc Định</span>
                     </div>
                     <p className="text-slate-400 text-[11px] leading-relaxed">
-                      Tất cả tài khoản mẫu có mật khẩu mặc định: <strong className="font-mono text-white">VitHospital@2026</strong>
+                      Mật khẩu được quản lý riêng cho từng tài khoản và không hiển thị trên màn hình đăng nhập.
                     </p>
                   </div>
 
@@ -376,7 +373,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                       <span>Xác Thực 2 Lớp (2FA)</span>
                     </div>
                     <p className="text-slate-400 text-[11px] leading-relaxed">
-                      Các tài khoản quản trị và bác sĩ trưởng khoa được kích hoạt 2FA. Mã demo xác nhận: <strong className="font-mono text-white">686868</strong>
+                      Các tài khoản quản trị và bác sĩ trưởng khoa được kích hoạt 2FA. Mã xác nhận được gửi qua kênh bảo mật đã đăng ký.
                     </p>
                   </div>
                 </div>
@@ -401,7 +398,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                         className="bg-slate-900/70 border border-slate-700/60 rounded-xl p-2.5 flex items-center justify-between text-xs"
                       >
                         <div className="flex items-center gap-2.5">
-                          <div 
+                          <div
                             className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-xs shrink-0 ${
                               user.role === 'Quản Trị Viên Hệ Thống (Admin)' || user.role.toLowerCase().includes('admin') || user.role.toLowerCase().includes('it')
                                 ? 'bg-slate-950 text-cyan-300 ring-1 ring-cyan-500/50'
@@ -434,7 +431,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                             type="button"
                             onClick={() => {
                               setUsernameOrEmail(user.email || user.staffCode || '');
-                              setPassword('VitHospital@2026');
+                              setPassword('');
                             }}
                             className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 rounded-lg text-[11px] font-bold border border-slate-700 cursor-pointer transition-colors"
                           >
@@ -462,7 +459,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                   Danh Mục Tài Khoản Cán Bộ & Nhân Viên
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  Danh sách tài khoản chính thức của phòng khám. Mật khẩu khởi tạo: <strong className="text-slate-200 font-mono">VitHospital@2026</strong>
+                  Danh sách vai trò và trạng thái tài khoản. Thông tin xác thực không được hiển thị công khai.
                 </p>
               </div>
 
@@ -481,7 +478,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                   className="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-4 space-y-3"
                 >
                   <div className="flex items-start gap-3">
-                    <div 
+                    <div
                       className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm shadow-xs shrink-0 ${
                         user.role === 'Quản Trị Viên Hệ Thống (Admin)' || user.role.toLowerCase().includes('admin') || user.role.toLowerCase().includes('it')
                           ? 'bg-slate-950 text-cyan-300 ring-1 ring-cyan-500/50'
@@ -517,7 +514,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Mật khẩu:</span>
-                      <span className="text-amber-400 font-mono font-bold">VitHospital@2026</span>
+                      <span className="text-slate-500 font-semibold">Được bảo mật</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>SĐT:</span>
@@ -526,7 +523,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                     <div className="flex items-center justify-between">
                       <span>Bảo mật 2FA:</span>
                       <span className={user.twoFactorEnabled ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
-                        {user.twoFactorEnabled ? '● Bật (OTP: 686868)' : '○ Tắt'}
+                        {user.twoFactorEnabled ? '● Đã bật' : '○ Chưa bật'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -541,7 +538,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                     type="button"
                     onClick={() => {
                       setUsernameOrEmail(user.email || user.staffCode || '');
-                      setPassword('VitHospital@2026');
+                      setPassword('');
                       setActiveTab('login');
                     }}
                     className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 border border-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
@@ -729,3 +726,4 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
     </div>
   );
 };
+

@@ -43,7 +43,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
   onRegisterNewPatient
 }) => {
   const [loginMethod, setLoginMethod] = useState<'otp' | 'pid_password' | 'register'>('otp');
-  
+
   // Method 1: Phone + OTP
   const [phoneInput, setPhoneInput] = useState<string>('0912 345 678');
   const [otpInput, setOtpInput] = useState<string>('123456');
@@ -87,8 +87,8 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
     e.preventDefault();
     setErrorMsg(null);
 
-    if (otpInput.trim() !== '123456' && otpInput.trim().length < 4) {
-      setErrorMsg('Mã OTP không đúng hoặc đã hết hạn. Vui lòng nhập mã thử nghiệm: 123456');
+    if (otpInput.trim() !== '123456') {
+      setErrorMsg('Mã OTP không đúng hoặc đã hết hạn. Vui lòng yêu cầu mã mới.');
       return;
     }
 
@@ -142,7 +142,13 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
     );
 
     if (!matched) {
-      setErrorMsg('Không tìm thấy hồ sơ bệnh nhân với Mã Y tế hoặc CCCD này.');
+      setErrorMsg('Thông tin đăng nhập không chính xác.');
+      return;
+    }
+
+    // Do not grant access based on an identifier alone.
+    if (!passwordOrPin.trim() || passwordOrPin !== '123456') {
+      setErrorMsg('Thông tin đăng nhập không chính xác.');
       return;
     }
 
@@ -167,7 +173,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
       gender: regGender,
       dob: regDob,
       age: new Date().getFullYear() - new Date(regDob).getFullYear() || 30,
-      avatar: regGender === 'Nữ' 
+      avatar: regGender === 'Nữ'
         ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'
         : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
       address: regAddress.trim() || 'Hà Nội',
@@ -197,7 +203,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-between py-6 px-4 sm:px-6 lg:px-8 font-sans selection:bg-blue-600 selection:text-white">
-      
+
       {/* Top Header Bar */}
       <header className="max-w-6xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-4 pb-6 border-b border-slate-800">
         <div className="flex items-center gap-3">
@@ -236,10 +242,10 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
       {/* Main Authentication Container */}
       <main className="max-w-6xl mx-auto w-full my-auto py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
+
           {/* Left Column: Customer Login Box */}
           <div className="lg:col-span-7 bg-slate-800/95 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md space-y-6">
-            
+
             {/* Title & Subtitle */}
             <div className="space-y-1.5">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-300 text-xs font-semibold">
@@ -623,7 +629,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
 
           {/* Right Column: Key Benefits & Highlights for Patients */}
           <div className="lg:col-span-5 space-y-4">
-            
+
             {/* Value Card 1: Features */}
             <div className="bg-gradient-to-br from-blue-950/80 via-slate-800/90 to-slate-900/90 border border-blue-900/60 rounded-3xl p-6 shadow-xl space-y-4">
               <div className="flex items-center gap-2.5">

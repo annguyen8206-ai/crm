@@ -66,7 +66,7 @@ export default function App() {
   // Multi-Portal Authentication & Role State (Staff vs. Customer)
   const [authMode, setAuthMode] = useState<'staff' | 'customer'>('staff');
   const [staffUsers, setStaffUsers] = useState<CurrentUser[]>(CURRENT_USERS);
-  const [isStaffLoggedIn, setIsStaffLoggedIn] = useState<boolean>(true);
+  const [isStaffLoggedIn, setIsStaffLoggedIn] = useState<boolean>(false);
   const [currentStaffUser, setCurrentStaffUser] = useState<CurrentUser>(CURRENT_USERS[0]);
 
   // Customer / Patient Portal Session State
@@ -304,8 +304,8 @@ export default function App() {
               <button
                 onClick={() => {
                   setAuthMode('staff');
-                  setIsStaffLoggedIn(true);
-                  showToast('Chuyển sang Cổng Quản Trị Cán Bộ Y Tế');
+                  setIsStaffLoggedIn(false);
+                  showToast('Vui lòng đăng nhập để truy cập Cổng Quản Trị Cán Bộ Y Tế');
                 }}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
               >
@@ -403,7 +403,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900 pb-10 w-full max-w-full overflow-x-hidden">
-      
+
       {/* Toast Banner */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 animate-in slide-in-from-bottom-5">
@@ -441,7 +441,7 @@ export default function App() {
 
       {/* Main View Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 pt-6">
-        
+
         {/* RBAC Permission Guard: If tab is not allowed for the active role */}
         {!isTabAllowedForRole(activeTab, currentRole) ? (
           <div className="bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 text-center max-w-2xl mx-auto shadow-sm my-8">
