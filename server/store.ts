@@ -43,22 +43,10 @@ export interface PatientRecord {
     temperature: number;
     bloodGlucose?: number;
   }>;
-  lisResults?: Array<{
-    id: string;
-    testName: string;
-    date: string;
-    status: string;
-    resultSummary: string;
-    abnormalFlag: boolean;
-  }>;
-  pacsResults?: Array<{
-    id: string;
-    modality: string;
-    bodyPart: string;
-    date: string;
-    conclusion: string;
-    imageUrl?: string;
-  }>;
+  // Clinical results (LIS/PACS) and prescriptions are NOT stored in the CRM —
+  // that is the job of the HIS/EMR. Keep only a lightweight reference flag.
+  lastResultAt?: string;
+  emrLink?: string;
 }
 
 export interface AppointmentRecord {
@@ -318,14 +306,6 @@ class HospitalBackendStore {
       vitalsHistory: [
         { date: '2026-08-15', bloodPressure: '135/85', heartRate: 74, spo2: 98, weight: 62, height: 158, bmi: 24.8, temperature: 36.6, bloodGlucose: 6.8 },
         { date: '2026-07-10', bloodPressure: '142/90', heartRate: 78, spo2: 98, weight: 63, height: 158, bmi: 25.2, temperature: 36.5, bloodGlucose: 7.4 }
-      ],
-      lisResults: [
-        { id: 'lis-101', testName: 'Định lượng Glucose & HbA1c', date: '2026-08-15', status: 'Hoàn tất', resultSummary: 'HbA1c: 6.9%, Glucose đói: 6.8 mmol/L', abnormalFlag: true },
-        { id: 'lis-102', testName: 'Bộ mỡ máu Lipid Panel toàn phần', date: '2026-08-15', status: 'Hoàn tất', resultSummary: 'Cholesterol: 5.4 mmol/L, LDL-C: 3.2 mmol/L, TG: 2.1 mmol/L', abnormalFlag: true }
-      ],
-      pacsResults: [
-        { id: 'pacs-101', modality: 'ECG', bodyPart: 'Tim', date: '2026-08-15', conclusion: 'Nhịp xoang đều 74 l/p, dầy thất trái nhẹ do THA.' },
-        { id: 'pacs-102', modality: 'Siêu âm Doppler', bodyPart: 'Động mạch cảnh', date: '2026-04-10', conclusion: 'Xơ vữa rải rác không gây hẹp huyết động.' }
       ]
     },
     {
@@ -362,12 +342,6 @@ class HospitalBackendStore {
       },
       vitalsHistory: [
         { date: '2026-08-01', bloodPressure: '120/80', heartRate: 72, spo2: 99, weight: 70, height: 174, bmi: 23.1, temperature: 36.5 }
-      ],
-      lisResults: [
-        { id: 'lis-201', testName: 'Công thức máu 24 thông số & Acid Uric', date: '2026-08-01', status: 'Hoàn tất', resultSummary: 'Acid Uric: 380 umol/L (Bình thường)', abnormalFlag: false }
-      ],
-      pacsResults: [
-        { id: 'pacs-201', modality: 'MRI 1.5 Tesla', bodyPart: 'Cột sống thắt lưng', date: '2026-08-01', conclusion: 'Thoát vị đĩa đệm L4-L5 thể trung tâm lệch trái, chèn ép nhẹ bao màng cứng.' }
       ]
     },
     {
@@ -404,10 +378,6 @@ class HospitalBackendStore {
       },
       vitalsHistory: [
         { date: '2026-08-10', bloodPressure: '110/70', heartRate: 68, spo2: 99, weight: 49, height: 162, bmi: 18.7, temperature: 36.6 }
-      ],
-      lisResults: [],
-      pacsResults: [
-        { id: 'pacs-301', modality: 'VISIA 3D', bodyPart: 'Da mặt', date: '2026-08-10', conclusion: 'Sắc tố melanin dưới biểu bì giảm 35% so với lần soi đầu.' }
       ]
     },
     {
@@ -444,12 +414,6 @@ class HospitalBackendStore {
       },
       vitalsHistory: [
         { date: '2026-08-18', bloodPressure: '125/80', heartRate: 64, spo2: 98, weight: 68, height: 168, bmi: 24.1, temperature: 36.5 }
-      ],
-      lisResults: [
-        { id: 'lis-401', testName: 'Troponin T hs & NT-proBNP', date: '2026-08-18', status: 'Hoàn tất', resultSummary: 'Troponin T: 8 ng/L (Âm tính), NT-proBNP: 110 pg/mL (Bình thường)', abnormalFlag: false }
-      ],
-      pacsResults: [
-        { id: 'pacs-401', modality: 'Siêu âm tim 4D', bodyPart: 'Tim', date: '2026-08-18', conclusion: 'Chức năng tâm thu thất trái EF 62%, không rối loạn vận động vùng mới.' }
       ]
     },
     {
@@ -486,12 +450,6 @@ class HospitalBackendStore {
       },
       vitalsHistory: [
         { date: '2026-08-20', bloodPressure: '115/75', heartRate: 80, spo2: 99, weight: 58, height: 160, bmi: 22.6, temperature: 36.7 }
-      ],
-      lisResults: [
-        { id: 'lis-501', testName: 'Tổng phân tích tế bào máu ngoại vi & Ferritin', date: '2026-08-20', status: 'Hoàn tất', resultSummary: 'Hb: 11.2 g/dL (Hơi giảm nhẹ), Ferritin: 25 ng/mL', abnormalFlag: true }
-      ],
-      pacsResults: [
-        { id: 'pacs-501', modality: 'Siêu âm 4D hình thái thai nhi', bodyPart: 'Thai nhi', date: '2026-08-20', conclusion: 'Thai 24 tuần 3 ngày, ước tính cân nặng 650g, không phát hiện bất thường hình thái.' }
       ]
     }
   ];

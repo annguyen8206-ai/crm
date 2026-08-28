@@ -501,7 +501,8 @@ async function startServer() {
   // =========================================================================
   const COLLECTION_NAMES = new Set([
     'branches', 'b2bContracts', 'b2cDeals', 'campaigns', 'automationRules',
-    'referrals', 'partners', 'partnerPayouts', 'interactions', 'segments'
+    'referrals', 'partners', 'partnerPayouts', 'interactions', 'segments',
+    'medicalServices', 'medicalPackages', 'doctors'
   ]);
 
   app.get("/api/collections", (req, res) => {

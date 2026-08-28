@@ -55,6 +55,9 @@ interface CustomerCareSlaViewProps {
   branches?: Branch[];
   currentBranchId?: BranchId;
   appointments?: Appointment[];
+  recalls?: any[];
+  followUps?: any[];
+  csatFeedbacks?: any[];
   onUpdateTicketStatus?: (ticketId: string, status: TicketStatus, notes?: string) => void;
   onAddNewTicket?: (ticket: Omit<SupportTicket, 'id'>) => void;
   onSelectPatient?: (patientId: string) => void;
@@ -69,6 +72,9 @@ export const CustomerCareSlaView: React.FC<CustomerCareSlaViewProps> = ({
   branches = mockBranches,
   currentBranchId = 'ALL',
   appointments = [],
+  recalls = [],
+  followUps = [],
+  csatFeedbacks = [],
   onUpdateTicketStatus,
   onAddNewTicket,
   onSelectPatient,
@@ -1263,8 +1269,9 @@ export const CustomerCareSlaView: React.FC<CustomerCareSlaViewProps> = ({
       {activeTab === 'auto_recall' && (
         <AutoRecallManagementView
           patients={patients}
+          recalls={recalls}
           onSelectPatient={onSelectPatient}
-          onBookAppointment={onBookAppointmentFromRecall || onNavigateToAppointments}
+          onBookAppointmentFromRecall={onBookAppointmentFromRecall}
         />
       )}
 

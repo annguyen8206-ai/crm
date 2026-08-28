@@ -48,6 +48,8 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
       'marketing',
       'care',
       'inbox',
+      'catalog',
+      'billing',
       'loyalty'
     ],
     permissions: {
@@ -84,6 +86,8 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
       'marketing',
       'care',
       'inbox',
+      'catalog',
+      'billing',
       'loyalty'
     ],
     permissions: {
@@ -146,7 +150,8 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
     allowedTabs: [
       'appointments',
       'patients',
-      'inbox'
+      'inbox',
+      'billing'
     ],
     permissions: {
       canViewClinicalEMR: false,
@@ -178,6 +183,8 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
       'care',
       'inbox',
       'sales',
+      'catalog',
+      'billing',
       'appointments',
       'patients',
       'loyalty',

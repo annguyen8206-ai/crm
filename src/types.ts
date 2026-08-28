@@ -8,6 +8,8 @@ export type ActiveTab =
   | 'marketing'
   | 'care'
   | 'inbox'
+  | 'catalog'
+  | 'billing'
   | 'portal'
   | 'loyalty';
 

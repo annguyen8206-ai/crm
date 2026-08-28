@@ -44,6 +44,9 @@ interface DashboardViewProps {
   tickets?: SupportTicket[];
   supportTickets?: SupportTicket[];
   branches?: Branch[];
+  invoices?: any[];
+  /** Server-computed KPIs from /api/analytics/dashboard (optional). */
+  serverKpis?: { kpis?: any; branchPerformance?: any[] } | null;
   currentBranchId?: string;
   onSelectTab?: (tab: string) => void;
   onNavigate?: (tab: string) => void;

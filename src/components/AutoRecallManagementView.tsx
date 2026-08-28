@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Calendar,
   Clock,
@@ -18,23 +18,25 @@ import {
   X
 } from 'lucide-react';
 import { AutoRecallTask, Patient, Appointment } from '../types';
-import { mockAutoRecalls } from '../data/mockData';
 import { ExportCsvButton } from './ExportCsvButton';
 import { ZnsPostVisitCareModal } from './ZnsPostVisitCareModal';
 import { VoipSoftphoneModal } from './VoipSoftphoneModal';
 
 interface AutoRecallManagementViewProps {
   patients?: Patient[];
+  recalls?: AutoRecallTask[];
   onSelectPatient?: (patientId: string) => void;
   onBookAppointmentFromRecall?: (recall: AutoRecallTask) => void;
 }
 
 export const AutoRecallManagementView: React.FC<AutoRecallManagementViewProps> = ({
   patients = [],
+  recalls,
   onSelectPatient,
   onBookAppointmentFromRecall
 }) => {
-  const [recallList, setRecallList] = useState<AutoRecallTask[]>(mockAutoRecalls);
+  const [recallList, setRecallList] = useState<AutoRecallTask[]>(recalls ?? []);
+  useEffect(() => { if (recalls) setRecallList(recalls); }, [recalls]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');

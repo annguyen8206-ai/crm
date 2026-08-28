@@ -22,6 +22,8 @@ import { StaffLoginView } from './components/StaffLoginView';
 import { CustomerLoginView } from './components/CustomerLoginView';
 import { StaffManagementModal } from './components/StaffManagementModal';
 import { OmnichannelInboxView } from './components/OmnichannelInboxView';
+import { CatalogView } from './components/CatalogView';
+import { BillingView } from './components/BillingView';
 import { BranchManagementModal } from './components/BranchManagementModal';
 import { getRoleConfig, isTabAllowedForRole } from './utils/rbac';
 import { apiClient } from './utils/apiClient';
@@ -144,6 +146,14 @@ export default function App() {
   const [partners, setPartners] = useState<MedicalPartner[]>([]);
   const [partnerPayouts, setPartnerPayouts] = useState<PartnerCommissionPayout[]>([]);
   const [interactions, setInteractions] = useState<InteractionLog[]>([]);
+  const [medicalServices, setMedicalServices] = useState<any[]>([]);
+  const [medicalPackages, setMedicalPackages] = useState<any[]>([]);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [recalls, setRecalls] = useState<any[]>([]);
+  const [followUps, setFollowUps] = useState<any[]>([]);
+  const [csatFeedbacks, setCsatFeedbacks] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [dashboardKpis, setDashboardKpis] = useState<any | null>(null);
   const [apiSyncError, setApiSyncError] = useState<string | null>(null);
 
   // Omnichannel inbox (Zalo OA + Facebook) — realtime via SSE
@@ -192,11 +202,29 @@ export default function App() {
         hydrate('partners', setPartners);
         hydrate('partnerPayouts', setPartnerPayouts);
         hydrate('interactions', setInteractions);
+        hydrate('medicalServices', setMedicalServices);
+        hydrate('medicalPackages', setMedicalPackages);
+        hydrate('doctors', setDoctors);
 
         try {
           const convRes = await apiClient.conversations.list();
           if (!cancelled) setConversations(convRes.conversations || []);
         } catch { /* inbox optional */ }
+
+        // Secondary modules — recalls, follow-ups, CSAT, invoices, dashboard KPIs.
+        const [recallsR, followUpsR, csatR, invoicesR, dashR] = await Promise.all([
+          apiClient.recalls.list().catch(() => ({ recalls: [] as any[] })),
+          apiClient.followUps.list().catch(() => ({ followUps: [] as any[] })),
+          apiClient.csat.getFeedbacks().catch(() => ({ feedbacks: [] as any[] })),
+          apiClient.invoices.list().catch(() => ({ invoices: [] as any[] })),
+          apiClient.analytics.getDashboard().catch(() => null as any)
+        ]);
+        if (cancelled) return;
+        setRecalls(recallsR.recalls || []);
+        setFollowUps(followUpsR.followUps || []);
+        setCsatFeedbacks(csatR.feedbacks || []);
+        setInvoices(invoicesR.invoices || []);
+        setDashboardKpis(dashR);
 
         // Staff accounts live in the auth_users table (admin only).
         try {
@@ -241,14 +269,24 @@ export default function App() {
       if (refetchTimer) clearTimeout(refetchTimer);
       refetchTimer = setTimeout(async () => {
         try {
-          const [p, a, t] = await Promise.all([
+          const [p, a, t, r, f, c, inv, dash] = await Promise.all([
             apiClient.patients.list({ limit: 500 }),
             apiClient.appointments.list(),
-            apiClient.tickets.list()
+            apiClient.tickets.list(),
+            apiClient.recalls.list().catch(() => ({ recalls: [] as any[] })),
+            apiClient.followUps.list().catch(() => ({ followUps: [] as any[] })),
+            apiClient.csat.getFeedbacks().catch(() => ({ feedbacks: [] as any[] })),
+            apiClient.invoices.list().catch(() => ({ invoices: [] as any[] })),
+            apiClient.analytics.getDashboard().catch(() => null as any)
           ]);
           setPatients((p.patients || []).map(mapApiPatient));
           setAppointments((a.appointments || []).map(mapApiAppointment));
           setSupportTickets((t.tickets || []) as SupportTicket[]);
+          setRecalls(r.recalls || []);
+          setFollowUps(f.followUps || []);
+          setCsatFeedbacks(c.feedbacks || []);
+          setInvoices(inv.invoices || []);
+          if (dash) setDashboardKpis(dash);
         } catch { /* ignore */ }
       }, 500);
     };
@@ -324,6 +362,9 @@ export default function App() {
   usePersistedCollection('partners', partners, collectionsHydrated);
   usePersistedCollection('partnerPayouts', partnerPayouts, collectionsHydrated);
   usePersistedCollection('interactions', interactions, collectionsHydrated);
+  usePersistedCollection('medicalServices', medicalServices, collectionsHydrated);
+  usePersistedCollection('medicalPackages', medicalPackages, collectionsHydrated);
+  usePersistedCollection('doctors', doctors, collectionsHydrated);
 
   // Modals & Drawers
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
@@ -535,8 +576,38 @@ export default function App() {
     }
   };
 
+  // Shared: create a support ticket (portal / care view) — persisted via API.
+  const handleCreateTicket = async (t: Omit<SupportTicket, 'id'>) => {
+    try {
+      const res = await apiClient.tickets.create(t as any);
+      setSupportTickets(prev => [res.ticket as SupportTicket, ...prev]);
+    } catch {
+      setSupportTickets(prev => [{ ...(t as any), id: `TK-${Date.now()}` } as SupportTicket, ...prev]);
+    }
+    showToast('Đã ghi nhận yêu cầu / khiếu nại vào hệ thống CSKH & Quản trị SLA!');
+  };
+
+  // Shared: patient self-booking from the portal — persisted via API.
+  const handleSelfBooking = async (aptData: any) => {
+    try {
+      const res = await apiClient.appointments.create({
+        ...aptData,
+        date: aptData.appointmentDate || aptData.date,
+        timeSlot: aptData.timeSlot,
+        channel: aptData.bookingChannel || 'Mobile App',
+        estimatedCost: aptData.fee
+      });
+      setAppointments(prev => [mapApiAppointment(res.appointment), ...prev]);
+    } catch {
+      setAppointments(prev => [{ ...aptData, id: `APT-SELF-${Date.now()}`, code: `LK-PORTAL-${Math.floor(1000 + Math.random() * 9000)}` }, ...prev]);
+    }
+    showToast('Đặt lịch thành công! Yêu cầu đã chuyển sang hàng đợi CSKH gọi lại.');
+  };
+
   // Selected Patient Details for 360 View
   const selectedPatient = (patients || []).find(p => p && p.id === selectedPatientId) || null;
+  // Doctors come from the catalog once configured; fall back to the demo list.
+  const effectiveDoctors: any[] = doctors.length ? doctors : mockDoctors;
 
   // =========================================================================
   // 1. DEDICATED CUSTOMER / PATIENT AUTHENTICATION & STANDALONE PORTAL
@@ -630,28 +701,13 @@ export default function App() {
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 pt-6">
           <PatientPortalView
             patients={patients}
-            doctors={mockDoctors}
+            doctors={effectiveDoctors}
             branches={mockBranches}
             tickets={supportTickets}
             appointments={appointments}
             currentPatientOverride={currentCustomerPatient}
-            onAddNewTicket={(t) => {
-              const newTicket: SupportTicket = {
-                ...t,
-                id: `TK-${Date.now()}`
-              };
-              setSupportTickets(prev => [newTicket, ...prev]);
-              showToast('Phiếu đánh giá / khiếu nại đã chuyển vào hệ thống CSKH & Quản trị SLA!');
-            }}
-            onBookSelfAppointment={(aptData) => {
-              const newApt: Appointment = {
-                ...aptData,
-                id: `APT-SELF-${Date.now()}`,
-                code: `LK-PORTAL-${Math.floor(1000 + Math.random() * 9000)}`
-              };
-              setAppointments(prev => [newApt, ...prev]);
-              showToast(`Đặt lịch thành công! Yêu cầu của Quý khách đã chuyển sang Hàng đợi CSKH gọi lại.`);
-            }}
+            onAddNewTicket={handleCreateTicket}
+            onBookSelfAppointment={handleSelfBooking}
             onSelectPatient={(id) => setSelectedPatientId(id)}
             onCustomerLogout={() => {
               setIsCustomerLoggedIn(false);
@@ -777,6 +833,8 @@ export default function App() {
                 b2bContracts={b2bContracts}
                 supportTickets={supportTickets}
                 tickets={supportTickets}
+                invoices={invoices}
+                serverKpis={dashboardKpis}
                 branches={branches}
                 currentBranchId={currentBranchId}
                 onSelectPatient={(id) => setSelectedPatientId(id)}
@@ -802,7 +860,7 @@ export default function App() {
             {activeTab === 'appointments' && (
               <AppointmentsView
                 appointments={appointments}
-                doctors={mockDoctors}
+                doctors={effectiveDoctors}
                 branches={branches}
                 patients={patients}
                 currentBranchId={currentBranchId}
@@ -893,15 +951,11 @@ export default function App() {
                 branches={branches}
                 currentBranchId={currentBranchId}
                 appointments={appointments}
+                recalls={recalls}
+                csatFeedbacks={csatFeedbacks}
+                followUps={followUps}
                 onUpdateTicketStatus={handleUpdateTicketStatus}
-                onAddNewTicket={(t) => {
-                  const newTicket: SupportTicket = {
-                    ...t,
-                    id: `TK-${Date.now()}`
-                  };
-                  setSupportTickets(prev => [newTicket, ...prev]);
-                  showToast('Đã ghi nhận yêu cầu / khiếu nại mới vào hệ thống SLA!');
-                }}
+                onAddNewTicket={handleCreateTicket}
                 onConfirmAppointmentAndTransfer={(aptId) => {
                   setAppointments(prev =>
                     prev.map(a => (a.id === aptId ? {
@@ -947,31 +1001,43 @@ export default function App() {
               />
             )}
 
+            {/* 6c. Catalog — Packages, Services, Doctors */}
+            {activeTab === 'catalog' && (
+              <CatalogView
+                services={medicalServices}
+                packages={medicalPackages}
+                doctors={doctors}
+                onSaveServices={setMedicalServices}
+                onSavePackages={setMedicalPackages}
+                onSaveDoctors={setDoctors}
+              />
+            )}
+
+            {/* 6d. Billing — Invoices & VietQR */}
+            {activeTab === 'billing' && (
+              <BillingView
+                invoices={invoices}
+                patients={patients}
+                services={medicalServices}
+                onChanged={async () => {
+                  try {
+                    const r = await apiClient.invoices.list();
+                    setInvoices(r.invoices || []);
+                  } catch { /* ignore */ }
+                }}
+              />
+            )}
+
             {/* 7. Patient Portal & Self Booking */}
             {activeTab === 'portal' && (
               <PatientPortalView
                 patients={patients}
-                doctors={mockDoctors}
+                doctors={effectiveDoctors}
                 branches={mockBranches}
                 tickets={supportTickets}
                 appointments={appointments}
-                onAddNewTicket={(t) => {
-                  const newTicket: SupportTicket = {
-                    ...t,
-                    id: `TK-${Date.now()}`
-                  };
-                  setSupportTickets(prev => [newTicket, ...prev]);
-                  showToast('Phiếu đánh giá / khiếu nại đã chuyển vào hệ thống CSKH & Quản trị SLA!');
-                }}
-                onBookSelfAppointment={(aptData) => {
-                  const newApt: Appointment = {
-                    ...aptData,
-                    id: `APT-SELF-${Date.now()}`,
-                    code: `LK-PORTAL-${Math.floor(1000 + Math.random() * 9000)}`
-                  };
-                  setAppointments(prev => [newApt, ...prev]);
-                  showToast(`Đặt lịch thành công! Yêu cầu của Quý khách đã chuyển sang Hàng đợi CSKH gọi lại.`);
-                }}
+                onAddNewTicket={handleCreateTicket}
+                onBookSelfAppointment={handleSelfBooking}
                 onSelectPatient={(id) => setSelectedPatientId(id)}
                 onNavigateToCare={() => setActiveTab('care')}
                 onNavigateToAppointments={() => setActiveTab('appointments')}
@@ -1053,23 +1119,19 @@ export default function App() {
           setSelectedPatientId(null);
           setIsBookModalOpen(true);
         }}
-        onUpdatePatientTier={(patId, newTier, pointsDelta = 0, reason = '') => {
-          setPatients(prev => prev.map(p => {
-            if (p.id === patId) {
-              const currentPoints = p.membership?.points || 0;
-              const updatedPoints = Math.max(0, currentPoints + pointsDelta);
-              return {
-                ...p,
-                membership: {
-                  ...p.membership,
-                  tier: newTier,
-                  points: updatedPoints
-                }
-              };
-            }
-            return p;
-          }));
-          showToast(`Đã nâng hạng thành công sang [${newTier}] (${pointsDelta >= 0 ? `+${pointsDelta}` : pointsDelta} điểm)!`);
+        onUpdatePatientTier={async (patId, newTier, pointsDelta = 0) => {
+          const target = patients.find(p => p.id === patId);
+          const updatedPoints = Math.max(0, (target?.membership?.points || 0) + pointsDelta);
+          setPatients(prev => prev.map(p => p.id === patId
+            ? { ...p, membership: { ...p.membership, tier: newTier, points: updatedPoints } }
+            : p));
+          try {
+            await apiClient.patients.update(patId, { loyaltyTier: newTier, loyaltyPoints: updatedPoints });
+          } catch {
+            showToast('Máy chủ chưa sẵn sàng; nâng hạng chỉ lưu trong phiên hiện tại.');
+            return;
+          }
+          showToast(`Đã nâng hạng sang [${newTier}] (${pointsDelta >= 0 ? `+${pointsDelta}` : pointsDelta} điểm) — đã lưu.`);
         }}
       />
 
@@ -1078,7 +1140,7 @@ export default function App() {
         isOpen={isAiAssistantOpen}
         onClose={() => setIsAiAssistantOpen(false)}
         patients={patients}
-        doctors={mockDoctors}
+        doctors={effectiveDoctors}
         onOpenBookAppointment={(patientId, department) => {
           setBookingTargetPatientId(patientId || null);
           setBookingTargetDepartment(department || null);
@@ -1096,7 +1158,7 @@ export default function App() {
           setBookingTargetDepartment(null);
         }}
         patients={patients}
-        doctors={mockDoctors}
+        doctors={effectiveDoctors}
         branches={branches}
         currentBranchId={currentBranchId}
         initialPatientId={bookingTargetPatientId}
