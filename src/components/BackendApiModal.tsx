@@ -101,52 +101,52 @@ interface IntegrationConfig {
 
 const DEFAULT_INTEGRATION_CONFIG: IntegrationConfig = {
   zns: {
-    enabled: true,
-    oaId: '284910284719284',
-    appId: 'zalo_app_88392019',
+    enabled: false,
+    oaId: '',
+    appId: '',
     secretKey: '••••••••••••••••••••••••••••••••',
-    accessToken: 'zns_tok_9918239019230912',
-    webhookUrl: 'https://crm.vithospital.vn/api/zns/callback',
-    status: 'connected',
-    lastPing: 'Vừa kết nối (Quota: 9,850/10,000)'
+    accessToken: '',
+    webhookUrl: '',
+    status: 'disconnected',
+    lastPing: 'Chưa cấu hình nhà cung cấp'
   },
   voip: {
-    enabled: true,
+    enabled: false,
     provider: 'Stringee',
-    sipDomain: 'sip.vithospital.stringee.com',
-    apiKey: 'SK.0.981723.stringee_vit_prod',
+    sipDomain: '',
+    apiKey: '',
     apiSecret: '••••••••••••••••••••••••••••••••',
-    hotline: '1900 8899 (Nhánh 1 - CSKH)',
-    webhookCdrUrl: 'https://crm.vithospital.vn/api/calls/cdr-callback',
-    status: 'connected',
-    lastPing: 'Vừa kết nối (Đang trực: 8 line)'
+    hotline: '',
+    webhookCdrUrl: '',
+    status: 'disconnected',
+    lastPing: 'Chưa cấu hình nhà cung cấp'
   },
   sms: {
-    enabled: true,
-    brandName: 'VITHOSPITAL',
+    enabled: false,
+    brandName: '',
     provider: 'Viettel',
-    username: 'cskh_vithospital',
+    username: '',
     secretKey: '••••••••••••••••••••••••••••••••',
-    quotaRemaining: 45200,
-    status: 'connected',
-    lastPing: 'Vừa kết nối (Độ trễ: 35ms)'
+    quotaRemaining: 0,
+    status: 'disconnected',
+    lastPing: 'Chưa cấu hình nhà cung cấp'
   },
   email: {
-    enabled: true,
+    enabled: false,
     provider: 'SendGrid',
-    senderEmail: 'cskh@vithospital.vn',
-    senderName: 'Bệnh Viện Đa Khoa Quốc Tế VitCare',
+    senderEmail: '',
+    senderName: '',
     apiKey: 'SG.••••••••••••••••••••••••••••••••',
-    status: 'connected',
-    lastPing: 'Vừa kết nối (Deliverability: 99.4%)'
+    status: 'disconnected',
+    lastPing: 'Chưa cấu hình nhà cung cấp'
   },
   webhooks: {
-    enabled: true,
-    targetUrl: 'https://webhook.site/crm-events-receiver',
-    secretSignature: 'whsec_991823719023812039',
+    enabled: false,
+    targetUrl: '',
+    secretSignature: '',
     events: ['patient.created', 'appointment.booked', 'ticket.sla_breach', 'deal.closed_won'],
-    status: 'connected',
-    lastPing: 'Vừa kết nối (200 OK)'
+    status: 'disconnected',
+    lastPing: 'Chưa cấu hình webhook'
   }
 };
 
@@ -163,7 +163,7 @@ export const BackendApiModal: React.FC<BackendApiModalProps> = ({ onClose }) => 
 
   // Integration Config State
   const [config, setConfig] = useState<IntegrationConfig>(() => {
-    const saved = localStorage.getItem('vitcrm_integration_config');
+    const saved = localStorage.getItem('vitcrm_integration_config_v2');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -186,26 +186,24 @@ export const BackendApiModal: React.FC<BackendApiModalProps> = ({ onClose }) => 
   };
 
   const handleSaveConfig = () => {
-    localStorage.setItem('vitcrm_integration_config', JSON.stringify(config));
+    localStorage.setItem('vitcrm_integration_config_v2', JSON.stringify(config));
     setSaveSuccessMsg('Đã lưu cấu hình kết nối CSKH thành công vào hệ thống!');
     setTimeout(() => setSaveSuccessMsg(''), 3000);
   };
 
   const handlePingTest = (serviceKey: keyof IntegrationConfig) => {
     setTestingConnection(serviceKey);
-    setTimeout(() => {
-      setConfig(prev => ({
-        ...prev,
-        [serviceKey]: {
-          ...prev[serviceKey],
-          status: 'connected',
-          lastPing: `Kết nối thành công lúc ${new Date().toLocaleTimeString('vi-VN')} (Độ trễ 24ms - HTTP 200 OK)`
-        }
-      }));
-      setTestingConnection(null);
-      setSaveSuccessMsg(`Kiểm tra kết nối ${serviceKey.toUpperCase()} thành công!`);
-      setTimeout(() => setSaveSuccessMsg(''), 3000);
-    }, 900);
+    setConfig(prev => ({
+      ...prev,
+      [serviceKey]: {
+        ...prev[serviceKey],
+        status: 'disconnected',
+        lastPing: 'Chưa có adapter/provider thật để kiểm tra kết nối.'
+      }
+    }));
+    setTestingConnection(null);
+    setSaveSuccessMsg(`Chưa thể kiểm tra ${serviceKey.toUpperCase()}: nhà cung cấp chưa được cấu hình.`);
+    setTimeout(() => setSaveSuccessMsg(''), 3000);
   };
 
   const categories = [
