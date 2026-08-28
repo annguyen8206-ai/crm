@@ -1,5 +1,22 @@
+import dotenv from 'dotenv';
 import { Pool } from 'pg';
 import { dbStore } from './store';
+
+dotenv.config();
+
+export type DbSnapshot = {
+  patients: unknown[];
+  appointments: unknown[];
+  tickets: unknown[];
+  leads: unknown[];
+  invoices: unknown[];
+  followUps: unknown[];
+  recalls: unknown[];
+  znsLogs: unknown[];
+  voipCalls: unknown[];
+  csatFeedbacks: unknown[];
+  auditLogs: unknown[];
+};
 
 const connectionString = process.env.DATABASE_URL;
 export const databaseConfigured = Boolean(connectionString);
@@ -12,7 +29,12 @@ export async function initializeDatabase(): Promise<void> {
       id SMALLINT PRIMARY KEY CHECK (id = 1),
       snapshot JSONB NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+    );
+    CREATE TABLE IF NOT EXISTS vitcrm_migrations (
+      version INTEGER PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS vitcrm_store_updated_at_idx ON vitcrm_store (updated_at);
   `);
   const result = await pool.query<{ snapshot: Record<string, unknown> }>('SELECT snapshot FROM vitcrm_store WHERE id = 1');
   if (result.rowCount) {
@@ -41,7 +63,7 @@ export async function checkDatabase(): Promise<{ configured: boolean; connected:
   }
 }
 
-function createSnapshot(): Record<string, unknown> {
+function createSnapshot(): DbSnapshot {
   return {
     patients: dbStore.patients,
     appointments: dbStore.appointments,
@@ -57,10 +79,11 @@ function createSnapshot(): Record<string, unknown> {
   };
 }
 
-function restoreStore(snapshot: Record<string, unknown>): void {
+function restoreStore(snapshot: Partial<DbSnapshot>): void {
   const store = dbStore as unknown as Record<string, unknown>;
-  for (const key of Object.keys(createSnapshot())) {
-    const value = snapshot[key];
+  const source = snapshot as Record<keyof DbSnapshot, unknown>;
+  for (const key of Object.keys(createSnapshot()) as Array<keyof DbSnapshot>) {
+    const value = source[key];
     if (Array.isArray(value)) store[key] = value;
   }
 }

@@ -30,6 +30,7 @@ import {
 import { CurrentUser, Branch, UserRole, BranchId } from '../types';
 import { CURRENT_USERS, INITIAL_BRANCHES } from '../data/mockData';
 import { ROLE_CONFIGS, getRoleConfig } from '../utils/rbac';
+import { apiClient } from '../utils/apiClient';
 
 // Helper to get monogram initials from staff name
 function getStaffInitials(name: string): string {
@@ -66,9 +67,26 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
   const [otpInput, setOtpInput] = useState<string>('');
 
   // Handle Form Submit Login with strict credentials check
-  const handleFormLogin = (e: React.FormEvent) => {
+  const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    try {
+      const result = await apiClient.auth.staffLogin(usernameOrEmail, password);
+      onLoginSuccess({
+        ...result.user,
+        roleTitle: result.user.roleTitle || result.user.role,
+        status: 'active'
+      } as CurrentUser);
+      return;
+    } catch (apiError) {
+      // Demo fallback is allowed only outside production backend authentication.
+      const isProductionBuild = Boolean((import.meta as ImportMeta & { env?: { PROD?: boolean } }).env?.PROD);
+      if (isProductionBuild) {
+        setErrorMsg('Không thể xác thực với máy chủ. Vui lòng thử lại hoặc liên hệ quản trị viên.');
+        return;
+      }
+    }
 
     const cleanInput = usernameOrEmail.trim().toLowerCase();
     const matchedUser = staffList.find(

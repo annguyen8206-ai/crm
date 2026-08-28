@@ -1,10 +1,13 @@
 import express from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { dbStore, PatientRecord, AppointmentRecord, SupportTicketRecord, LeadDealRecord, InvoiceRecord, FollowUpTaskRecord, AutoRecallRecord, ZnsLogRecord, VoipCallRecord, CsatFeedbackRecord } from "./server/store";
 import { checkDatabase, databaseConfigured, initializeDatabase, persistStore } from "./server/database";
+import { authConfigured, initializeAuth, loginStaff, requireAuth } from "./server/auth";
 
 dotenv.config();
 
@@ -27,8 +30,14 @@ async function startServer() {
   if (process.env.NODE_ENV === 'production' && !databaseConfigured) {
     throw new Error('DATABASE_URL is required in production');
   }
+  if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is required in production');
+  }
   await initializeDatabase();
+  await initializeAuth();
 
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
   app.use(express.json({ limit: '2mb' }));
 
   // Persist every successful write request after handlers complete.
@@ -46,7 +55,9 @@ async function startServer() {
       const userHeader = req.headers["x-user-id"] as string || "system";
       const userNameHeader = decodeURIComponent(req.headers["x-user-name"] as string || "Nhân viên VitHospital");
       const roleHeader = decodeURIComponent(req.headers["x-user-role"] as string || "Staff");
-      dbStore.addAuditLog(userHeader, userNameHeader, roleHeader, `${req.method} ${req.path}`, "API Gateway", `Payload: ${JSON.stringify(req.body).slice(0, 100)}...`);
+      const safeBody = { ...req.body };
+      for (const key of ['password', 'password_hash', 'token', 'accessToken', 'secret', 'apiKey']) delete safeBody[key];
+      dbStore.addAuditLog(userHeader, userNameHeader, roleHeader, `${req.method} ${req.path}`, "API Gateway", `Payload: ${JSON.stringify(safeBody).slice(0, 100)}...`);
     }
     next();
   });
@@ -75,9 +86,26 @@ async function startServer() {
         },
         geminiAiConfigured: !!process.env.GEMINI_API_KEY,
         storage: databaseConfigured ? 'postgresql-jsonb-snapshot' : 'in-memory-demo',
-        databaseConnection: database
+        databaseConnection: database,
+        authentication: { configured: authConfigured }
       });
   });
+
+  app.post('/api/auth/staff/login', async (req, res) => {
+    try {
+      const { identifier, password } = req.body || {};
+      if (typeof identifier !== 'string' || typeof password !== 'string' || !identifier || !password) {
+        return res.status(400).json({ error: 'Vui lòng nhập tài khoản và mật khẩu' });
+      }
+      const result = await loginStaff(identifier, password);
+      res.json({ success: true, user: result, token: result.token });
+    } catch (error: any) {
+      res.status(401).json({ error: error.message || 'Đăng nhập thất bại' });
+    }
+  });
+
+  // All business APIs require a valid backend token.
+  app.use('/api', requireAuth);
 
   // System Audit Logs
   app.get("/api/system/audit-logs", (req, res) => {

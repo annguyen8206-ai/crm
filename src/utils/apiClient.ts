@@ -10,8 +10,10 @@ export interface ApiResponse<T> {
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('vitcrm_access_token') : null;
   const headers = {
     'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };
 
@@ -34,6 +36,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const apiClient = {
+  auth: {
+    async staffLogin(identifier: string, password: string) {
+      const result = await request<{ success: boolean; user: any; token: string }>('/auth/staff/login', {
+        method: 'POST',
+        body: JSON.stringify({ identifier, password })
+      });
+      localStorage.setItem('vitcrm_access_token', result.token);
+      return result;
+    },
+    logout() {
+      localStorage.removeItem('vitcrm_access_token');
+    }
+  },
+
   // 1. Health & System
   async getHealth() {
     return request<any>('/health');

@@ -129,6 +129,7 @@ export default function App() {
   const [apiSyncError, setApiSyncError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isStaffLoggedIn) return;
     let cancelled = false;
     const loadApiData = async () => {
       try {
@@ -151,7 +152,7 @@ export default function App() {
     };
     void loadApiData();
     return () => { cancelled = true; };
-  }, []);
+  }, [isStaffLoggedIn]);
 
   // Modals & Drawers
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
