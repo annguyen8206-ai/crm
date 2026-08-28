@@ -39,13 +39,24 @@ export async function initializeDatabase(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS vitcrm_store_updated_at_idx ON vitcrm_store (updated_at);
   `);
-  const migrationPath = path.join(process.cwd(), 'migrations', '001_production_schema.sql');
-  try {
-    const migrationSql = await fs.readFile(migrationPath, 'utf8');
-    const migrationResult = await pool.query('SELECT 1 FROM vitcrm_migrations WHERE version = 1');
-    if (!migrationResult.rowCount) await pool.query(migrationSql);
-  } catch (error: any) {
-    throw new Error(`Database migration failed: ${error.message}`);
+  // The bundled migrations/001_production_schema.sql defines relational tables the
+  // running app does NOT use (everything lives in the vitcrm_store JSONB snapshot
+  // + auth_users). It is opt-in and never fatal — on a DB that already has another
+  // schema (e.g. database/migrations/001_initial_schema.sql) it would only clash.
+  if (process.env.RUN_LEGACY_MIGRATION === 'true') {
+    const migrationPath = path.join(process.cwd(), 'migrations', '001_production_schema.sql');
+    try {
+      const migrationSql = await fs.readFile(migrationPath, 'utf8');
+      const migrationResult = await pool.query('SELECT 1 FROM vitcrm_migrations WHERE version = 1');
+      if (!migrationResult.rowCount) {
+        await pool.query(migrationSql);
+        console.log('[db] Legacy migration 001_production_schema.sql applied.');
+      } else {
+        console.log('[db] Legacy migration already recorded — skipping.');
+      }
+    } catch (error: any) {
+      console.warn(`[db] Legacy migration skipped (non-fatal): ${error.message}`);
+    }
   }
   const result = await pool.query<{ snapshot: Record<string, unknown> }>('SELECT snapshot FROM vitcrm_store WHERE id = 1');
   if (result.rowCount) {
