@@ -38,12 +38,29 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 export const apiClient = {
   auth: {
     async staffLogin(identifier: string, password: string) {
-      const result = await request<{ success: boolean; user: any; token: string }>('/auth/staff/login', {
+      const result = await request<{
+        success: boolean; user?: any; token?: string;
+        twoFactorRequired?: boolean; preAuthToken?: string; channel?: string; otpMode?: string; devCode?: string;
+      }>('/auth/staff/login', {
         method: 'POST',
         body: JSON.stringify({ identifier, password })
       });
-      localStorage.setItem('vitcrm_access_token', result.token);
+      if (result.token) localStorage.setItem('vitcrm_access_token', result.token);
       return result;
+    },
+    async staffLogin2fa(preAuthToken: string, code: string) {
+      const result = await request<{ success: boolean; user: any; token: string }>('/auth/staff/login/2fa', {
+        method: 'POST',
+        body: JSON.stringify({ preAuthToken, code })
+      });
+      if (result.token) localStorage.setItem('vitcrm_access_token', result.token);
+      return result;
+    },
+    async staffLogin2faResend(preAuthToken: string) {
+      return request<{ success: boolean; channel?: string; otpMode?: string; devCode?: string }>('/auth/staff/login/2fa/resend', {
+        method: 'POST',
+        body: JSON.stringify({ preAuthToken })
+      });
     },
     logout() {
       localStorage.removeItem('vitcrm_access_token');
@@ -55,7 +72,7 @@ export const apiClient = {
     async list() {
       return request<{ staff: any[] }>('/staff');
     },
-    async create(data: { email: string; password: string; name: string; role?: string; roleTitle?: string; staffCode?: string | null; department?: string | null; branchId?: string | null; status?: string }) {
+    async create(data: { email: string; password: string; name: string; role?: string; roleTitle?: string; staffCode?: string | null; department?: string | null; branchId?: string | null; status?: string; phone?: string | null; twoFactorEnabled?: boolean }) {
       return request<{ success: boolean; staff: any }>('/staff', { method: 'POST', body: JSON.stringify(data) });
     },
     async update(id: string, data: Record<string, unknown>) {

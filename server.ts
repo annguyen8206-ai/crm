@@ -7,7 +7,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { dbStore, PatientRecord, AppointmentRecord, SupportTicketRecord, LeadDealRecord, InvoiceRecord, FollowUpTaskRecord, AutoRecallRecord, ZnsLogRecord, VoipCallRecord, CsatFeedbackRecord } from "./server/store";
 import { checkDatabase, databaseConfigured, initializeDatabase, persistStore } from "./server/database";
-import { authConfigured, authStatus, authTableReady, createStaff, initializeAuth, listStaff, loginStaff, requireAuth, updateStaff } from "./server/auth";
+import { authConfigured, authStatus, authTableReady, completeStaff2fa, createStaff, initializeAuth, listStaff, loginStaff, requireAuth, updateStaff, verifyPreAuthToken } from "./server/auth";
 import {
   integrationsStatus, logIntegrationsStatus,
   sendZns,
@@ -137,6 +137,10 @@ async function startServer() {
       });
   });
 
+  async function sendLoginOtp(userId: string, phone: string | null, email: string) {
+    return requestOtp(`2fa:${userId}`, { phone: phone || undefined, email, purpose: 'Đăng nhập VitCRM' });
+  }
+
   app.post('/api/auth/staff/login', async (req, res) => {
     try {
       const { identifier, password } = req.body || {};
@@ -144,9 +148,45 @@ async function startServer() {
         return res.status(400).json({ error: 'Vui lòng nhập tài khoản và mật khẩu' });
       }
       const result = await loginStaff(identifier, password);
-      res.json({ success: true, user: result, token: result.token });
+      if (result.kind === 'session') {
+        return res.json({ success: true, user: result.user, token: result.token });
+      }
+      const otp = await sendLoginOtp(result.userId, result.phone, result.email);
+      res.json({
+        success: false,
+        twoFactorRequired: true,
+        preAuthToken: result.preAuthToken,
+        channel: otp.channel,
+        otpMode: otp.mode,
+        ...(otp.devCode ? { devCode: otp.devCode } : {})
+      });
     } catch (error: any) {
       res.status(401).json({ error: error.message || 'Đăng nhập thất bại' });
+    }
+  });
+
+  app.post('/api/auth/staff/login/2fa', async (req, res) => {
+    try {
+      const { preAuthToken, code } = req.body || {};
+      if (!preAuthToken || !code) return res.status(400).json({ error: 'Thiếu preAuthToken hoặc mã OTP' });
+      const result = await completeStaff2fa(String(preAuthToken), String(code));
+      res.json({ success: true, user: result.user, token: result.token });
+    } catch (error: any) {
+      res.status(401).json({ error: error.message || 'Xác thực 2 lớp thất bại' });
+    }
+  });
+
+  app.post('/api/auth/staff/login/2fa/resend', async (req, res) => {
+    try {
+      const { preAuthToken } = req.body || {};
+      if (!preAuthToken) return res.status(400).json({ error: 'Thiếu preAuthToken' });
+      const { userId } = verifyPreAuthToken(String(preAuthToken));
+      const staff = (await listStaff()).find(s => s.id === userId);
+      if (!staff) return res.status(404).json({ error: 'Không tìm thấy tài khoản' });
+      const otp = await sendLoginOtp(userId, staff.phone, staff.email);
+      res.json({ success: otp.sent, channel: otp.channel, otpMode: otp.mode, ...(otp.devCode ? { devCode: otp.devCode } : {}) });
+    } catch (error: any) {
+      res.status(401).json({ error: error.message || 'Không gửi lại được mã' });
     }
   });
 

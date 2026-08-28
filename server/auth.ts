@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
 import { pool } from './database';
+import { verifyOtp } from './integrations/otp';
 
 export interface AuthUser {
   id: string;
@@ -58,6 +59,8 @@ const AUTH_DDL: string[] = [
      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
      last_login_at TIMESTAMPTZ
    )`,
+  `ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS phone TEXT`,
+  `ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
   `CREATE UNIQUE INDEX IF NOT EXISTS auth_users_email_lower_idx ON auth_users (LOWER(email))`,
   `CREATE INDEX IF NOT EXISTS auth_users_staff_code_idx ON auth_users (LOWER(staff_code))`
 ];
@@ -164,7 +167,11 @@ function rowToAuthUser(user: any): AuthUser {
   };
 }
 
-export async function loginStaff(identifier: string, password: string): Promise<AuthUser & { token: string }> {
+export type StaffLoginResult =
+  | { kind: 'session'; user: AuthUser; token: string }
+  | { kind: '2fa'; preAuthToken: string; userId: string; phone: string | null; email: string };
+
+export async function loginStaff(identifier: string, password: string): Promise<StaffLoginResult> {
   if (!pool) {
     console.error('[auth] login blocked: DATABASE_URL not configured.');
     throw new Error('Máy chủ chưa cấu hình DATABASE_URL nên chưa thể xác thực. Liên hệ quản trị viên.');
@@ -201,21 +208,65 @@ export async function loginStaff(identifier: string, password: string): Promise<
     throw new Error('Tài khoản hoặc mật khẩu không chính xác');
   }
 
-  await pool.query('UPDATE auth_users SET failed_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = $1', [user.id]);
+  // Password OK — clear the failed-attempt counter.
+  await pool.query('UPDATE auth_users SET failed_attempts = 0, locked_until = NULL WHERE id = $1', [user.id]);
+
+  if (user.two_factor_enabled === true) {
+    const preAuthToken = jwt.sign({ sub: user.id, scope: 'pre-2fa' }, jwtSecret, { expiresIn: '5m' });
+    return { kind: '2fa', preAuthToken, userId: user.id, phone: user.phone ?? null, email: user.email };
+  }
+
+  await pool.query('UPDATE auth_users SET last_login_at = NOW() WHERE id = $1', [user.id]);
   const authUser = rowToAuthUser(user);
-  return { ...authUser, token: jwt.sign(authUser, jwtSecret, { expiresIn: '8h' }) };
+  return { kind: 'session', user: authUser, token: jwt.sign(authUser, jwtSecret, { expiresIn: '8h' }) };
 }
 
-export async function listStaff(): Promise<Array<AuthUser & { status: string; lastLoginAt: string | null }>> {
+/** Verifies the short-lived token issued between password step and OTP step. */
+export function verifyPreAuthToken(token: string): { userId: string } {
+  if (!jwtSecret) throw new Error('Máy chủ chưa cấu hình JWT_SECRET');
+  let payload: any;
+  try {
+    payload = jwt.verify(token, jwtSecret);
+  } catch {
+    throw new Error('Phiên xác thực 2 lớp đã hết hạn. Vui lòng đăng nhập lại.');
+  }
+  if (payload?.scope !== 'pre-2fa' || !payload?.sub) throw new Error('Token xác thực 2 lớp không hợp lệ');
+  return { userId: String(payload.sub) };
+}
+
+/** Second step of a 2FA login: exchange (preAuthToken + OTP) for a real session token. */
+export async function completeStaff2fa(preAuthToken: string, code: string): Promise<{ user: AuthUser; token: string }> {
+  if (!pool || !jwtSecret) throw new Error('Authentication chưa được cấu hình');
+  const { userId } = verifyPreAuthToken(preAuthToken);
+  const otp = verifyOtp(`2fa:${userId}`, code);
+  if (!otp.ok) throw new Error(otp.error || 'Mã OTP không đúng');
+
+  const { rows } = await pool.query<any>('SELECT * FROM auth_users WHERE id = $1 LIMIT 1', [userId]);
+  const user = rows[0];
+  if (!user || user.status !== 'active') throw new Error('Tài khoản không khả dụng');
+
+  await pool.query('UPDATE auth_users SET failed_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = $1', [userId]);
+  const authUser = rowToAuthUser(user);
+  return { user: authUser, token: jwt.sign(authUser, jwtSecret, { expiresIn: '8h' }) };
+}
+
+type StaffRecord = AuthUser & { status: string; phone: string | null; twoFactorEnabled: boolean };
+
+function rowToStaff(row: any): StaffRecord {
+  return { ...rowToAuthUser(row), status: row.status, phone: row.phone ?? null, twoFactorEnabled: row.two_factor_enabled === true };
+}
+
+export async function listStaff(): Promise<Array<StaffRecord & { lastLoginAt: string | null }>> {
   if (!pool) return [];
   const { rows } = await pool.query<any>('SELECT * FROM auth_users ORDER BY created_at ASC');
-  return rows.map(row => ({ ...rowToAuthUser(row), status: row.status, lastLoginAt: row.last_login_at }));
+  return rows.map(row => ({ ...rowToStaff(row), lastLoginAt: row.last_login_at }));
 }
 
 export async function createStaff(input: {
   email: string; password: string; name: string; role?: string; roleTitle?: string;
   staffCode?: string | null; department?: string | null; branchId?: string | null; status?: string;
-}): Promise<AuthUser & { status: string }> {
+  phone?: string | null; twoFactorEnabled?: boolean;
+}): Promise<StaffRecord> {
   if (!pool) throw new Error('Máy chủ chưa cấu hình DATABASE_URL nên chưa thể tạo tài khoản.');
   if (!input.email || !input.password || !input.name) throw new Error('Email, mật khẩu và tên là bắt buộc');
   const role = input.role || 'receptionist';
@@ -224,13 +275,14 @@ export async function createStaff(input: {
   const hash = await bcrypt.hash(input.password, 12);
   try {
     const { rows } = await pool.query<any>(
-      `INSERT INTO auth_users (id, email, staff_code, name, password_hash, role, role_title, department, branch_id, status)
-       VALUES ($1, LOWER($2), $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 'active'))
+      `INSERT INTO auth_users (id, email, staff_code, name, password_hash, role, role_title, department, branch_id, status, phone, two_factor_enabled)
+       VALUES ($1, LOWER($2), $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 'active'), $11, COALESCE($12, FALSE))
        RETURNING *`,
       [id, input.email, input.staffCode || null, input.name, hash, role, roleTitle,
-       input.department || null, input.branchId || null, input.status || null]
+       input.department || null, input.branchId || null, input.status || null,
+       input.phone || null, input.twoFactorEnabled ?? null]
     );
-    return { ...rowToAuthUser(rows[0]), status: rows[0].status };
+    return rowToStaff(rows[0]);
   } catch (error: any) {
     if (error.code === '23505') throw new Error('Email hoặc mã nhân viên đã tồn tại trong hệ thống');
     throw error;
@@ -240,7 +292,8 @@ export async function createStaff(input: {
 export async function updateStaff(id: string, input: {
   name?: string; role?: string; roleTitle?: string; staffCode?: string | null;
   department?: string | null; branchId?: string | null; status?: string; password?: string;
-}): Promise<AuthUser & { status: string }> {
+  phone?: string | null; twoFactorEnabled?: boolean;
+}): Promise<StaffRecord> {
   if (!pool) throw new Error('Máy chủ chưa cấu hình DATABASE_URL nên chưa thể cập nhật tài khoản.');
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -253,12 +306,14 @@ export async function updateStaff(id: string, input: {
   if (input.department !== undefined) set('department', input.department);
   if (input.branchId !== undefined) set('branch_id', input.branchId);
   if (input.status !== undefined) set('status', input.status);
+  if (input.phone !== undefined) set('phone', input.phone);
+  if (input.twoFactorEnabled !== undefined) set('two_factor_enabled', input.twoFactorEnabled);
   if (input.password) set('password_hash', await bcrypt.hash(input.password, 12));
   if (!fields.length) throw new Error('Không có trường nào để cập nhật');
   values.push(id);
   const { rows } = await pool.query<any>(`UPDATE auth_users SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`, values);
   if (!rows.length) throw new Error('Không tìm thấy tài khoản');
-  return { ...rowToAuthUser(rows[0]), status: rows[0].status };
+  return rowToStaff(rows[0]);
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {

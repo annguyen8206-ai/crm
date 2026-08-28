@@ -65,6 +65,18 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
   const [requires2FA, setRequires2FA] = useState<boolean>(false);
   const [pendingUser, setPendingUser] = useState<CurrentUser | null>(null);
   const [otpInput, setOtpInput] = useState<string>('');
+  // Backend-issued 2FA (real OTP). When null we fall back to the offline demo path.
+  const [pendingPreAuth, setPendingPreAuth] = useState<string | null>(null);
+  const [otpChannelHint, setOtpChannelHint] = useState<string>('');
+  const [otpDevCode, setOtpDevCode] = useState<string | null>(null);
+  const [otpBusy, setOtpBusy] = useState<boolean>(false);
+
+  const describeChannel = (channel?: string, mode?: string) => {
+    if (mode === 'simulated') return 'đã tạo (giả lập — chưa cấu hình SMS/email, xem log máy chủ hoặc mã dev bên dưới)';
+    if (channel === 'sms') return 'đã gửi qua SMS tới số điện thoại đã đăng ký';
+    if (channel === 'email') return 'đã gửi qua email công vụ';
+    return 'đã được gửi tới kênh bảo mật đã đăng ký';
+  };
 
   // Handle Form Submit Login with strict credentials check
   const handleFormLogin = async (e: React.FormEvent) => {
@@ -73,6 +85,15 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
 
     try {
       const result = await apiClient.auth.staffLogin(usernameOrEmail, password);
+      if (result.twoFactorRequired && result.preAuthToken) {
+        setPendingPreAuth(result.preAuthToken);
+        setPendingUser(null);
+        setOtpInput('');
+        setOtpChannelHint(describeChannel(result.channel, result.otpMode));
+        setOtpDevCode(result.devCode || null);
+        setRequires2FA(true);
+        return;
+      }
       onLoginSuccess({
         ...result.user,
         roleTitle: result.user.roleTitle || result.user.role,
@@ -133,8 +154,29 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
   };
 
   // Handle Verify 2FA OTP
-  const handleVerify2FA = (e: React.FormEvent) => {
+  const handleVerify2FA = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
+
+    // Backend path: exchange preAuthToken + OTP for a real session token.
+    if (pendingPreAuth) {
+      setOtpBusy(true);
+      try {
+        const result = await apiClient.auth.staffLogin2fa(pendingPreAuth, otpInput.trim());
+        onLoginSuccess({
+          ...result.user,
+          roleTitle: result.user.roleTitle || result.user.role,
+          status: 'active'
+        } as CurrentUser);
+      } catch (err) {
+        setErrorMsg(err instanceof Error ? err.message : 'Mã xác thực không chính xác hoặc đã hết hạn.');
+      } finally {
+        setOtpBusy(false);
+      }
+      return;
+    }
+
+    // Offline demo path (no backend auth): fixed code.
     if (otpInput.trim() !== '686868') {
       setErrorMsg('Mã xác thực 2FA không chính xác hoặc đã hết hạn.');
       return;
@@ -142,6 +184,30 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
     if (pendingUser) {
       onLoginSuccess(pendingUser);
     }
+  };
+
+  const handleResendOtp = async () => {
+    if (!pendingPreAuth) return;
+    setErrorMsg(null);
+    setOtpBusy(true);
+    try {
+      const r = await apiClient.auth.staffLogin2faResend(pendingPreAuth);
+      setOtpChannelHint(describeChannel(r.channel, r.otpMode));
+      setOtpDevCode(r.devCode || null);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Không gửi lại được mã. Vui lòng đăng nhập lại.');
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  const handleCancel2FA = () => {
+    setRequires2FA(false);
+    setPendingPreAuth(null);
+    setPendingUser(null);
+    setOtpInput('');
+    setOtpDevCode(null);
+    setErrorMsg(null);
   };
 
   return (
@@ -280,8 +346,18 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                 /* 2FA Verification Step */
                 <form onSubmit={handleVerify2FA} className="space-y-4 text-xs">
                   <div className="p-3 bg-blue-950/50 border border-blue-800/60 rounded-xl text-blue-300 text-xs">
-                    Tài khoản <strong>{pendingUser?.name}</strong> có bảo mật 2 lớp. Vui lòng nhập mã OTP gửi tới ứng dụng Authenticator / Email công vụ.
+                    {pendingPreAuth ? (
+                      <>Mã xác thực OTP {otpChannelHint || 'đã được gửi'}. Nhập mã để hoàn tất đăng nhập (hết hạn sau ~5 phút).</>
+                    ) : (
+                      <>Tài khoản <strong>{pendingUser?.name}</strong> có bảo mật 2 lớp. Vui lòng nhập mã OTP gửi tới ứng dụng Authenticator / Email công vụ.</>
+                    )}
                   </div>
+
+                  {otpDevCode && (
+                    <div className="p-2.5 bg-amber-950/40 border border-amber-800/50 rounded-xl text-amber-300 text-xs font-mono">
+                      Mã OTP (chế độ dev): <strong>{otpDevCode}</strong>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block font-bold text-slate-300 mb-1.5">Mã Xác Thực 2FA (6 chữ số):</label>
@@ -289,29 +365,41 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                       <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
                         type="text"
-                        maxLength={6}
+                        inputMode="numeric"
+                        maxLength={8}
                         value={otpInput}
                         onChange={(e) => setOtpInput(e.target.value)}
                         className="w-full text-center tracking-widest text-lg font-mono font-bold py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required
                       />
                     </div>
+                    {pendingPreAuth && (
+                      <button
+                        type="button"
+                        onClick={handleResendOtp}
+                        disabled={otpBusy}
+                        className="mt-2 text-blue-400 hover:text-blue-300 font-bold disabled:opacity-50 cursor-pointer"
+                      >
+                        Gửi lại mã
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => setRequires2FA(false)}
+                      onClick={handleCancel2FA}
                       className="w-1/3 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl font-bold transition-colors cursor-pointer"
                     >
                       Quay lại
                     </button>
                     <button
                       type="submit"
-                      className="w-2/3 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                      disabled={otpBusy}
+                      className="w-2/3 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
                     >
                       <ShieldCheck className="w-4 h-4" />
-                      <span>Xác Thực & Vào Hệ Thống</span>
+                      <span>{otpBusy ? 'Đang xác thực...' : 'Xác Thực & Vào Hệ Thống'}</span>
                     </button>
                   </div>
                 </form>

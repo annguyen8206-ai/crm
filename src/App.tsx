@@ -200,6 +200,8 @@ export default function App() {
               roleTitle: s.roleTitle,
               department: s.department || '',
               branchId: s.branchId || 'ALL',
+              phone: s.phone || '',
+              twoFactorEnabled: !!s.twoFactorEnabled,
               status: s.status === 'suspended' ? 'suspended' : 'active'
             })) as CurrentUser[]);
           }
@@ -282,7 +284,9 @@ export default function App() {
         staffCode: newStaff.staffCode || null,
         department: newStaff.department || null,
         branchId: newStaff.branchId && newStaff.branchId !== 'ALL' ? newStaff.branchId : null,
-        status: newStaff.status
+        status: newStaff.status,
+        phone: newStaff.phone || null,
+        twoFactorEnabled: !!newStaff.twoFactorEnabled
       });
       const created: CurrentUser = { ...newStaff, id: staff.id, staffCode: staff.staffCode, roleTitle: staff.roleTitle };
       setStaffUsers(prev => [created, ...prev]);
@@ -304,6 +308,8 @@ export default function App() {
         department: updatedStaff.department || null,
         branchId: updatedStaff.branchId && updatedStaff.branchId !== 'ALL' ? updatedStaff.branchId : null,
         status: updatedStaff.status,
+        phone: updatedStaff.phone || null,
+        twoFactorEnabled: !!updatedStaff.twoFactorEnabled,
         ...(updatedStaff.password ? { password: updatedStaff.password } : {})
       });
     } catch (error) {
