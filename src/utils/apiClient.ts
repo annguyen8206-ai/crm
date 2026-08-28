@@ -80,7 +80,48 @@ export const apiClient = {
     }
   },
 
-  // 1b. Generic module collections — persisted in the backend JSONB snapshot
+  // 1c. Omnichannel inbox (Zalo OA + Facebook Messenger)
+  conversations: {
+    async list(params?: { channel?: string; status?: string }) {
+      const q = new URLSearchParams();
+      if (params?.channel) q.set('channel', params.channel);
+      if (params?.status) q.set('status', params.status);
+      const qs = q.toString();
+      return request<{ conversations: any[]; total: number; unread: number }>(`/conversations${qs ? `?${qs}` : ''}`);
+    },
+    async messages(id: string) {
+      return request<{ conversation: any; messages: any[] }>(`/conversations/${id}/messages`);
+    },
+    async reply(id: string, text: string) {
+      return request<{ success: boolean; mode: string; message: any; error?: string }>(`/conversations/${id}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ text })
+      });
+    },
+    async update(id: string, data: { status?: string; assignedStaff?: string; patientId?: string }) {
+      return request<{ success: boolean; conversation: any }>(`/conversations/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data)
+      });
+    },
+    async simulate(channel: 'zalo' | 'facebook', data: { externalUserId: string; senderName?: string; text: string }) {
+      return request<any>(`/webhooks/${channel}/simulate`, { method: 'POST', body: JSON.stringify(data) });
+    }
+  },
+
+  // 1d. Real-time server events (SSE). Returns the EventSource so the caller can close it.
+  stream(onEvent: (evt: any) => void): EventSource | null {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') return null;
+    const token = localStorage.getItem('vitcrm_access_token');
+    if (!token) return null;
+    const es = new EventSource(`${API_BASE}/stream?token=${encodeURIComponent(token)}`);
+    es.onmessage = (e) => {
+      try { onEvent(JSON.parse(e.data)); } catch { /* ignore keepalives */ }
+    };
+    return es;
+  },
+
+  // 1e. Generic module collections — persisted in the backend JSONB snapshot
   collections: {
     async getAll() {
       return request<{ collections: Record<string, any[]> }>('/collections');

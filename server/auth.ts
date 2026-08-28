@@ -259,7 +259,7 @@ function rowToStaff(row: any): StaffRecord {
 export async function listStaff(): Promise<Array<StaffRecord & { lastLoginAt: string | null }>> {
   if (!pool) return [];
   const { rows } = await pool.query<any>('SELECT * FROM auth_users ORDER BY created_at ASC');
-  return rows.map(row => ({ ...rowToStaff(row), lastLoginAt: row.last_login_at }));
+  return rows.map((row: any) => ({ ...rowToStaff(row), lastLoginAt: row.last_login_at }));
 }
 
 export async function createStaff(input: {
@@ -314,6 +314,16 @@ export async function updateStaff(id: string, input: {
   const { rows } = await pool.query<any>(`UPDATE auth_users SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`, values);
   if (!rows.length) throw new Error('Không tìm thấy tài khoản');
   return rowToStaff(rows[0]);
+}
+
+/** Verify a session bearer token outside the middleware (e.g. SSE ?token=). */
+export function verifySessionToken(token: string): AuthUser | null {
+  if (!jwtSecret || !token) return null;
+  try {
+    return jwt.verify(token, jwtSecret) as AuthUser;
+  } catch {
+    return null;
+  }
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {

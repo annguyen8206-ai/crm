@@ -21,6 +21,7 @@ import { AddPatientModal } from './components/AddPatientModal';
 import { StaffLoginView } from './components/StaffLoginView';
 import { CustomerLoginView } from './components/CustomerLoginView';
 import { StaffManagementModal } from './components/StaffManagementModal';
+import { OmnichannelInboxView } from './components/OmnichannelInboxView';
 import { BranchManagementModal } from './components/BranchManagementModal';
 import { getRoleConfig, isTabAllowedForRole } from './utils/rbac';
 import { apiClient } from './utils/apiClient';
@@ -129,20 +130,29 @@ export default function App() {
   const [currentBranchId, setCurrentBranchId] = useState<BranchId>('ALL');
   const [currentRole, setCurrentRole] = useState<UserRole>('Ban Giám Đốc');
 
-  // Application Data States
-  const [branches, setBranches] = useState<Branch[]>(mockBranches);
-  const [patients, setPatients] = useState<Patient[]>(mockPatients);
-  const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
-  const [b2bContracts, setB2BContracts] = useState<B2BContract[]>(mockB2BContracts);
-  const [b2cDeals, setB2CDeals] = useState<B2CDeal[]>(mockB2CDeals);
-  const [campaigns, setCampaigns] = useState<MarketingCampaign[]>(mockCampaigns);
-  const [automationRules, setAutomationRules] = useState(mockAutomationRules);
-  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(mockSupportTickets);
-  const [referrals, setReferrals] = useState(mockReferrals);
-  const [partners, setPartners] = useState<MedicalPartner[]>(mockMedicalPartners);
-  const [partnerPayouts, setPartnerPayouts] = useState<PartnerCommissionPayout[]>(mockPartnerPayouts);
-  const [interactions, setInteractions] = useState<InteractionLog[]>(mockInteractions);
+  // Application Data States — start empty; real data is loaded from the backend
+  // after login. (SEED_DEMO_DATA=true on the server keeps sample records.)
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [b2bContracts, setB2BContracts] = useState<B2BContract[]>([]);
+  const [b2cDeals, setB2CDeals] = useState<B2CDeal[]>([]);
+  const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
+  const [automationRules, setAutomationRules] = useState<typeof mockAutomationRules>([]);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [referrals, setReferrals] = useState<typeof mockReferrals>([]);
+  const [partners, setPartners] = useState<MedicalPartner[]>([]);
+  const [partnerPayouts, setPartnerPayouts] = useState<PartnerCommissionPayout[]>([]);
+  const [interactions, setInteractions] = useState<InteractionLog[]>([]);
   const [apiSyncError, setApiSyncError] = useState<string | null>(null);
+
+  // Omnichannel inbox (Zalo OA + Facebook) — realtime via SSE
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [inboxMessages, setInboxMessages] = useState<any[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [loadingInboxMessages, setLoadingInboxMessages] = useState(false);
+  const selectedConvRef = useRef<string | null>(null);
+  selectedConvRef.current = selectedConversationId;
 
   // Becomes true only after the initial server hydration finishes, so the
   // usePersistedCollection effects below don't immediately echo the seed data back.
@@ -170,22 +180,23 @@ export default function App() {
         // Hydrate generic module collections. When the server has never stored a
         // collection we push the local seed up once so both sides agree.
         const remote = collectionsResponse.collections || {};
-        const hydrate = <T,>(key: string, setter: (v: T[]) => void, seed: T[]) => {
-          if (Array.isArray(remote[key])) {
-            setter(remote[key] as T[]);
-          } else {
-            void apiClient.collections.save(key, seed as any[]).catch(() => {});
-          }
+        const hydrate = <T,>(key: string, setter: (v: T[]) => void) => {
+          setter(Array.isArray(remote[key]) ? (remote[key] as T[]) : []);
         };
-        hydrate('branches', setBranches, mockBranches);
-        hydrate('b2bContracts', setB2BContracts, mockB2BContracts);
-        hydrate('b2cDeals', setB2CDeals, mockB2CDeals);
-        hydrate('campaigns', setCampaigns, mockCampaigns);
-        hydrate('automationRules', setAutomationRules, mockAutomationRules);
-        hydrate('referrals', setReferrals, mockReferrals);
-        hydrate('partners', setPartners, mockMedicalPartners);
-        hydrate('partnerPayouts', setPartnerPayouts, mockPartnerPayouts);
-        hydrate('interactions', setInteractions, mockInteractions);
+        hydrate('branches', setBranches);
+        hydrate('b2bContracts', setB2BContracts);
+        hydrate('b2cDeals', setB2CDeals);
+        hydrate('campaigns', setCampaigns);
+        hydrate('automationRules', setAutomationRules);
+        hydrate('referrals', setReferrals);
+        hydrate('partners', setPartners);
+        hydrate('partnerPayouts', setPartnerPayouts);
+        hydrate('interactions', setInteractions);
+
+        try {
+          const convRes = await apiClient.conversations.list();
+          if (!cancelled) setConversations(convRes.conversations || []);
+        } catch { /* inbox optional */ }
 
         // Staff accounts live in the auth_users table (admin only).
         try {
@@ -221,6 +232,87 @@ export default function App() {
     void loadApiData();
     return () => { cancelled = true; };
   }, [isStaffLoggedIn]);
+
+  // Real-time server events (SSE): keep the main lists + inbox fresh without reload.
+  useEffect(() => {
+    if (!isStaffLoggedIn) return;
+    let refetchTimer: ReturnType<typeof setTimeout> | null = null;
+    const refetchMain = () => {
+      if (refetchTimer) clearTimeout(refetchTimer);
+      refetchTimer = setTimeout(async () => {
+        try {
+          const [p, a, t] = await Promise.all([
+            apiClient.patients.list({ limit: 500 }),
+            apiClient.appointments.list(),
+            apiClient.tickets.list()
+          ]);
+          setPatients((p.patients || []).map(mapApiPatient));
+          setAppointments((a.appointments || []).map(mapApiAppointment));
+          setSupportTickets((t.tickets || []) as SupportTicket[]);
+        } catch { /* ignore */ }
+      }, 500);
+    };
+    const refetchConversations = async () => {
+      try {
+        const r = await apiClient.conversations.list();
+        setConversations(r.conversations || []);
+      } catch { /* ignore */ }
+    };
+
+    const es = apiClient.stream((evt) => {
+      if (!evt || !evt.type) return;
+      if (evt.type === 'store') {
+        if (typeof evt.path === 'string' && evt.path.startsWith('/api/collections')) return;
+        refetchMain();
+      } else if (evt.type === 'conversation') {
+        void refetchConversations();
+      } else if (evt.type === 'message') {
+        void refetchConversations();
+        if (evt.conversationId && evt.conversationId === selectedConvRef.current && evt.message) {
+          setInboxMessages(prev => (prev.some(m => m.id === evt.message.id) ? prev : [...prev, evt.message]));
+        }
+      }
+    });
+
+    return () => {
+      if (refetchTimer) clearTimeout(refetchTimer);
+      es?.close();
+    };
+  }, [isStaffLoggedIn]);
+
+  const openConversation = async (id: string) => {
+    setSelectedConversationId(id);
+    setLoadingInboxMessages(true);
+    try {
+      const r = await apiClient.conversations.messages(id);
+      setInboxMessages(r.messages || []);
+      setConversations(prev => prev.map(c => (c.id === id ? { ...c, unreadCount: 0 } : c)));
+    } catch {
+      setInboxMessages([]);
+    } finally {
+      setLoadingInboxMessages(false);
+    }
+  };
+
+  const sendInboxReply = async (text: string) => {
+    if (!selectedConversationId) return;
+    try {
+      const r = await apiClient.conversations.reply(selectedConversationId, text);
+      if (r.message) setInboxMessages(prev => [...prev, r.message]);
+      if (!r.success) showToast(`Gửi thất bại: ${r.error || 'lỗi provider'}`);
+      else if (r.mode === 'simulated') showToast('Đã gửi (giả lập — chưa nối provider thật)');
+    } catch (e: any) {
+      showToast(e?.message || 'Không gửi được tin nhắn');
+    }
+  };
+
+  const simulateInbound = async (channel: 'zalo' | 'facebook', senderName: string, text: string) => {
+    try {
+      await apiClient.conversations.simulate(channel, { externalUserId: `${channel}-demo-${Date.now() % 100000}`, senderName, text });
+    } catch (e: any) {
+      showToast(e?.message || 'Không tạo được tin mô phỏng');
+    }
+  };
 
   // Auto-persist every generic module collection back to the backend on change.
   usePersistedCollection('branches', branches, collectionsHydrated);
@@ -832,6 +924,25 @@ export default function App() {
                   setBookingTargetDepartment(recall.department || null);
                   setIsBookModalOpen(true);
                   showToast(`Mở lịch đặt hẹn tái khám cho ${recall.patientName} (${recall.condition})`);
+                }}
+              />
+            )}
+
+            {/* 6b. Omnichannel Inbox (Zalo OA + Facebook) */}
+            {activeTab === 'inbox' && (
+              <OmnichannelInboxView
+                conversations={conversations}
+                messages={inboxMessages}
+                selectedId={selectedConversationId}
+                loadingMessages={loadingInboxMessages}
+                onSelectConversation={openConversation}
+                onSendReply={sendInboxReply}
+                onSimulateInbound={simulateInbound}
+                onRefresh={async () => {
+                  try {
+                    const r = await apiClient.conversations.list();
+                    setConversations(r.conversations || []);
+                  } catch { /* ignore */ }
                 }}
               />
             )}

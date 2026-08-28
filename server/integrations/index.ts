@@ -5,6 +5,7 @@ import { smsStatus } from './sms';
 import { voipStatus } from './voip';
 import { paymentsStatus } from './payments';
 import { otpStatus } from './otp';
+import { messagingStatus } from './messaging';
 
 export * from './types';
 export * from './email';
@@ -13,6 +14,7 @@ export * from './sms';
 export * from './voip';
 export * from './payments';
 export * from './otp';
+export * from './messaging';
 
 export function aiStatus(): IntegrationStatus {
   const enabled = process.env.AI_ENABLED === 'true';
@@ -27,7 +29,7 @@ export function aiStatus(): IntegrationStatus {
 }
 
 export function integrationsStatus(): IntegrationStatus[] {
-  return [aiStatus(), emailStatus(), znsStatus(), smsStatus(), voipStatus(), paymentsStatus(), otpStatus()];
+  return [aiStatus(), emailStatus(), znsStatus(), smsStatus(), voipStatus(), paymentsStatus(), otpStatus(), messagingStatus()];
 }
 
 export function logIntegrationsStatus(): void {

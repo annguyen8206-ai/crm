@@ -7,6 +7,7 @@ export type ActiveTab =
   | 'sales'
   | 'marketing'
   | 'care'
+  | 'inbox'
   | 'portal'
   | 'loyalty';
 

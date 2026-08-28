@@ -5,16 +5,20 @@ import path from "path";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
-import { dbStore, PatientRecord, AppointmentRecord, SupportTicketRecord, LeadDealRecord, InvoiceRecord, FollowUpTaskRecord, AutoRecallRecord, ZnsLogRecord, VoipCallRecord, CsatFeedbackRecord } from "./server/store";
+import { dbStore, PatientRecord, AppointmentRecord, SupportTicketRecord, LeadDealRecord, InvoiceRecord, FollowUpTaskRecord, AutoRecallRecord, ZnsLogRecord, VoipCallRecord, CsatFeedbackRecord, ConversationRecord, MessageRecord } from "./server/store";
 import { checkDatabase, databaseConfigured, initializeDatabase, persistStore } from "./server/database";
-import { authConfigured, authStatus, authTableReady, completeStaff2fa, createStaff, initializeAuth, listStaff, loginStaff, requireAuth, updateStaff, verifyPreAuthToken } from "./server/auth";
+import { authConfigured, authStatus, authTableReady, completeStaff2fa, createStaff, initializeAuth, listStaff, loginStaff, requireAuth, updateStaff, verifyPreAuthToken, verifySessionToken } from "./server/auth";
+import { bus, emitChange } from "./server/events";
 import {
   integrationsStatus, logIntegrationsStatus,
   sendZns,
   startCall,
   sendEmail,
   requestOtp, verifyOtp,
-  verifyWebhookAuth, parseWebhookPayload, extractInvoiceCode, vietQrBankInfo
+  verifyWebhookAuth, parseWebhookPayload, extractInvoiceCode, vietQrBankInfo,
+  type IncomingMessage, type Channel,
+  facebookVerifyChallenge, verifyFacebookSignature, verifyZaloSignature,
+  normalizeFacebookPayload, normalizeZaloPayload, sendReply, fetchProfile
 } from "./server/integrations";
 
 dotenv.config();
@@ -81,14 +85,19 @@ async function startServer() {
   console.log('=======================================================');
 
   app.use(helmet({ contentSecurityPolicy: false }));
-  app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
-  app.use(express.json({ limit: '2mb' }));
+  app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false }));
+  // Keep the raw body around so webhook HMAC signatures can be verified.
+  app.use(express.json({ limit: '2mb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
 
-  // Persist every successful write request after handlers complete.
+  // Persist every successful write request after handlers complete, and notify
+  // connected CRM clients so their views refresh in real time.
   app.use((req, res, next) => {
     if (!req.path.startsWith('/api') || req.method === 'GET') return next();
     res.on('finish', () => {
-      if (res.statusCode < 400) void persistStore();
+      if (res.statusCode < 400) {
+        void persistStore();
+        emitChange({ type: 'store', path: req.path, method: req.method });
+      }
     });
     next();
   });
@@ -237,6 +246,103 @@ async function startServer() {
     res.status(result.ok ? 200 : 400).json(result);
   });
 
+  // =========================================================================
+  // OMNICHANNEL INBOX — Zalo OA + Facebook Messenger inbound
+  // =========================================================================
+  async function ingestIncoming(msg: IncomingMessage): Promise<{ conversation: ConversationRecord; message: MessageRecord }> {
+    let conv = dbStore.conversations.find(c => c.channel === msg.channel && c.externalUserId === msg.externalUserId);
+    if (!conv) {
+      const profile = await fetchProfile(msg.channel, msg.externalUserId).catch(() => ({} as { name?: string; avatarUrl?: string }));
+      conv = {
+        id: `conv-${msg.channel}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        channel: msg.channel,
+        externalUserId: msg.externalUserId,
+        displayName: msg.senderName || profile.name || `${msg.channel === 'zalo' ? 'Zalo' : 'Facebook'} user ${msg.externalUserId.slice(-6)}`,
+        avatarUrl: profile.avatarUrl,
+        lastMessageAt: msg.at,
+        lastMessagePreview: msg.text.slice(0, 140),
+        unreadCount: 0,
+        status: 'open',
+        createdAt: new Date().toISOString()
+      };
+      // Link to an existing patient by phone if the display name looks like one.
+      const patient = dbStore.patients.find(p => p.phone && msg.text && msg.text.replace(/\D/g, '').includes(p.phone.replace(/\D/g, '')));
+      if (patient) conv.patientId = patient.id;
+      dbStore.conversations.unshift(conv);
+    }
+    const record: MessageRecord = {
+      id: `msg-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      conversationId: conv.id,
+      channel: msg.channel,
+      direction: 'in',
+      externalMessageId: msg.externalMessageId,
+      senderId: msg.externalUserId,
+      senderName: conv.displayName,
+      text: msg.text,
+      attachments: msg.attachments,
+      status: 'received',
+      at: msg.at
+    };
+    // Dedupe on provider message id.
+    if (msg.externalMessageId && dbStore.messages.some(m => m.externalMessageId === msg.externalMessageId)) {
+      return { conversation: conv, message: record };
+    }
+    dbStore.messages.push(record);
+    if (dbStore.messages.length > 5000) dbStore.messages.splice(0, dbStore.messages.length - 5000);
+    conv.lastMessageAt = msg.at;
+    conv.lastMessagePreview = msg.text.slice(0, 140);
+    conv.unreadCount += 1;
+    conv.status = 'open';
+    dbStore.conversations.sort((a, b) => (a.lastMessageAt < b.lastMessageAt ? 1 : -1));
+
+    emitChange({ type: 'message', conversationId: conv.id, message: record });
+    emitChange({ type: 'conversation', conversation: conv });
+    void persistStore();
+    return { conversation: conv, message: record };
+  }
+
+  // Facebook webhook verification handshake
+  app.get('/api/webhooks/facebook', (req, res) => {
+    const challenge = facebookVerifyChallenge(req.query as Record<string, unknown>);
+    if (challenge !== null) return res.status(200).send(challenge);
+    res.sendStatus(403);
+  });
+
+  app.post('/api/webhooks/facebook', async (req, res) => {
+    if (!verifyFacebookSignature((req as any).rawBody || JSON.stringify(req.body), req.headers['x-hub-signature-256'] as string | undefined)) {
+      return res.sendStatus(401);
+    }
+    res.sendStatus(200); // ack fast
+    for (const msg of normalizeFacebookPayload(req.body)) {
+      try { await ingestIncoming(msg); } catch (e: any) { console.error('[messaging] facebook ingest failed:', e.message); }
+    }
+  });
+
+  app.post('/api/webhooks/zalo', async (req, res) => {
+    if (!verifyZaloSignature((req as any).rawBody || JSON.stringify(req.body), req.headers['x-zevent-signature'] as string | undefined, String(req.body?.timestamp || ''))) {
+      return res.sendStatus(401);
+    }
+    res.sendStatus(200);
+    for (const msg of normalizeZaloPayload(req.body)) {
+      try { await ingestIncoming(msg); } catch (e: any) { console.error('[messaging] zalo ingest failed:', e.message); }
+    }
+  });
+
+  // Real-time stream for the CRM UI (SSE). Auth via ?token= because EventSource
+  // cannot send an Authorization header.
+  app.get('/api/stream', (req, res) => {
+    const user = verifySessionToken(String(req.query.token || ''));
+    if (!user) return res.sendStatus(401);
+    res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+    res.flushHeaders?.();
+    res.write(`retry: 3000\n\n`);
+    res.write(`event: ready\ndata: {"ok":true}\n\n`);
+    const onChange = (evt: unknown) => res.write(`data: ${JSON.stringify(evt)}\n\n`);
+    bus.on('change', onChange);
+    const keepAlive = setInterval(() => res.write(`: ping\n\n`), 25000);
+    req.on('close', () => { clearInterval(keepAlive); bus.off('change', onChange); });
+  });
+
   // All business APIs require a valid backend token.
   app.use('/api', requireAuth);
 
@@ -299,6 +405,93 @@ async function startServer() {
     }
     const result = await sendEmail({ to, subject, html, text, cc, bcc, replyTo });
     res.status(result.ok ? 200 : 502).json(result);
+  });
+
+  // =========================================================================
+  // 1e. OMNICHANNEL INBOX (authenticated read/reply)
+  // =========================================================================
+  app.get("/api/conversations", (req, res) => {
+    const { channel, status } = req.query;
+    let list = [...dbStore.conversations];
+    if (channel && typeof channel === 'string') list = list.filter(c => c.channel === channel);
+    if (status && typeof status === 'string') list = list.filter(c => c.status === status);
+    list.sort((a, b) => (a.lastMessageAt < b.lastMessageAt ? 1 : -1));
+    res.json({
+      conversations: list,
+      total: list.length,
+      unread: dbStore.conversations.reduce((n, c) => n + (c.unreadCount || 0), 0)
+    });
+  });
+
+  app.get("/api/conversations/:id/messages", (req, res) => {
+    const conv = dbStore.conversations.find(c => c.id === req.params.id);
+    if (!conv) return res.status(404).json({ error: 'Không tìm thấy hội thoại' });
+    const messages = dbStore.messages
+      .filter(m => m.conversationId === conv.id)
+      .sort((a, b) => (a.at < b.at ? -1 : 1));
+    if (conv.unreadCount > 0) {
+      conv.unreadCount = 0;
+      emitChange({ type: 'conversation', conversation: conv });
+    }
+    res.json({ conversation: conv, messages });
+  });
+
+  app.post("/api/conversations/:id/reply", async (req, res) => {
+    const conv = dbStore.conversations.find(c => c.id === req.params.id);
+    if (!conv) return res.status(404).json({ error: 'Không tìm thấy hội thoại' });
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'Nội dung trả lời trống' });
+
+    const dispatch = await sendReply(conv.channel, conv.externalUserId, text);
+    const record: MessageRecord = {
+      id: `msg-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      conversationId: conv.id,
+      channel: conv.channel,
+      direction: 'out',
+      externalMessageId: dispatch.ref,
+      senderId: req.authUser?.id || 'staff',
+      senderName: req.authUser?.name || 'Nhân viên CSKH',
+      text,
+      attachments: [],
+      status: dispatch.ok ? (dispatch.mode === 'live' ? 'sent' : 'simulated') : 'failed',
+      at: new Date().toISOString()
+    };
+    dbStore.messages.push(record);
+    conv.lastMessageAt = record.at;
+    conv.lastMessagePreview = text.slice(0, 140);
+    conv.assignedStaff = req.authUser?.name || conv.assignedStaff;
+    emitChange({ type: 'message', conversationId: conv.id, message: record });
+    emitChange({ type: 'conversation', conversation: conv });
+    res.status(dispatch.ok ? 200 : 502).json({ success: dispatch.ok, mode: dispatch.mode, message: record, error: dispatch.error });
+  });
+
+  app.put("/api/conversations/:id", (req, res) => {
+    const conv = dbStore.conversations.find(c => c.id === req.params.id);
+    if (!conv) return res.status(404).json({ error: 'Không tìm thấy hội thoại' });
+    const { status, assignedStaff, patientId } = req.body || {};
+    if (status && ['open', 'snoozed', 'closed'].includes(status)) conv.status = status;
+    if (assignedStaff !== undefined) conv.assignedStaff = assignedStaff;
+    if (patientId !== undefined) conv.patientId = patientId;
+    emitChange({ type: 'conversation', conversation: conv });
+    res.json({ success: true, conversation: conv });
+  });
+
+  // Inject a fake inbound message to test the pipeline without a real provider.
+  app.post("/api/webhooks/:channel/simulate", async (req, res) => {
+    const channel = req.params.channel as Channel;
+    if (channel !== 'zalo' && channel !== 'facebook') return res.status(400).json({ error: 'channel phải là zalo hoặc facebook' });
+    const { externalUserId, senderName, text } = req.body || {};
+    if (!externalUserId || !text) return res.status(400).json({ error: 'Cần externalUserId và text' });
+    const result = await ingestIncoming({
+      channel,
+      externalUserId: String(externalUserId),
+      senderName,
+      text: String(text),
+      attachments: [],
+      externalMessageId: `sim-${Date.now()}`,
+      at: new Date().toISOString()
+    });
+    res.json({ success: true, ...result });
   });
 
   // =========================================================================

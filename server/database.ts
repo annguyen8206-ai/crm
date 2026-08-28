@@ -16,6 +16,8 @@ export type DbSnapshot = {
   voipCalls: unknown[];
   csatFeedbacks: unknown[];
   auditLogs: unknown[];
+  conversations: unknown[];
+  messages: unknown[];
   collections: Record<string, unknown[]>;
 };
 
@@ -75,6 +77,8 @@ function createSnapshot(): DbSnapshot {
     voipCalls: dbStore.voipCalls,
     csatFeedbacks: dbStore.csatFeedbacks,
     auditLogs: dbStore.auditLogs,
+    conversations: dbStore.conversations,
+    messages: dbStore.messages,
     collections: dbStore.collections
   };
 }

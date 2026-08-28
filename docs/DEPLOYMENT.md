@@ -106,6 +106,16 @@ pg_dump "$DATABASE_URL" > backup_before_cleanup.sql
 psql "$DATABASE_URL" -f scripts/drop-legacy-tables.sql
 ```
 
+## 3b. Xoá dữ liệu ảo / khởi tạo rỗng
+
+Mặc định (`SEED_DEMO_DATA` không đặt) CRM chạy **rỗng** — không có bệnh nhân/lịch/deal mẫu.
+Nếu môi trường đã lỡ lưu dữ liệu mẫu vào `vitcrm_store`:
+```bash
+npm run reset:data          # hỏi xác nhận; hoặc: npm run reset:data -- --yes
+pm2 restart vitcrm
+```
+Giữ nguyên `auth_users`. Muốn giữ dữ liệu mẫu để demo: `SEED_DEMO_DATA=true`.
+
 ## 4. Chạy DB tại máy dev (không cần cài PostgreSQL)
 
 ```bash

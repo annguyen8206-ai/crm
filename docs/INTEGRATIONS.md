@@ -82,6 +82,33 @@ Dùng qua `POST /api/calls/click-to-call`. Stringee: ký JWT REST và gọi `cal
   Hệ thống dò mã hóa đơn (`HD-YYYY-NNNN`) trong nội dung chuyển khoản, khớp số tiền
   (≥ `patientPayable`) và tự set hóa đơn = "Đã thanh toán" + lưu mã giao dịch.
 
+## 7. Tin nhắn đa kênh (Zalo OA + Facebook Messenger)
+
+Toàn bộ tin khách gửi tới OA Zalo / Fanpage đổ về **tab "Tin nhắn đa kênh"** trong CRM,
+cập nhật **realtime** (SSE), trả lời ngay trong CRM.
+
+| Env | |
+|---|---|
+| Zalo | `ZALO_APP_ID` + `ZALO_APP_SECRET` (xác thực webhook) + `ZALO_OA_ACCESS_TOKEN` hoặc bộ refresh (gửi trả lời) |
+| Facebook | `FACEBOOK_APP_SECRET`, `FACEBOOK_PAGE_ACCESS_TOKEN`, `FACEBOOK_VERIFY_TOKEN` |
+
+**Khai báo webhook ở phía provider** (không cần code):
+- Zalo OA → Webhook URL: `https://<domain>/api/webhooks/zalo`
+- Meta App (Messenger) → Callback URL: `https://<domain>/api/webhooks/facebook`,
+  Verify Token = `FACEBOOK_VERIFY_TOKEN`; subscribe field `messages`.
+
+Endpoint nội bộ:
+```
+GET  /api/conversations                 # danh sách hội thoại + số chưa đọc
+GET  /api/conversations/:id/messages    # tin trong hội thoại (đánh dấu đã đọc)
+POST /api/conversations/:id/reply       { text }
+PUT  /api/conversations/:id             { status | assignedStaff | patientId }
+GET  /api/stream?token=<jwt>            # SSE realtime cho toàn CRM
+POST /api/webhooks/:channel/simulate    { externalUserId, senderName, text }  # kiểm thử
+```
+Chưa cấu hình provider → webhook vẫn nhận (bỏ qua kiểm chữ ký, có cảnh báo log), trả lời ở
+chế độ "simulated". Dùng nút **"Mô phỏng tin đến"** trong tab để thử pipeline.
+
 ---
 
 ### Chế độ giả lập có phá gì không?

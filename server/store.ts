@@ -248,6 +248,38 @@ export interface AuditLogRecord {
   ipAddress: string;
 }
 
+export type MessageChannel = 'zalo' | 'facebook';
+
+export interface ConversationRecord {
+  id: string;
+  channel: MessageChannel;
+  /** provider-side user id (Zalo user_id / Facebook PSID) */
+  externalUserId: string;
+  displayName: string;
+  avatarUrl?: string;
+  patientId?: string;
+  lastMessageAt: string;
+  lastMessagePreview: string;
+  unreadCount: number;
+  assignedStaff?: string;
+  status: 'open' | 'snoozed' | 'closed';
+  createdAt: string;
+}
+
+export interface MessageRecord {
+  id: string;
+  conversationId: string;
+  channel: MessageChannel;
+  direction: 'in' | 'out';
+  externalMessageId?: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  attachments: Array<{ type: string; url: string }>;
+  status: 'received' | 'sent' | 'failed' | 'simulated';
+  at: string;
+}
+
 // Initial Database Seeding
 class HospitalBackendStore {
   patients: PatientRecord[] = [
@@ -870,6 +902,28 @@ class HospitalBackendStore {
    */
   collections: Record<string, unknown[]> = {};
 
+  // Omnichannel inbox (Zalo OA + Facebook Messenger)
+  conversations: ConversationRecord[] = [];
+  messages: MessageRecord[] = [];
+
+  /** Wipes every business collection — used to clear demo/seed data. Keeps nothing. */
+  clearAll(): void {
+    this.patients = [];
+    this.appointments = [];
+    this.tickets = [];
+    this.leads = [];
+    this.invoices = [];
+    this.followUps = [];
+    this.recalls = [];
+    this.znsLogs = [];
+    this.voipCalls = [];
+    this.csatFeedbacks = [];
+    this.auditLogs = [];
+    this.conversations = [];
+    this.messages = [];
+    this.collections = {};
+  }
+
   // Helper logging
   addAuditLog(userId: string, userName: string, role: string, action: string, module: string, details: string) {
     const now = new Date();
@@ -892,3 +946,10 @@ class HospitalBackendStore {
 }
 
 export const dbStore = new HospitalBackendStore();
+
+// Demo/seed data ships in the class above for local exploration only.
+// Production keeps the store empty until real data arrives — set
+// SEED_DEMO_DATA=true to keep the sample records.
+if (process.env.SEED_DEMO_DATA !== 'true') {
+  dbStore.clearAll();
+}
