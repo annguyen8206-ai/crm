@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ShieldAlert, ArrowRight, ShieldCheck, Sparkles, Heart, LogOut } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { DashboardView } from './components/DashboardView';
@@ -97,6 +97,22 @@ import {
   InteractionLog
 } from './types';
 
+/**
+ * Persists a front-end module collection to the backend (JSONB snapshot) whenever
+ * it changes, after the initial hydration from the server has completed.
+ */
+function usePersistedCollection(name: string, value: unknown[], ready: React.MutableRefObject<boolean>) {
+  useEffect(() => {
+    if (!ready.current) return;
+    const timer = setTimeout(() => {
+      void apiClient.collections.save(name, value as any[]).catch((err) => {
+        console.warn(`[API sync] Không lưu được collection "${name}"`, err);
+      });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [name, value, ready]);
+}
+
 export default function App() {
   // Multi-Portal Authentication & Role State (Staff vs. Customer)
   const [authMode, setAuthMode] = useState<'staff' | 'customer'>('staff');
@@ -128,20 +144,70 @@ export default function App() {
   const [interactions, setInteractions] = useState<InteractionLog[]>(mockInteractions);
   const [apiSyncError, setApiSyncError] = useState<string | null>(null);
 
+  // Becomes true only after the initial server hydration finishes, so the
+  // usePersistedCollection effects below don't immediately echo the seed data back.
+  const collectionsHydrated = useRef(false);
+
   useEffect(() => {
-    if (!isStaffLoggedIn) return;
+    if (!isStaffLoggedIn) {
+      collectionsHydrated.current = false;
+      return;
+    }
     let cancelled = false;
     const loadApiData = async () => {
       try {
-        const [patientsResponse, appointmentsResponse, ticketsResponse] = await Promise.all([
+        const [patientsResponse, appointmentsResponse, ticketsResponse, collectionsResponse] = await Promise.all([
           apiClient.patients.list({ limit: 500 }),
           apiClient.appointments.list(),
-          apiClient.tickets.list()
+          apiClient.tickets.list(),
+          apiClient.collections.getAll().catch(() => ({ collections: {} as Record<string, any[]> }))
         ]);
         if (cancelled) return;
         setPatients((patientsResponse.patients || []).map(mapApiPatient));
         setAppointments((appointmentsResponse.appointments || []).map(mapApiAppointment));
         setSupportTickets((ticketsResponse.tickets || []) as SupportTicket[]);
+
+        // Hydrate generic module collections. When the server has never stored a
+        // collection we push the local seed up once so both sides agree.
+        const remote = collectionsResponse.collections || {};
+        const hydrate = <T,>(key: string, setter: (v: T[]) => void, seed: T[]) => {
+          if (Array.isArray(remote[key])) {
+            setter(remote[key] as T[]);
+          } else {
+            void apiClient.collections.save(key, seed as any[]).catch(() => {});
+          }
+        };
+        hydrate('branches', setBranches, mockBranches);
+        hydrate('b2bContracts', setB2BContracts, mockB2BContracts);
+        hydrate('b2cDeals', setB2CDeals, mockB2CDeals);
+        hydrate('campaigns', setCampaigns, mockCampaigns);
+        hydrate('automationRules', setAutomationRules, mockAutomationRules);
+        hydrate('referrals', setReferrals, mockReferrals);
+        hydrate('partners', setPartners, mockMedicalPartners);
+        hydrate('partnerPayouts', setPartnerPayouts, mockPartnerPayouts);
+        hydrate('interactions', setInteractions, mockInteractions);
+
+        // Staff accounts live in the auth_users table (admin only).
+        try {
+          const { staff } = await apiClient.staff.list();
+          if (!cancelled && Array.isArray(staff) && staff.length) {
+            setStaffUsers(staff.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              email: s.email,
+              staffCode: s.staffCode,
+              role: s.role,
+              roleTitle: s.roleTitle,
+              department: s.department || '',
+              branchId: s.branchId || 'ALL',
+              status: s.status === 'suspended' ? 'suspended' : 'active'
+            })) as CurrentUser[]);
+          }
+        } catch {
+          /* non-admin session — keep local staff list */
+        }
+
+        collectionsHydrated.current = true;
         setApiSyncError(null);
       } catch (error) {
         if (!cancelled) {
@@ -153,6 +219,17 @@ export default function App() {
     void loadApiData();
     return () => { cancelled = true; };
   }, [isStaffLoggedIn]);
+
+  // Auto-persist every generic module collection back to the backend on change.
+  usePersistedCollection('branches', branches, collectionsHydrated);
+  usePersistedCollection('b2bContracts', b2bContracts, collectionsHydrated);
+  usePersistedCollection('b2cDeals', b2cDeals, collectionsHydrated);
+  usePersistedCollection('campaigns', campaigns, collectionsHydrated);
+  usePersistedCollection('automationRules', automationRules, collectionsHydrated);
+  usePersistedCollection('referrals', referrals, collectionsHydrated);
+  usePersistedCollection('partners', partners, collectionsHydrated);
+  usePersistedCollection('partnerPayouts', partnerPayouts, collectionsHydrated);
+  usePersistedCollection('interactions', interactions, collectionsHydrated);
 
   // Modals & Drawers
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
@@ -193,13 +270,45 @@ export default function App() {
     showToast('Đã xóa chi nhánh khỏi hệ thống');
   };
 
-  // Staff Account Management Handlers
-  const handleAddStaff = (newStaff: CurrentUser) => {
-    setStaffUsers(prev => [newStaff, ...prev]);
-    showToast(`Đã cấp tài khoản thành công cho: ${newStaff.name} (${newStaff.staffCode})!`);
+  // Staff Account Management Handlers — persisted in auth_users via /api/staff
+  const handleAddStaff = async (newStaff: CurrentUser) => {
+    try {
+      const { staff } = await apiClient.staff.create({
+        email: newStaff.email,
+        password: newStaff.password || 'VitHospital@2026',
+        name: newStaff.name,
+        role: newStaff.role,
+        roleTitle: newStaff.roleTitle,
+        staffCode: newStaff.staffCode || null,
+        department: newStaff.department || null,
+        branchId: newStaff.branchId && newStaff.branchId !== 'ALL' ? newStaff.branchId : null,
+        status: newStaff.status
+      });
+      const created: CurrentUser = { ...newStaff, id: staff.id, staffCode: staff.staffCode, roleTitle: staff.roleTitle };
+      setStaffUsers(prev => [created, ...prev]);
+      showToast(`Đã cấp tài khoản đăng nhập cho: ${created.name} (${created.staffCode})!`);
+    } catch (error: any) {
+      console.warn('[API] Không thể tạo tài khoản trên máy chủ.', error);
+      setStaffUsers(prev => [newStaff, ...prev]);
+      showToast(error?.message || 'Máy chủ chưa sẵn sàng; tài khoản chỉ lưu trong phiên hiện tại.');
+    }
   };
 
-  const handleUpdateStaff = (updatedStaff: CurrentUser) => {
+  const handleUpdateStaff = async (updatedStaff: CurrentUser) => {
+    try {
+      await apiClient.staff.update(updatedStaff.id, {
+        name: updatedStaff.name,
+        role: updatedStaff.role,
+        roleTitle: updatedStaff.roleTitle,
+        staffCode: updatedStaff.staffCode || null,
+        department: updatedStaff.department || null,
+        branchId: updatedStaff.branchId && updatedStaff.branchId !== 'ALL' ? updatedStaff.branchId : null,
+        status: updatedStaff.status,
+        ...(updatedStaff.password ? { password: updatedStaff.password } : {})
+      });
+    } catch (error) {
+      console.warn('[API] Không thể cập nhật tài khoản trên máy chủ.', error);
+    }
     setStaffUsers(prev => prev.map(s => s.id === updatedStaff.id ? updatedStaff : s));
     if (currentStaffUser.id === updatedStaff.id) {
       setCurrentStaffUser(updatedStaff);

@@ -7,7 +7,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { dbStore, PatientRecord, AppointmentRecord, SupportTicketRecord, LeadDealRecord, InvoiceRecord, FollowUpTaskRecord, AutoRecallRecord, ZnsLogRecord, VoipCallRecord, CsatFeedbackRecord } from "./server/store";
 import { checkDatabase, databaseConfigured, initializeDatabase, persistStore } from "./server/database";
-import { authConfigured, initializeAuth, loginStaff, requireAuth } from "./server/auth";
+import { authConfigured, authStatus, authTableReady, createStaff, initializeAuth, listStaff, loginStaff, requireAuth, updateStaff } from "./server/auth";
 
 dotenv.config();
 
@@ -27,17 +27,47 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  if (process.env.NODE_ENV === 'production' && !databaseConfigured) {
-    throw new Error('DATABASE_URL is required in production');
+  const isProd = process.env.NODE_ENV === 'production';
+  const authState = authStatus();
+  console.log('=======================================================');
+  console.log('VitCRM startup diagnostics');
+  console.log(`  NODE_ENV              : ${process.env.NODE_ENV || 'development'}`);
+  console.log(`  DATABASE_URL          : ${process.env.DATABASE_URL ? 'set' : 'MISSING'}`);
+  console.log(`  DATABASE_SSL          : ${process.env.DATABASE_SSL || '(unset → no SSL)'}`);
+  console.log(`  JWT_SECRET            : ${process.env.JWT_SECRET ? 'set' : 'MISSING'}`);
+  console.log(`  AUTH_BOOTSTRAP_EMAIL  : ${process.env.AUTH_BOOTSTRAP_EMAIL ? 'set' : 'MISSING'}`);
+  console.log(`  AUTH_BOOTSTRAP_PASSWORD: ${process.env.AUTH_BOOTSTRAP_PASSWORD ? 'set' : 'MISSING'}`);
+  if (authState.missing.length) {
+    console.log(`  ⚠ Missing for full auth : ${authState.missing.join(', ')}`);
   }
-  if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET is required in production');
+  console.log('=======================================================');
+
+  if (isProd && authState.missing.length) {
+    throw new Error(
+      `Production requires these environment variables but they are missing: ${authState.missing.join(', ')}. ` +
+      `Set them (e.g. in the VPS .env / systemd unit) and restart.`
+    );
   }
-  if (process.env.NODE_ENV === 'production' && (!process.env.AUTH_BOOTSTRAP_EMAIL || !process.env.AUTH_BOOTSTRAP_PASSWORD)) {
-    throw new Error('AUTH_BOOTSTRAP_EMAIL and AUTH_BOOTSTRAP_PASSWORD are required in production');
+
+  try {
+    await initializeDatabase();
+  } catch (error: any) {
+    console.error('[startup] Database initialization failed:', error.message);
+    console.error('[startup] Common causes: wrong DATABASE_URL credentials/host, or the database requires TLS — set DATABASE_SSL="true".');
+    throw error;
   }
-  await initializeDatabase();
-  await initializeAuth();
+  try {
+    await initializeAuth();
+  } catch (error: any) {
+    console.error('[startup] initializeAuth failed — auth_users / bootstrap admin NOT ready:', error.message);
+    console.error('[startup] Fix the DB error above, or run `npm run init:auth` against the same DATABASE_URL, then restart.');
+    throw error;
+  }
+
+  const dbState = await checkDatabase();
+  const tableReady = await authTableReady();
+  console.log(`[startup] Database: configured=${dbState.configured} connected=${dbState.connected}${dbState.error ? ` error="${dbState.error}"` : ''}`);
+  console.log(`[startup] Authentication: ${authConfigured ? 'ENABLED' : 'DISABLED (login will 503)'} | auth_users table: ${tableReady ? 'present' : 'MISSING'}`);
 
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
@@ -70,6 +100,7 @@ async function startServer() {
   // =========================================================================
   app.get("/api/health", async (req, res) => {
     const database = await checkDatabase();
+    const authTable = await authTableReady();
     res.status(database.configured && !database.connected ? 503 : 200).json({
       status: "ok",
       app: "VitHospital Healthcare Management Backend",
@@ -90,7 +121,7 @@ async function startServer() {
         geminiAiConfigured: !!process.env.GEMINI_API_KEY,
         storage: databaseConfigured ? 'postgresql-jsonb-snapshot' : 'in-memory-demo',
         databaseConnection: database,
-        authentication: { configured: authConfigured }
+        authentication: { configured: authConfigured, missing: authStatus().missing, tableReady: authTable }
       });
   });
 
@@ -116,6 +147,72 @@ async function startServer() {
       logs: dbStore.auditLogs,
       total: dbStore.auditLogs.length
     });
+  });
+
+  // =========================================================================
+  // 1b. STAFF ACCOUNTS (auth_users) — admin / ban giám đốc only
+  // =========================================================================
+  const requireAdmin = (req: any, res: any, next: any) => {
+    const role = String(req.authUser?.role || '').toLowerCase();
+    if (role === 'admin' || role.includes('admin') || role.includes('giám đốc') || role.includes('quản trị')) return next();
+    res.status(403).json({ error: 'Chỉ Quản trị viên / Ban Giám Đốc mới quản lý được tài khoản nhân viên' });
+  };
+
+  app.get("/api/staff", requireAdmin, async (req, res) => {
+    try {
+      res.json({ staff: await listStaff() });
+    } catch (e: any) {
+      res.status(500).json({ error: "Lỗi tải danh sách tài khoản", details: e.message });
+    }
+  });
+
+  app.post("/api/staff", requireAdmin, async (req, res) => {
+    try {
+      const created = await createStaff(req.body || {});
+      dbStore.addAuditLog(req.authUser?.id || 'system', req.authUser?.name || '', req.authUser?.role || '', 'CREATE_STAFF', 'Nhân sự', `Tạo tài khoản ${created.email}`);
+      res.status(201).json({ success: true, staff: created });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message || "Không thể tạo tài khoản" });
+    }
+  });
+
+  app.put("/api/staff/:id", requireAdmin, async (req, res) => {
+    try {
+      const updated = await updateStaff(req.params.id, req.body || {});
+      dbStore.addAuditLog(req.authUser?.id || 'system', req.authUser?.name || '', req.authUser?.role || '', 'UPDATE_STAFF', 'Nhân sự', `Cập nhật tài khoản ${updated.email}`);
+      res.json({ success: true, staff: updated });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message || "Không thể cập nhật tài khoản" });
+    }
+  });
+
+  // =========================================================================
+  // 1c. GENERIC MODULE COLLECTIONS (branches, campaigns, partners, ...)
+  //     Front-end modules without a dedicated typed table persist here.
+  //     Every write goes into the same JSONB snapshot as the rest of the store.
+  // =========================================================================
+  const COLLECTION_NAMES = new Set([
+    'branches', 'b2bContracts', 'b2cDeals', 'campaigns', 'automationRules',
+    'referrals', 'partners', 'partnerPayouts', 'interactions', 'segments'
+  ]);
+
+  app.get("/api/collections", (req, res) => {
+    res.json({ collections: dbStore.collections });
+  });
+
+  app.get("/api/collections/:name", (req, res) => {
+    const { name } = req.params;
+    if (!COLLECTION_NAMES.has(name)) return res.status(404).json({ error: `Collection "${name}" không hợp lệ` });
+    res.json({ name, items: dbStore.collections[name] || [] });
+  });
+
+  app.put("/api/collections/:name", (req, res) => {
+    const { name } = req.params;
+    if (!COLLECTION_NAMES.has(name)) return res.status(404).json({ error: `Collection "${name}" không hợp lệ` });
+    const items = (req.body && req.body.items) ?? req.body;
+    if (!Array.isArray(items)) return res.status(400).json({ error: 'Payload phải là mảng hoặc { items: [...] }' });
+    dbStore.collections[name] = items;
+    res.json({ success: true, name, count: items.length });
   });
 
   // =========================================================================

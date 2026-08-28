@@ -83,7 +83,13 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
       // Demo fallback is allowed only outside production backend authentication.
       const isProductionBuild = Boolean((import.meta as ImportMeta & { env?: { PROD?: boolean } }).env?.PROD);
       if (isProductionBuild) {
-        setErrorMsg('Không thể xác thực với máy chủ. Vui lòng thử lại hoặc liên hệ quản trị viên.');
+        const rawMessage = apiError instanceof Error ? apiError.message : '';
+        const isNetworkError = /failed to fetch|networkerror|load failed/i.test(rawMessage);
+        setErrorMsg(
+          rawMessage && !isNetworkError
+            ? rawMessage
+            : 'Không thể kết nối máy chủ xác thực. Kiểm tra máy chủ backend / cấu hình DATABASE_URL, JWT_SECRET rồi thử lại.'
+        );
         return;
       }
     }

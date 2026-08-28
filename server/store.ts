@@ -862,6 +862,14 @@ class HospitalBackendStore {
     }
   ];
 
+  /**
+   * Generic key→array store for front-end modules that do not (yet) have a
+   * dedicated typed table: branches, campaigns, automationRules, referrals,
+   * partners, partnerPayouts, interactions, b2bContracts, b2cDeals, ...
+   * Persisted inside the same JSONB snapshot as every other collection.
+   */
+  collections: Record<string, unknown[]> = {};
+
   // Helper logging
   addAuditLog(userId: string, userName: string, role: string, action: string, module: string, details: string) {
     const now = new Date();

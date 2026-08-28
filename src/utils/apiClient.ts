@@ -50,6 +50,35 @@ export const apiClient = {
     }
   },
 
+  // 1a. Staff accounts (admin only) — persisted in auth_users
+  staff: {
+    async list() {
+      return request<{ staff: any[] }>('/staff');
+    },
+    async create(data: { email: string; password: string; name: string; role?: string; roleTitle?: string; staffCode?: string | null; department?: string | null; branchId?: string | null; status?: string }) {
+      return request<{ success: boolean; staff: any }>('/staff', { method: 'POST', body: JSON.stringify(data) });
+    },
+    async update(id: string, data: Record<string, unknown>) {
+      return request<{ success: boolean; staff: any }>(`/staff/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    }
+  },
+
+  // 1b. Generic module collections — persisted in the backend JSONB snapshot
+  collections: {
+    async getAll() {
+      return request<{ collections: Record<string, any[]> }>('/collections');
+    },
+    async get(name: string) {
+      return request<{ name: string; items: any[] }>(`/collections/${name}`);
+    },
+    async save(name: string, items: any[]) {
+      return request<{ success: boolean; name: string; count: number }>(`/collections/${name}`, {
+        method: 'PUT',
+        body: JSON.stringify({ items })
+      });
+    }
+  },
+
   // 1. Health & System
   async getHealth() {
     return request<any>('/health');

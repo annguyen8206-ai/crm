@@ -18,6 +18,7 @@ export type DbSnapshot = {
   voipCalls: unknown[];
   csatFeedbacks: unknown[];
   auditLogs: unknown[];
+  collections: Record<string, unknown[]>;
 };
 
 const connectionString = process.env.DATABASE_URL;
@@ -85,7 +86,8 @@ function createSnapshot(): DbSnapshot {
     znsLogs: dbStore.znsLogs,
     voipCalls: dbStore.voipCalls,
     csatFeedbacks: dbStore.csatFeedbacks,
-    auditLogs: dbStore.auditLogs
+    auditLogs: dbStore.auditLogs,
+    collections: dbStore.collections
   };
 }
 
@@ -94,6 +96,10 @@ function restoreStore(snapshot: Partial<DbSnapshot>): void {
   const source = snapshot as Record<keyof DbSnapshot, unknown>;
   for (const key of Object.keys(createSnapshot()) as Array<keyof DbSnapshot>) {
     const value = source[key];
-    if (Array.isArray(value)) store[key] = value;
+    if (key === 'collections') {
+      if (value && typeof value === 'object' && !Array.isArray(value)) store[key] = value;
+    } else if (Array.isArray(value)) {
+      store[key] = value;
+    }
   }
 }
