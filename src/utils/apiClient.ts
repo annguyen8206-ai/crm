@@ -90,7 +90,34 @@ export const apiClient = {
     }
   },
 
-  // 3. Appointments
+  // 3. Invoices & Payments
+  invoices: {
+    async list(params?: { status?: string; patientId?: string; branchId?: string }) {
+      const query = new URLSearchParams();
+      if (params?.status) query.set('status', params.status);
+      if (params?.patientId) query.set('patientId', params.patientId);
+      if (params?.branchId) query.set('branchId', params.branchId);
+      const qs = query.toString();
+      return request<{ invoices: any[]; total: number; totalCollected: number; totalPending: number }>(`/invoices${qs ? `?${qs}` : ''}`);
+    },
+    async create(invoiceData: any) {
+      return request<{ success: boolean; invoice: any }>('/invoices', {
+        method: 'POST',
+        body: JSON.stringify(invoiceData)
+      });
+    },
+    async generateVietQr(data: { amount: number; invoiceCode?: string; patientName?: string; bankCode?: string; accountNumber?: string; accountName?: string }) {
+      return request<any>('/payments/vietqr', { method: 'POST', body: JSON.stringify(data) });
+    },
+    async markPaid(id: string, data?: { paymentMethod?: string; transactionRef?: string }) {
+      return request<{ success: boolean; invoice: any }>(`/invoices/${id}/pay`, {
+        method: 'POST',
+        body: JSON.stringify(data || {})
+      });
+    }
+  },
+
+  // 4. Appointments
   appointments: {
     async list(params?: { date?: string; branchId?: string; status?: string; department?: string; doctorId?: string; patientId?: string }) {
       const query = new URLSearchParams();

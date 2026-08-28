@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ShieldAlert, ArrowRight, ShieldCheck, Sparkles, Heart, LogOut } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { DashboardView } from './components/DashboardView';
@@ -23,6 +23,41 @@ import { CustomerLoginView } from './components/CustomerLoginView';
 import { StaffManagementModal } from './components/StaffManagementModal';
 import { BranchManagementModal } from './components/BranchManagementModal';
 import { getRoleConfig, isTabAllowedForRole } from './utils/rbac';
+import { apiClient } from './utils/apiClient';
+
+function mapApiPatient(patient: any): Patient {
+  return {
+    ...patient,
+    citizenId: patient.citizenId || patient.idCard,
+    underlyingConditions: patient.underlyingConditions || patient.chronicConditions || [],
+    primaryBranchId: patient.primaryBranchId || patient.branchId || 'hn-central',
+    membership: patient.membership || {
+      tier: patient.loyaltyTier || 'Standard',
+      points: patient.loyaltyPoints || 0,
+      totalSpent: patient.totalSpent || 0
+    },
+    insurance: patient.insurance || {
+      hasBhyt: Boolean(patient.insuranceCardNumber),
+      privateProvider: patient.insuranceProvider,
+      validUntil: patient.insuranceExpiry
+    },
+    avatar: patient.avatar || ''
+  } as Patient;
+}
+
+function mapApiAppointment(appointment: any): Appointment {
+  return {
+    ...appointment,
+    code: appointment.code || appointment.queueNumber || appointment.id,
+    appointmentDate: appointment.appointmentDate || appointment.date,
+    bookingChannel: appointment.bookingChannel || appointment.channel || 'Website',
+    type: appointment.type === 'Tái khám' ? 'Tái khám định kỳ' : appointment.type || 'Khám mới',
+    status: appointment.status === 'Chờ tiếp đón' ? 'Chờ xác nhận' : appointment.status || 'Chờ xác nhận',
+    notes: appointment.notes || '',
+    reminderStatus: appointment.reminderStatus || { znsSent: false, smsSent: false, callConfirmed: false },
+    fee: appointment.fee || appointment.estimatedCost || 0
+  } as Appointment;
+}
 
 import {
   mockBranches,
@@ -91,6 +126,32 @@ export default function App() {
   const [partners, setPartners] = useState<MedicalPartner[]>(mockMedicalPartners);
   const [partnerPayouts, setPartnerPayouts] = useState<PartnerCommissionPayout[]>(mockPartnerPayouts);
   const [interactions, setInteractions] = useState<InteractionLog[]>(mockInteractions);
+  const [apiSyncError, setApiSyncError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadApiData = async () => {
+      try {
+        const [patientsResponse, appointmentsResponse, ticketsResponse] = await Promise.all([
+          apiClient.patients.list({ limit: 500 }),
+          apiClient.appointments.list(),
+          apiClient.tickets.list()
+        ]);
+        if (cancelled) return;
+        setPatients((patientsResponse.patients || []).map(mapApiPatient));
+        setAppointments((appointmentsResponse.appointments || []).map(mapApiAppointment));
+        setSupportTickets((ticketsResponse.tickets || []) as SupportTicket[]);
+        setApiSyncError(null);
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('[API sync] Backend unavailable; retaining demo seed data.', error);
+          setApiSyncError('Backend API chưa kết nối, đang sử dụng dữ liệu demo.');
+        }
+      }
+    };
+    void loadApiData();
+    return () => { cancelled = true; };
+  }, []);
 
   // Modals & Drawers
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
@@ -147,18 +208,33 @@ export default function App() {
   };
 
   // Save new Patient from full Form
-  const handleSavePatient = (newPat: Patient) => {
-    setPatients(prev => [newPat, ...prev]);
-    setSelectedPatientId(newPat.id);
-    showToast(`Đã tạo hồ sơ khách hàng thành công: ${newPat.name} (Mã: ${newPat.pid})!`);
+  const handleSavePatient = async (newPat: Patient) => {
+    try {
+      const response = await apiClient.patients.create(newPat);
+      const savedPatient = mapApiPatient(response.patient);
+      setPatients(prev => [savedPatient, ...prev.filter(patient => patient.id !== savedPatient.id)]);
+      setSelectedPatientId(savedPatient.id);
+      showToast(`Đã lưu hồ sơ khách hàng lên máy chủ: ${savedPatient.name} (${savedPatient.pid})!`);
+    } catch (error) {
+      console.warn('[API] Không thể lưu bệnh nhân, dùng state cục bộ.', error);
+      setPatients(prev => [newPat, ...prev]);
+      setSelectedPatientId(newPat.id);
+      showToast('Backend chưa sẵn sàng; hồ sơ mới chỉ được lưu trong phiên hiện tại.');
+    }
   };
 
   // Appointment Status Updates
-  const handleUpdateAppointmentStatus = (appointmentId: string, newStatus: AppointmentStatus) => {
-    setAppointments(prev =>
-      prev.map(a => (a.id === appointmentId ? { ...a, status: newStatus } : a))
-    );
-    showToast(`Đã chuyển trạng thái lịch khám sang: ${newStatus}`);
+  const handleUpdateAppointmentStatus = async (appointmentId: string, newStatus: AppointmentStatus) => {
+    try {
+      const response = await apiClient.appointments.updateStatus(appointmentId, newStatus);
+      const updated = mapApiAppointment(response.appointment);
+      setAppointments(prev => prev.map(appointment => appointment.id === appointmentId ? updated : appointment));
+      showToast(`Đã cập nhật trạng thái lịch khám trên máy chủ: ${newStatus}`);
+    } catch (error) {
+      console.warn('[API] Không thể cập nhật lịch hẹn, dùng state cục bộ.', error);
+      setAppointments(prev => prev.map(appointment => appointment.id === appointmentId ? { ...appointment, status: newStatus } : appointment));
+      showToast('Backend chưa sẵn sàng; trạng thái chỉ được cập nhật trong phiên hiện tại.');
+    }
   };
 
   // Trigger ZNS / SMS Reminder
@@ -183,14 +259,25 @@ export default function App() {
   };
 
   // Book New Appointment
-  const handleSaveAppointment = (newApt: Omit<Appointment, 'id' | 'code'>) => {
-    const apt: Appointment = {
+  const handleSaveAppointment = async (newApt: Omit<Appointment, 'id' | 'code'>) => {
+    const apiPayload = {
       ...newApt,
-      id: `APT-${Date.now()}`,
-      code: `LK-${Math.floor(1000 + Math.random() * 9000)}`
+      date: newApt.appointmentDate,
+      timeSlot: newApt.timeSlot,
+      channel: newApt.bookingChannel,
+      estimatedCost: newApt.fee
     };
-    setAppointments(prev => [apt, ...prev]);
-    showToast(`Đã tạo lịch khám thành công cho BN ${apt.patientName} & gửi Zalo ZNS xác nhận!`);
+    try {
+      const response = await apiClient.appointments.create(apiPayload);
+      const savedAppointment = mapApiAppointment(response.appointment);
+      setAppointments(prev => [savedAppointment, ...prev.filter(appointment => appointment.id !== savedAppointment.id)]);
+      showToast(`Đã lưu lịch khám lên máy chủ cho BN ${savedAppointment.patientName}!`);
+    } catch (error) {
+      console.warn('[API] Không thể lưu lịch hẹn, dùng state cục bộ.', error);
+      const localAppointment: Appointment = { ...newApt, id: `APT-${Date.now()}`, code: `LK-${Math.floor(1000 + Math.random() * 9000)}` };
+      setAppointments(prev => [localAppointment, ...prev]);
+      showToast('Backend chưa sẵn sàng; lịch hẹn chỉ được lưu trong phiên hiện tại.');
+    }
   };
 
   // B2B Stage Updates
@@ -228,11 +315,16 @@ export default function App() {
   };
 
   // Support Ticket Status Updates
-  const handleUpdateTicketStatus = (ticketId: string, status: TicketStatus, notes?: string) => {
-    setSupportTickets(prev =>
-      prev.map(t => (t.id === ticketId ? { ...t, status, resolutionNotes: notes || t.resolutionNotes } : t))
-    );
-    showToast(`Đã cập nhật xử lý Ticket khiếu nại sang: ${status}`);
+  const handleUpdateTicketStatus = async (ticketId: string, status: TicketStatus, notes?: string) => {
+    try {
+      const response = await apiClient.tickets.update(ticketId, { status, resolutionNotes: notes });
+      setSupportTickets(prev => prev.map(ticket => ticket.id === ticketId ? response.ticket as SupportTicket : ticket));
+      showToast(`Đã cập nhật Ticket trên máy chủ: ${status}`);
+    } catch (error) {
+      console.warn('[API] Không thể cập nhật ticket, dùng state cục bộ.', error);
+      setSupportTickets(prev => prev.map(ticket => ticket.id === ticketId ? { ...ticket, status, resolutionNotes: notes || ticket.resolutionNotes } : ticket));
+      showToast('Backend chưa sẵn sàng; ticket chỉ được cập nhật trong phiên hiện tại.');
+    }
   };
 
   // Selected Patient Details for 360 View
