@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { dbStore, PatientRecord, AppointmentRecord, SupportTicketRecord, LeadDealRecord, InvoiceRecord, FollowUpTaskRecord, AutoRecallRecord, ZnsLogRecord, VoipCallRecord, CsatFeedbackRecord } from "./server/store";
+import { checkDatabase, databaseConfigured, initializeDatabase, persistStore } from "./server/database";
 
 dotenv.config();
 
@@ -23,7 +24,21 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  if (process.env.NODE_ENV === 'production' && !databaseConfigured) {
+    throw new Error('DATABASE_URL is required in production');
+  }
+  await initializeDatabase();
+
+  app.use(express.json({ limit: '2mb' }));
+
+  // Persist every successful write request after handlers complete.
+  app.use((req, res, next) => {
+    if (!req.path.startsWith('/api') || req.method === 'GET') return next();
+    res.on('finish', () => {
+      if (res.statusCode < 400) void persistStore();
+    });
+    next();
+  });
 
   // Request Logging & Audit Middleware
   app.use((req, res, next) => {
@@ -39,14 +54,16 @@ async function startServer() {
   // =========================================================================
   // 1. HEALTH CHECK & SYSTEM METADATA ENDPOINTS
   // =========================================================================
-  app.get("/api/health", (req, res) => {
-    res.json({
+  app.get("/api/health", async (req, res) => {
+    const database = await checkDatabase();
+    res.status(database.configured && !database.connected ? 503 : 200).json({
       status: "ok",
       app: "VitHospital Healthcare Management Backend",
       version: "2.6.0-PROD",
       environment: process.env.NODE_ENV || "development",
       timestamp: new Date().toISOString(),
       database: {
+        configured: databaseConfigured,
         patientsCount: dbStore.patients.length,
         appointmentsCount: dbStore.appointments.length,
         ticketsCount: dbStore.tickets.length,
@@ -55,9 +72,11 @@ async function startServer() {
         recallsCount: dbStore.recalls.length,
         znsLogsCount: dbStore.znsLogs.length,
         voipCallsCount: dbStore.voipCalls.length
-      },
-      geminiAiConfigured: !!process.env.GEMINI_API_KEY
-    });
+        },
+        geminiAiConfigured: !!process.env.GEMINI_API_KEY,
+        storage: databaseConfigured ? 'postgresql-jsonb-snapshot' : 'in-memory-demo',
+        databaseConnection: database
+      });
   });
 
   // System Audit Logs
@@ -1280,4 +1299,7 @@ Trả về JSON thuần túy:
   });
 }
 
-startServer();
+startServer().catch(error => {
+  console.error('VitCRM startup failed:', error);
+  process.exit(1);
+});

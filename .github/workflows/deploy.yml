@@ -26,6 +26,7 @@ jobs:
             git reset --hard origin/main
             npm ci
             npm run build
+            npm run lint
             pm2 restart vitcrm --update-env
             pm2 save
             sleep 3
