@@ -1,0 +1,35 @@
+name: Deploy VitCRM
+on:
+  push:
+    branches:
+      - main
+concurrency:
+  group: vitcrm-production
+  cancel-in-progress: true
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          port: ${{ secrets.SERVER_PORT }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd /var/www/vitcrm
+            git fetch origin main
+            git reset --hard origin/main
+            npm ci
+            npm run build
+            pm2 restart vitcrm --update-env
+            pm2 save
+            sleep 3
+            curl --fail --silent --show-error http://127.0.0.1:3000/api/health
+            echo "VitCRM deployment successful"
+            git log -1 --oneline
+            pm2 status

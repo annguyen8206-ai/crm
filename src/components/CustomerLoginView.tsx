@@ -577,8 +577,9 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
               </form>
             )}
 
-            {/* Quick Demo Patients Selection */}
-            <div className="pt-4 border-t border-slate-700/80 space-y-2.5">
+            <div className="hidden">
+              {/* Quick Demo Patients Selection */}
+              <div className="pt-4 border-t border-slate-700/80 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -622,6 +623,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                     </button>
                   );
                 })}
+              </div>
               </div>
             </div>
 

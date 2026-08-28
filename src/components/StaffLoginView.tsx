@@ -149,22 +149,6 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
           >
             Đăng Nhập
           </button>
-          <button
-            onClick={() => setActiveTab('staff_list')}
-            className={`px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-              activeTab === 'staff_list' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Danh Mục Tài Khoản ({staffList.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('matrix')}
-            className={`px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-              activeTab === 'matrix' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Ma Trận Quyền Hạn (RBAC)
-          </button>
           {handleGoToCustomer && (
             <button
               id="btn-switch-to-customer-portal"
@@ -184,8 +168,8 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
         {/* 1. LOGIN TAB WITH DEDICATED FORM & CREDENTIALS INFO */}
         {/* ========================================================================= */}
         {activeTab === 'login' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Left Column: Official Staff Login Box */}
+          <div className="max-w-xl mx-auto">
+            {/* Official Staff Login Box */}
             <div className="lg:col-span-5 bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md space-y-6">
               <div className="space-y-1.5">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold">
@@ -243,10 +227,10 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                     </div>
                   </div>
 
-                  <div>
+                  <div className="hidden">
                     <label className="block font-bold text-slate-300 mb-1.5">Cơ Sở / Chi Nhánh Làm Việc:</label>
                     <div className="relative">
-                      <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                      <Building2 className="hidden w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <select
                         value={selectedBranch}
                         onChange={(e) => setSelectedBranch(e.target.value as BranchId)}
@@ -258,14 +242,6 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                         ))}
                       </select>
                     </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" defaultChecked className="rounded border-slate-700 text-blue-600 focus:ring-blue-500" />
-                      <span>Ghi nhớ phiên làm việc</span>
-                    </label>
-                    <span className="text-blue-400 hover:underline cursor-pointer">Quên mật khẩu?</span>
                   </div>
 
                   <button
@@ -317,14 +293,10 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                 </form>
               )}
 
-              <div className="pt-4 border-t border-slate-700/60 text-center text-[11px] text-slate-400">
-                <span>Cần cấp tài khoản mới hoặc đổi quyền? Liên hệ </span>
-                <strong className="text-slate-300">Phòng IT / Ban Giám Đốc</strong>
-              </div>
             </div>
 
             {/* Right Column: Security Guidance & Quick Lookup */}
-            <div className="lg:col-span-7 space-y-4">
+            <div className="hidden lg:col-span-7 space-y-4">
               <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-700/80">
                   <div className="flex items-center gap-2">
