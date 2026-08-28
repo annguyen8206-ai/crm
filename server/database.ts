@@ -1,4 +1,6 @@
 import dotenv from 'dotenv';
+import fs from 'fs/promises';
+import path from 'path';
 import { Pool } from 'pg';
 import { dbStore } from './store';
 
@@ -36,6 +38,14 @@ export async function initializeDatabase(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS vitcrm_store_updated_at_idx ON vitcrm_store (updated_at);
   `);
+  const migrationPath = path.join(process.cwd(), 'migrations', '001_production_schema.sql');
+  try {
+    const migrationSql = await fs.readFile(migrationPath, 'utf8');
+    const migrationResult = await pool.query('SELECT 1 FROM vitcrm_migrations WHERE version = 1');
+    if (!migrationResult.rowCount) await pool.query(migrationSql);
+  } catch (error: any) {
+    throw new Error(`Database migration failed: ${error.message}`);
+  }
   const result = await pool.query<{ snapshot: Record<string, unknown> }>('SELECT snapshot FROM vitcrm_store WHERE id = 1');
   if (result.rowCount) {
     restoreStore(result.rows[0].snapshot);

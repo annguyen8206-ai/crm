@@ -33,6 +33,9 @@ async function startServer() {
   if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET is required in production');
   }
+  if (process.env.NODE_ENV === 'production' && (!process.env.AUTH_BOOTSTRAP_EMAIL || !process.env.AUTH_BOOTSTRAP_PASSWORD)) {
+    throw new Error('AUTH_BOOTSTRAP_EMAIL and AUTH_BOOTSTRAP_PASSWORD are required in production');
+  }
   await initializeDatabase();
   await initializeAuth();
 
@@ -994,6 +997,7 @@ async function startServer() {
   app.post("/api/ai/triage", async (req, res) => {
     try {
       const { symptoms, patientAge, patientGender, medicalHistory } = req.body;
+      if (process.env.AI_ENABLED !== 'true') return res.status(503).json({ error: 'AI services are disabled by policy' });
       const ai = getAi();
 
       if (!ai) {
@@ -1044,6 +1048,7 @@ TrẢ VỀ JSON thuần túy (không markdown bao quanh):
   app.post("/api/ai/summarize-patient", async (req, res) => {
     try {
       const { patientData } = req.body;
+      if (process.env.AI_ENABLED !== 'true') return res.status(503).json({ error: 'AI services are disabled by policy' });
       const ai = getAi();
 
       if (!ai) {
@@ -1081,6 +1086,7 @@ Trả về JSON thuần túy:
   app.post("/api/ai/generate-campaign-content", async (req, res) => {
     try {
       const { segmentName, targetCondition, channel, tone } = req.body;
+      if (process.env.AI_ENABLED !== 'true') return res.status(503).json({ error: 'AI services are disabled by policy' });
       const ai = getAi();
 
       if (!ai) {
@@ -1123,6 +1129,7 @@ Trả về JSON thuần túy:
   app.post("/api/ai/generate-care-response", async (req, res) => {
     try {
       const { complaintText, category, patientName, department, priority } = req.body;
+      if (process.env.AI_ENABLED !== 'true') return res.status(503).json({ error: 'AI services are disabled by policy' });
       const ai = getAi();
 
       if (!ai) {
@@ -1174,6 +1181,7 @@ Trả về JSON thuần túy:
   app.post("/api/ai/chatbot-faq-reply", async (req, res) => {
     try {
       const { message, channel, patientName, patientPhone } = req.body;
+      if (process.env.AI_ENABLED !== 'true') return res.status(503).json({ error: 'AI services are disabled by policy' });
       const ai = getAi();
 
       if (!ai) {
