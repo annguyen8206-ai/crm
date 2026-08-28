@@ -8,6 +8,14 @@ import { GoogleGenAI } from "@google/genai";
 import { dbStore, PatientRecord, AppointmentRecord, SupportTicketRecord, LeadDealRecord, InvoiceRecord, FollowUpTaskRecord, AutoRecallRecord, ZnsLogRecord, VoipCallRecord, CsatFeedbackRecord } from "./server/store";
 import { checkDatabase, databaseConfigured, initializeDatabase, persistStore } from "./server/database";
 import { authConfigured, authStatus, authTableReady, createStaff, initializeAuth, listStaff, loginStaff, requireAuth, updateStaff } from "./server/auth";
+import {
+  integrationsStatus, logIntegrationsStatus,
+  sendZns,
+  startCall,
+  sendEmail,
+  requestOtp, verifyOtp,
+  verifyWebhookAuth, parseWebhookPayload, extractInvoiceCode, vietQrBankInfo
+} from "./server/integrations";
 
 dotenv.config();
 
@@ -68,6 +76,9 @@ async function startServer() {
   const tableReady = await authTableReady();
   console.log(`[startup] Database: configured=${dbState.configured} connected=${dbState.connected}${dbState.error ? ` error="${dbState.error}"` : ''}`);
   console.log(`[startup] Authentication: ${authConfigured ? 'ENABLED' : 'DISABLED (login will 503)'} | auth_users table: ${tableReady ? 'present' : 'MISSING'}`);
+  console.log('=======================================================');
+  logIntegrationsStatus();
+  console.log('=======================================================');
 
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
@@ -121,7 +132,8 @@ async function startServer() {
         geminiAiConfigured: !!process.env.GEMINI_API_KEY,
         storage: databaseConfigured ? 'postgresql-jsonb-snapshot' : 'in-memory-demo',
         databaseConnection: database,
-        authentication: { configured: authConfigured, missing: authStatus().missing, tableReady: authTable }
+        authentication: { configured: authConfigured, missing: authStatus().missing, tableReady: authTable },
+        integrations: integrationsStatus()
       });
   });
 
@@ -136,6 +148,53 @@ async function startServer() {
     } catch (error: any) {
       res.status(401).json({ error: error.message || 'Đăng nhập thất bại' });
     }
+  });
+
+  // --- Public integration callbacks (no bearer token; verified by shared secret) ---
+
+  // Bank-notification webhook → auto-reconcile invoices (Casso / Sepay / generic).
+  app.post('/api/payments/webhook', (req, res) => {
+    if (!verifyWebhookAuth(req.headers as Record<string, unknown>, req.query as Record<string, unknown>)) {
+      return res.status(401).json({ error: 'Chữ ký webhook không hợp lệ' });
+    }
+    const txns = parseWebhookPayload(req.body);
+    const matched: Array<{ invoiceCode: string; amount: number; reference: string }> = [];
+    for (const txn of txns) {
+      const code = extractInvoiceCode(txn.description);
+      if (!code) continue;
+      const inv = dbStore.invoices.find(i => i.invoiceCode.toUpperCase() === code.toUpperCase());
+      if (!inv || inv.status === 'Đã thanh toán') continue;
+      if (txn.amount + 0.5 < inv.patientPayable) continue; // underpaid → ignore
+      inv.status = 'Đã thanh toán';
+      inv.paymentMethod = 'VietQR';
+      inv.transactionRef = txn.reference || `BANK-${Date.now()}`;
+      inv.paidAt = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      matched.push({ invoiceCode: inv.invoiceCode, amount: txn.amount, reference: inv.transactionRef });
+      dbStore.addAuditLog('payment-webhook', 'Cổng thanh toán', 'System', 'AUTO_RECONCILE', 'Viện phí', `${inv.invoiceCode} ← ${txn.amount}`);
+    }
+    if (matched.length) void persistStore();
+    res.json({ success: true, received: txns.length, reconciled: matched });
+  });
+
+  // OTP request / verify (login 2FA, phone/email verification).
+  app.post('/api/auth/otp/request', async (req, res) => {
+    const { identifier, phone, email, purpose } = req.body || {};
+    if (!identifier || (!phone && !email)) {
+      return res.status(400).json({ error: 'Cần identifier và ít nhất một trong phone/email' });
+    }
+    try {
+      const result = await requestOtp(String(identifier), { phone, email, purpose });
+      res.status(result.sent ? 200 : 502).json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || 'Không gửi được OTP' });
+    }
+  });
+
+  app.post('/api/auth/otp/verify', (req, res) => {
+    const { identifier, code } = req.body || {};
+    if (!identifier || !code) return res.status(400).json({ error: 'Thiếu identifier hoặc code' });
+    const result = verifyOtp(String(identifier), String(code));
+    res.status(result.ok ? 200 : 400).json(result);
   });
 
   // All business APIs require a valid backend token.
@@ -184,6 +243,22 @@ async function startServer() {
     } catch (e: any) {
       res.status(400).json({ error: e.message || "Không thể cập nhật tài khoản" });
     }
+  });
+
+  // =========================================================================
+  // 1d. INTEGRATION STATUS & UTILITIES
+  // =========================================================================
+  app.get("/api/system/integrations", requireAdmin, (req, res) => {
+    res.json({ integrations: integrationsStatus() });
+  });
+
+  app.post("/api/email/send", requireAdmin, async (req, res) => {
+    const { to, subject, html, text, cc, bcc, replyTo } = req.body || {};
+    if (!to || !subject || (!html && !text)) {
+      return res.status(400).json({ error: 'Cần to, subject và html hoặc text' });
+    }
+    const result = await sendEmail({ to, subject, html, text, cc, bcc, replyTo });
+    res.status(result.ok ? 200 : 502).json(result);
   });
 
   // =========================================================================
@@ -676,7 +751,11 @@ async function startServer() {
 
   // Generate VietQR Dynamic Payload
   app.post("/api/payments/vietqr", (req, res) => {
-    const { amount, invoiceCode, patientName, bankCode = 'MB', accountNumber = '0338886868', accountName = 'BENH VIEN DKT VITHOSPITAL' } = req.body;
+    const bankDefaults = vietQrBankInfo();
+    const { amount, invoiceCode, patientName,
+      bankCode = bankDefaults.bankCode,
+      accountNumber = bankDefaults.accountNumber,
+      accountName = bankDefaults.accountName } = req.body;
     const safeAmount = Number(amount) || 500000;
     const addInfo = encodeURIComponent(`TT VIEN PHI ${invoiceCode || 'HD'}`);
     const qrUrl = `https://img.vietqr.io/image/${bankCode}-${accountNumber}-compact2.png?amount=${safeAmount}&addInfo=${addInfo}&accountName=${encodeURIComponent(accountName)}`;
@@ -869,7 +948,7 @@ async function startServer() {
     res.json({ logs: dbStore.znsLogs, total: dbStore.znsLogs.length });
   });
 
-  app.post("/api/zns/send-post-visit-care", (req, res) => {
+  app.post("/api/zns/send-post-visit-care", async (req, res) => {
     try {
       const {
         patientId,
@@ -878,7 +957,8 @@ async function startServer() {
         diagnosis,
         doctorCareNotes,
         channel = 'Zalo ZNS',
-        templateType = 'ZNS_POST_VISIT_CARE'
+        templateType = 'ZNS_POST_VISIT_CARE',
+        templateData
       } = req.body;
 
       if (!patientName || !diagnosis) {
@@ -889,6 +969,16 @@ async function startServer() {
       const now = new Date();
       const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 
+      const careNotes = doctorCareNotes || 'Bệnh nhân tuân thủ chế độ ăn uống, sinh hoạt lành mạnh và theo dõi triệu chứng tại nhà.';
+
+      // Real send when Zalo OA is configured; otherwise a simulated result.
+      const dispatch = await sendZns({
+        phone: patientPhone || '',
+        templateType,
+        templateData: templateData || { patient_name: patientName, diagnosis, care_notes: careNotes.slice(0, 200) },
+        trackingId: trackingCode
+      });
+
       const newLog: ZnsLogRecord = {
         id: `zns-log-${Date.now()}`,
         patientId: patientId || `pat-${Date.now()}`,
@@ -897,20 +987,23 @@ async function startServer() {
         templateType,
         templateName: templateType === 'ZNS_AUTO_RECALL' ? 'ZNS Nhắc Lịch Tái Khám Tự Động' : 'ZNS Dặn Dò Sau Khám & Hướng Dẫn Điều Trị',
         diagnosis,
-        doctorCareNotes: doctorCareNotes || 'Bệnh nhân tuân thủ chế độ ăn uống, sinh hoạt lành mạnh và theo dõi triệu chứng tại nhà.',
+        doctorCareNotes: careNotes,
         channel,
-        status: 'Đã gửi thành công',
+        status: dispatch.ok ? (dispatch.mode === 'live' ? 'Đã gửi thành công' : 'Đã gửi (giả lập)') : `Gửi thất bại: ${dispatch.error || 'lỗi provider'}`,
         sentAt: timeStr,
-        deliveredAt: timeStr,
-        trackingCode,
-        cost: 320
+        deliveredAt: dispatch.ok ? timeStr : '',
+        trackingCode: dispatch.ref || trackingCode,
+        cost: dispatch.mode === 'live' ? 320 : 0
       };
 
       dbStore.znsLogs.unshift(newLog);
 
-      res.json({
-        success: true,
-        message: `Đã gửi tin nhắn ${channel} dặn dò sau khám tới bệnh nhân ${patientName} thành công!`,
+      res.status(dispatch.ok ? 200 : 502).json({
+        success: dispatch.ok,
+        mode: dispatch.mode,
+        message: dispatch.ok
+          ? `Đã gửi ZNS tới ${patientName}${dispatch.mode === 'simulated' ? ' (giả lập — chưa cấu hình Zalo OA)' : ''}.`
+          : `Không gửi được ZNS: ${dispatch.error}`,
         log: newLog
       });
     } catch (e: any) {
@@ -921,13 +1014,16 @@ async function startServer() {
   // =========================================================================
   // 10. VOIP SOFTPHONE / WEBRTC CALL RECORDING API
   // =========================================================================
-  app.post("/api/calls/click-to-call", (req, res) => {
+  app.post("/api/calls/click-to-call", async (req, res) => {
     const { patientId, patientName, patientPhone, agentStaffName = 'CSKH VitCRM', agentExtension = '108' } = req.body;
     const now = new Date();
     const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 
+    // Real outbound call when a VoIP provider is configured; otherwise simulated.
+    const dispatch = await startCall({ toNumber: patientPhone, agentId: agentExtension });
+
     const newCall: VoipCallRecord = {
-      id: `call-${Date.now()}`,
+      id: dispatch.ref || `call-${Date.now()}`,
       callType: 'OUTBOUND_CSKH',
       patientId: patientId || `pat-${Date.now()}`,
       patientName,
@@ -936,13 +1032,16 @@ async function startServer() {
       agentExtension,
       startTime: timeStr,
       durationSeconds: 0,
-      status: 'Đang đổ chuông'
+      status: dispatch.ok ? (dispatch.mode === 'live' ? 'Đang đổ chuông' : 'Đang đổ chuông (giả lập)') : `Kết nối thất bại: ${dispatch.error || 'lỗi provider'}`
     };
 
     dbStore.voipCalls.unshift(newCall);
-    res.json({
-      success: true,
-      message: `Đang kết nối tổng đài ảo máy nhánh ${agentExtension} tới số ${patientPhone}...`,
+    res.status(dispatch.ok ? 200 : 502).json({
+      success: dispatch.ok,
+      mode: dispatch.mode,
+      message: dispatch.ok
+        ? `Đang gọi tới ${patientPhone}${dispatch.mode === 'simulated' ? ' (giả lập — chưa cấu hình VoIP)' : ''}...`
+        : `Không kết nối được cuộc gọi: ${dispatch.error}`,
       callSession: newCall
     });
   });
