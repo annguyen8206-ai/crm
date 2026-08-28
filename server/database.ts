@@ -1,6 +1,4 @@
 import dotenv from 'dotenv';
-import fs from 'fs/promises';
-import path from 'path';
 import { Pool } from 'pg';
 import { dbStore } from './store';
 
@@ -27,37 +25,16 @@ export const pool = connectionString ? new Pool({ connectionString, max: 10, ssl
 
 export async function initializeDatabase(): Promise<void> {
   if (!pool) return;
+  // The whole application state is one JSONB row in vitcrm_store; auth lives in
+  // auth_users (see server/auth.ts). No other tables are read or written.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS vitcrm_store (
       id SMALLINT PRIMARY KEY CHECK (id = 1),
       snapshot JSONB NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-    CREATE TABLE IF NOT EXISTS vitcrm_migrations (
-      version INTEGER PRIMARY KEY,
-      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
     CREATE INDEX IF NOT EXISTS vitcrm_store_updated_at_idx ON vitcrm_store (updated_at);
   `);
-  // The bundled migrations/001_production_schema.sql defines relational tables the
-  // running app does NOT use (everything lives in the vitcrm_store JSONB snapshot
-  // + auth_users). It is opt-in and never fatal — on a DB that already has another
-  // schema (e.g. database/migrations/001_initial_schema.sql) it would only clash.
-  if (process.env.RUN_LEGACY_MIGRATION === 'true') {
-    const migrationPath = path.join(process.cwd(), 'migrations', '001_production_schema.sql');
-    try {
-      const migrationSql = await fs.readFile(migrationPath, 'utf8');
-      const migrationResult = await pool.query('SELECT 1 FROM vitcrm_migrations WHERE version = 1');
-      if (!migrationResult.rowCount) {
-        await pool.query(migrationSql);
-        console.log('[db] Legacy migration 001_production_schema.sql applied.');
-      } else {
-        console.log('[db] Legacy migration already recorded — skipping.');
-      }
-    } catch (error: any) {
-      console.warn(`[db] Legacy migration skipped (non-fatal): ${error.message}`);
-    }
-  }
   const result = await pool.query<{ snapshot: Record<string, unknown> }>('SELECT snapshot FROM vitcrm_store WHERE id = 1');
   if (result.rowCount) {
     restoreStore(result.rows[0].snapshot);

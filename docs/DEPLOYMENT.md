@@ -97,6 +97,15 @@ Nguyên nhân thường gặp khiến bảng không được tạo:
   (`usePersistedCollection` trong `src/App.tsx`).
 - **Tài khoản nhân viên** nằm ở bảng quan hệ `auth_users` (không phải snapshot).
 
+Chỉ có **2 bảng** app đụng tới: `vitcrm_store` và `auth_users` — cả hai tự tạo
+lúc khởi động. Không có hệ migration nào khác. Nếu DB còn các bảng quan hệ cũ
+(`patients`, `appointments`, `users`, `schema_migrations`, …) từ schema không dùng
+nữa, xoá bằng (sao lưu trước):
+```bash
+pg_dump "$DATABASE_URL" > backup_before_cleanup.sql
+psql "$DATABASE_URL" -f scripts/drop-legacy-tables.sql
+```
+
 ## 4. Chạy DB tại máy dev (không cần cài PostgreSQL)
 
 ```bash
