@@ -69,6 +69,10 @@ export interface AppointmentRecord {
   estimatedCost?: number;
   isPaid?: boolean;
   createdAt: string;
+  checkedInAt?: string;
+  seenAt?: string;
+  reminder24hSentAt?: string;
+  reminder2hSentAt?: string;
 }
 
 export interface SupportTicketRecord {

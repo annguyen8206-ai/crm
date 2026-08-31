@@ -316,11 +316,38 @@ export async function updateStaff(id: string, input: {
   return rowToStaff(rows[0]);
 }
 
-/** Verify a session bearer token outside the middleware (e.g. SSE ?token=). */
+/** Patient-portal tokens: OTP-based, scoped 'portal', carry the patient id. */
+export function issuePortalToken(patientId: string, phone: string): string {
+  if (!jwtSecret) throw new Error('Máy chủ chưa cấu hình JWT_SECRET');
+  return jwt.sign({ sub: patientId, scope: 'portal', phone }, jwtSecret, { expiresIn: '12h' });
+}
+
+export function verifyPortalToken(token: string): { patientId: string; phone: string } | null {
+  if (!jwtSecret || !token) return null;
+  try {
+    const p = jwt.verify(token, jwtSecret) as any;
+    if (p?.scope !== 'portal' || !p?.sub) return null;
+    return { patientId: String(p.sub), phone: String(p.phone || '') };
+  } catch {
+    return null;
+  }
+}
+
+export function requirePortalAuth(req: Request, res: Response, next: NextFunction): void {
+  const token = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : '';
+  const claims = verifyPortalToken(token);
+  if (!claims) { res.status(401).json({ error: 'Phiên đăng nhập cổng khách hàng không hợp lệ' }); return; }
+  (req as any).portalPatientId = claims.patientId;
+  next();
+}
+
+/** Verify a STAFF session bearer token. Rejects portal / pre-2fa tokens. */
 export function verifySessionToken(token: string): AuthUser | null {
   if (!jwtSecret || !token) return null;
   try {
-    return jwt.verify(token, jwtSecret) as AuthUser;
+    const payload = jwt.verify(token, jwtSecret) as any;
+    if (payload?.scope || !payload?.role || !payload?.id) return null; // not a full staff session
+    return payload as AuthUser;
   } catch {
     return null;
   }
@@ -329,8 +356,10 @@ export function verifySessionToken(token: string): AuthUser | null {
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (!authConfigured) { res.status(503).json({ error: 'Authentication chưa được cấu hình trên máy chủ' }); return; }
   const token = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : '';
-  try { req.authUser = jwt.verify(token, jwtSecret!) as AuthUser; next(); }
-  catch { res.status(401).json({ error: 'Yêu cầu đăng nhập hợp lệ' }); }
+  const user = verifySessionToken(token);
+  if (!user) { res.status(401).json({ error: 'Yêu cầu đăng nhập hợp lệ' }); return; }
+  req.authUser = user;
+  next();
 }
 
 export function requireRoles(...roles: string[]) {

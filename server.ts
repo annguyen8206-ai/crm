@@ -7,14 +7,14 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { dbStore, PatientRecord, AppointmentRecord, SupportTicketRecord, LeadDealRecord, InvoiceRecord, FollowUpTaskRecord, AutoRecallRecord, ZnsLogRecord, VoipCallRecord, CsatFeedbackRecord, ConversationRecord, MessageRecord } from "./server/store";
 import { checkDatabase, databaseConfigured, initializeDatabase, persistStore } from "./server/database";
-import { authConfigured, authStatus, authTableReady, completeStaff2fa, createStaff, initializeAuth, listStaff, loginStaff, requireAuth, updateStaff, verifyPreAuthToken, verifySessionToken } from "./server/auth";
+import { authConfigured, authStatus, authTableReady, completeStaff2fa, createStaff, initializeAuth, issuePortalToken, listStaff, loginStaff, requireAuth, requirePortalAuth, updateStaff, verifyPreAuthToken, verifySessionToken } from "./server/auth";
 import { bus, emitChange } from "./server/events";
 import {
   integrationsStatus, logIntegrationsStatus,
   sendZns,
   startCall,
   sendEmail,
-  requestOtp, verifyOtp,
+  requestOtp, verifyOtp, sendSms,
   verifyWebhookAuth, parseWebhookPayload, extractInvoiceCode, vietQrBankInfo,
   type IncomingMessage, type Channel,
   facebookVerifyChallenge, verifyFacebookSignature, verifyZaloSignature,
@@ -34,6 +34,30 @@ function getAi(): GoogleGenAI | null {
   }
   return aiClient;
 }
+
+const digitsOnly = (s: string) => String(s || '').replace(/\D/g, '');
+const phoneMatches = (a: string, b: string) => {
+  const x = digitsOnly(a), y = digitsOnly(b);
+  if (!x || !y) return false;
+  return x.slice(-9) === y.slice(-9);
+};
+
+/** Start time of an appointment as epoch ms, from `date` (YYYY-MM-DD) + `timeSlot` ("08:30 - 09:00"). */
+function appointmentStartMs(apt: { date?: string; timeSlot?: string }): number | null {
+  if (!apt.date) return null;
+  const t = (apt.timeSlot || '00:00').match(/(\d{1,2}):(\d{2})/);
+  const hh = t ? Number(t[1]) : 0;
+  const mm = t ? Number(t[2]) : 0;
+  const d = new Date(`${apt.date}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(hh, mm, 0, 0);
+  return d.getTime();
+}
+
+const APP_BASE_URL = (process.env.APP_URL && process.env.APP_URL !== 'MY_APP_URL') ? process.env.APP_URL.replace(/\/$/, '') : '';
+const queueLookupUrl = (code: string) => `${APP_BASE_URL}/api/queue/${encodeURIComponent(code)}`;
+const queueQrUrl = (code: string) =>
+  `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(queueLookupUrl(code) || code)}`;
 
 async function startServer() {
   const app = express();
@@ -341,6 +365,161 @@ async function startServer() {
     bus.on('change', onChange);
     const keepAlive = setInterval(() => res.write(`: ping\n\n`), 25000);
     req.on('close', () => { clearInterval(keepAlive); bus.off('change', onChange); });
+  });
+
+  // --- Electronic queue lookup (public — the QR on the printed ticket points here) ---
+  app.get('/api/queue/:code', (req, res) => {
+    const code = req.params.code;
+    const apt = dbStore.appointments.find(a => a.queueNumber && a.queueNumber.toLowerCase() === code.toLowerCase());
+    if (!apt) return res.status(404).json({ error: 'Không tìm thấy số thứ tự' });
+    const waiting = dbStore.appointments
+      .filter(a => a.branchId === apt.branchId && a.date === apt.date && a.checkedInAt && !a.seenAt && a.status !== 'Đã hủy')
+      .sort((a, b) => String(a.checkedInAt) < String(b.checkedInAt) ? -1 : 1);
+    const ahead = waiting.findIndex(a => a.id === apt.id);
+    const maskName = (n: string) => n ? n.split(' ').map((w, i, arr) => (i === arr.length - 1 ? w : w[0] + '.')).join(' ') : '';
+    res.json({
+      queueNumber: apt.queueNumber,
+      patientName: maskName(apt.patientName),
+      department: apt.department,
+      status: apt.seenAt ? 'Đã vào khám' : apt.checkedInAt ? 'Đang chờ' : 'Chưa check-in',
+      peopleAhead: ahead < 0 ? 0 : ahead,
+      estimatedWaitMinutes: (ahead < 0 ? 0 : ahead) * 12
+    });
+  });
+
+  // --- Patient Portal authentication (OTP by phone; no password) ---
+  app.post('/api/portal/auth/request-otp', async (req, res) => {
+    const phone = String(req.body?.phone || '').trim();
+    if (!phone) return res.status(400).json({ error: 'Vui lòng nhập số điện thoại' });
+    const patient = dbStore.patients.find(p => phoneMatches(p.phone, phone));
+    if (!patient) return res.status(404).json({ error: 'Số điện thoại này chưa có hồ sơ tại phòng khám' });
+    try {
+      const r = await requestOtp(`portal:${digitsOnly(phone).slice(-9)}`, { phone, purpose: 'Đăng nhập cổng khách hàng' });
+      res.json({ sent: r.sent, channel: r.channel, mode: r.mode, ...(r.devCode ? { devCode: r.devCode } : {}) });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || 'Không gửi được mã OTP' });
+    }
+  });
+
+  app.post('/api/portal/auth/verify', (req, res) => {
+    const phone = String(req.body?.phone || '').trim();
+    const code = String(req.body?.code || '').trim();
+    if (!phone || !code) return res.status(400).json({ error: 'Thiếu số điện thoại hoặc mã OTP' });
+    const check = verifyOtp(`portal:${digitsOnly(phone).slice(-9)}`, code);
+    if (!check.ok) return res.status(400).json({ error: check.error || 'Mã OTP không đúng' });
+    const patient = dbStore.patients.find(p => phoneMatches(p.phone, phone));
+    if (!patient) return res.status(404).json({ error: 'Không tìm thấy hồ sơ' });
+    const token = issuePortalToken(patient.id, patient.phone);
+    res.json({ success: true, token, patient: { id: patient.id, name: patient.name, pid: patient.pid, phone: patient.phone } });
+  });
+
+  // Patient-scoped data (portal token only sees its own records).
+  app.get('/api/portal/me', requirePortalAuth, (req, res) => {
+    const pid = (req as any).portalPatientId as string;
+    const patient = dbStore.patients.find(p => p.id === pid);
+    if (!patient) return res.status(404).json({ error: 'Không tìm thấy hồ sơ' });
+    res.json({
+      patient,
+      appointments: dbStore.appointments.filter(a => a.patientId === pid).sort((a, b) => (a.date < b.date ? 1 : -1)),
+      invoices: dbStore.invoices.filter(i => i.patientId === pid),
+      recalls: dbStore.recalls.filter(r => r.patientId === pid)
+    });
+  });
+
+  app.post('/api/portal/appointments', requirePortalAuth, (req, res) => {
+    const pid = (req as any).portalPatientId as string;
+    const patient = dbStore.patients.find(p => p.id === pid);
+    if (!patient) return res.status(404).json({ error: 'Không tìm thấy hồ sơ' });
+    const d = req.body || {};
+    const apt: AppointmentRecord = {
+      id: `apt-portal-${Date.now()}`,
+      patientId: pid,
+      patientName: patient.name,
+      patientPhone: patient.phone,
+      doctorId: d.doctorId || '',
+      doctorName: d.doctorName || '',
+      department: d.department || 'Khoa Khám Bệnh',
+      branchId: d.branchId || patient.branchId || 'hn-central',
+      date: d.date || d.appointmentDate || new Date().toISOString().slice(0, 10),
+      timeSlot: d.timeSlot || '08:00 - 08:30',
+      status: 'Chờ tiếp đón',
+      type: d.type || 'Khám mới',
+      channel: 'Mobile App',
+      symptoms: d.symptoms || '',
+      createdAt: new Date().toISOString().slice(0, 16).replace('T', ' ')
+    };
+    dbStore.appointments.unshift(apt);
+    void persistStore();
+    emitChange({ type: 'store', path: '/api/portal/appointments', method: 'POST' });
+    res.status(201).json({ success: true, appointment: apt });
+  });
+
+  app.post('/api/portal/tickets', requirePortalAuth, (req, res) => {
+    const pid = (req as any).portalPatientId as string;
+    const patient = dbStore.patients.find(p => p.id === pid);
+    if (!patient) return res.status(404).json({ error: 'Không tìm thấy hồ sơ' });
+    const d = req.body || {};
+    const ticket: SupportTicketRecord = {
+      id: `ticket-portal-${Date.now()}`,
+      ticketCode: `SLA-2026-${Math.floor(100 + Math.random() * 900)}`,
+      patientId: pid,
+      patientName: patient.name,
+      patientPhone: patient.phone,
+      category: d.category || 'Góp ý dịch vụ',
+      priority: d.priority || 'Trung bình (SLA 8h)',
+      status: 'Mới tiếp nhận',
+      department: d.department || 'Phòng CSKH',
+      branchId: patient.branchId || 'hn-central',
+      assignedStaff: '',
+      description: d.description || '',
+      slaDeadline: new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 16).replace('T', ' '),
+      isOverdue: false,
+      createdAt: new Date().toISOString().slice(0, 16).replace('T', ' ')
+    };
+    dbStore.tickets.unshift(ticket);
+    void persistStore();
+    emitChange({ type: 'store', path: '/api/portal/tickets', method: 'POST' });
+    res.status(201).json({ success: true, ticket });
+  });
+
+  // --- Inbound VoIP webhook → screen-pop (public, shared secret) ---
+  const voipWebhookOk = (req: express.Request) => {
+    const secret = process.env.VOIP_WEBHOOK_SECRET;
+    if (!secret) return true; // dev: accept unsigned
+    const bearer = String(req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+    return bearer === secret || String(req.query.secret || '') === secret;
+  };
+  function ingestInboundCall(from: string, to: string, callId: string) {
+    const patient = dbStore.patients.find(p => phoneMatches(p.phone, from)) || null;
+    const now = new Date();
+    const call: VoipCallRecord = {
+      id: callId || `call-in-${Date.now()}`,
+      callType: 'INBOUND_HOTLINE',
+      patientId: patient?.id || '',
+      patientName: patient?.name || 'Khách chưa có hồ sơ',
+      patientPhone: from,
+      agentStaffName: '',
+      agentExtension: to || 'hotline',
+      startTime: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+      durationSeconds: 0,
+      status: 'Đang đổ chuông (gọi đến)'
+    };
+    if (!dbStore.voipCalls.some(c => c.id === call.id)) dbStore.voipCalls.unshift(call);
+    emitChange({ type: 'incoming-call', call, patient });
+    void persistStore();
+    return { call, patient };
+  }
+
+  app.post('/api/webhooks/voip', (req, res) => {
+    if (!voipWebhookOk(req)) return res.sendStatus(401);
+    res.sendStatus(200);
+    const { event, from, to, callId, durationSeconds } = req.body || {};
+    if (event === 'incoming' || event === 'ringing') {
+      ingestInboundCall(String(from || ''), String(to || ''), String(callId || ''));
+    } else if ((event === 'ended' || event === 'completed') && callId) {
+      const c = dbStore.voipCalls.find(x => x.id === callId);
+      if (c) { c.status = 'Hoàn tất cuộc gọi'; c.durationSeconds = Number(durationSeconds) || c.durationSeconds; void persistStore(); }
+    }
   });
 
   // All business APIs require a valid backend token.
@@ -772,8 +951,38 @@ async function startServer() {
 
     apt.status = status;
     if (notes) apt.notes = notes;
+    if (status === 'Đang khám' && !apt.seenAt) apt.seenAt = new Date().toISOString();
 
     res.json({ success: true, appointment: apt });
+  });
+
+  // Check-in: assign an electronic queue number (per branch + day) and print data.
+  app.post("/api/appointments/:id/checkin", (req, res) => {
+    const apt = dbStore.appointments.find(a => a.id === req.params.id);
+    if (!apt) return res.status(404).json({ error: "Không tìm thấy lịch hẹn" });
+
+    if (!apt.queueNumber) {
+      const sameDayBranch = dbStore.appointments.filter(a => a.date === apt.date && a.branchId === apt.branchId && a.queueNumber);
+      const prefix = (apt.branchId || 'A').replace(/[^a-zA-Z]/g, '').slice(0, 1).toUpperCase() || 'A';
+      apt.queueNumber = `${prefix}-${String(sameDayBranch.length + 1).padStart(3, '0')}`;
+    }
+    apt.status = 'Đã tiếp đón';
+    apt.checkedInAt = new Date().toISOString();
+
+    res.json({
+      success: true,
+      appointment: apt,
+      ticket: {
+        queueNumber: apt.queueNumber,
+        patientName: apt.patientName,
+        department: apt.department,
+        doctorName: apt.doctorName,
+        date: apt.date,
+        timeSlot: apt.timeSlot,
+        lookupUrl: queueLookupUrl(apt.queueNumber),
+        qrUrl: queueQrUrl(apt.queueNumber)
+      }
+    });
   });
 
   app.put("/api/appointments/:id", (req, res) => {
@@ -1304,6 +1513,30 @@ async function startServer() {
     res.json({ calls: dbStore.voipCalls, total: dbStore.voipCalls.length });
   });
 
+  // Simulate an inbound call (screen-pop) without a real PBX.
+  app.post("/api/calls/simulate-inbound", (req, res) => {
+    const { from, to } = req.body || {};
+    if (!from) return res.status(400).json({ error: 'Cần số gọi đến (from)' });
+    const patient = dbStore.patients.find(p => phoneMatches(p.phone, String(from))) || null;
+    const now = new Date();
+    const call: VoipCallRecord = {
+      id: `call-in-${Date.now()}`,
+      callType: 'INBOUND_HOTLINE',
+      patientId: patient?.id || '',
+      patientName: patient?.name || 'Khách chưa có hồ sơ',
+      patientPhone: String(from),
+      agentStaffName: '',
+      agentExtension: String(to || 'hotline'),
+      startTime: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+      durationSeconds: 0,
+      status: 'Đang đổ chuông (gọi đến)'
+    };
+    dbStore.voipCalls.unshift(call);
+    emitChange({ type: 'incoming-call', call, patient });
+    void persistStore();
+    res.json({ success: true, call, patient });
+  });
+
   // =========================================================================
   // 11. CSAT & NPS PATIENT SURVEY API
   // =========================================================================
@@ -1388,35 +1621,75 @@ async function startServer() {
   // 12. EXECUTIVE DASHBOARD ANALYTICS & KPIS API
   // =========================================================================
   app.get("/api/analytics/dashboard", (req, res) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const paidInvoices = dbStore.invoices.filter(i => i.status === 'Đã thanh toán');
+    const totalRevenue = paidInvoices.reduce((a, c) => a + (c.patientPayable || 0), 0);
     const totalPatients = dbStore.patients.length;
-    const totalAppointments = dbStore.appointments.length;
-    const todayAppointments = dbStore.appointments.filter(a => a.date === new Date().toISOString().slice(0, 10)).length;
-    const totalRevenue = dbStore.invoices.filter(i => i.status === 'Đã thanh toán').reduce((acc, curr) => acc + curr.patientPayable, 0);
+
     const openTickets = dbStore.tickets.filter(t => t.status === 'Mới tiếp nhận' || t.status === 'Đang xử lý').length;
-    const resolvedTickets = dbStore.tickets.filter(t => t.status === 'Đã giải quyết' || t.status === 'Đã đóng').length;
-    const slaRate = (dbStore.tickets.length > 0 ? Math.round((resolvedTickets / dbStore.tickets.length) * 100) : 98);
-    const overdueRecalls = dbStore.recalls.filter(r => r.daysOverdue > 0).length;
+    const closedTickets = dbStore.tickets.filter(t => t.status === 'Đã giải quyết' || t.status === 'Đã đóng').length;
+    const slaRate = dbStore.tickets.length ? Math.round((closedTickets / dbStore.tickets.length) * 100) : 100;
+
+    // Average wait = seenAt - checkedInAt across appointments that have both.
+    const waits = dbStore.appointments
+      .filter(a => a.checkedInAt && a.seenAt)
+      .map(a => (new Date(a.seenAt!).getTime() - new Date(a.checkedInAt!).getTime()) / 60000)
+      .filter(m => m >= 0 && m < 600);
+    const averageWaitMinutes = waits.length ? Math.round(waits.reduce((a, b) => a + b, 0) / waits.length) : 0;
+
+    // RFM — Recency (days since last visit), Frequency (visits), Monetary (spent).
+    const now = Date.now();
+    const rfm = dbStore.patients.map(p => {
+      const last = p.lastVisitDate ? new Date(p.lastVisitDate).getTime() : 0;
+      const recencyDays = last ? Math.round((now - last) / 86400000) : 9999;
+      return { id: p.id, name: p.name, recencyDays, frequency: p.totalVisits || 0, monetary: p.totalSpent || 0 };
+    });
+    const seg = (r: { recencyDays: number; frequency: number; monetary: number }) => {
+      if (r.frequency >= 5 && r.recencyDays <= 120 && r.monetary >= 20_000_000) return 'VIP / Trung thành';
+      if (r.recencyDays <= 90 && r.frequency >= 2) return 'Khách thường xuyên';
+      if (r.recencyDays > 365) return 'Nguy cơ rời bỏ';
+      if (r.frequency <= 1) return 'Khách mới';
+      return 'Tiềm năng';
+    };
+    const rfmSegments: Record<string, number> = {};
+    for (const r of rfm) rfmSegments[seg(r)] = (rfmSegments[seg(r)] || 0) + 1;
+
+    const spends = dbStore.patients.map(p => p.totalSpent || 0).filter(v => v > 0);
+    const avgClv = spends.length ? Math.round(spends.reduce((a, b) => a + b, 0) / spends.length) : 0;
+
+    // Branch performance from real records.
+    const byBranch = new Map<string, { patients: number; revenue: number }>();
+    for (const p of dbStore.patients) {
+      const b = byBranch.get(p.branchId) || { patients: 0, revenue: 0 };
+      b.patients += 1;
+      byBranch.set(p.branchId, b);
+    }
+    for (const inv of paidInvoices) {
+      const b = byBranch.get(inv.branchId) || { patients: 0, revenue: 0 };
+      b.revenue += inv.patientPayable || 0;
+      byBranch.set(inv.branchId, b);
+    }
+    const branchPerformance = [...byBranch.entries()].map(([branchId, v]) => ({ branchId, ...v }));
 
     res.json({
       kpis: {
         totalRevenue,
-        revenueFormatted: `${(totalRevenue / 1000000).toFixed(1)} Triệu VNĐ`,
+        revenueFormatted: `${(totalRevenue / 1_000_000).toFixed(1)} Triệu VNĐ`,
         totalPatients,
-        totalAppointments,
-        todayAppointments,
+        totalAppointments: dbStore.appointments.length,
+        todayAppointments: dbStore.appointments.filter(a => a.date === today).length,
+        checkedInToday: dbStore.appointments.filter(a => a.date === today && a.checkedInAt).length,
         openTickets,
-        resolvedTickets,
+        resolvedTickets: closedTickets,
         slaRate: `${slaRate}%`,
-        overdueRecalls,
-        bedOccupancyRate: "88.4%",
-        averageWaitTimeMinutes: 14.5
+        overdueRecalls: dbStore.recalls.filter(r => (r.daysOverdue || 0) > 0).length,
+        paidInvoices: paidInvoices.length,
+        pendingInvoiceValue: dbStore.invoices.filter(i => i.status === 'Chờ thanh toán').reduce((a, c) => a + (c.patientPayable || 0), 0),
+        averageWaitTimeMinutes: averageWaitMinutes,
+        avgCustomerLifetimeValue: avgClv
       },
-      branchPerformance: [
-        { branchId: 'hn-central', name: 'VitHospital Trung Tâm (Phố Huế)', patients: 450, revenue: 1250000000, occupancy: '92%' },
-        { branchId: 'hn-badinh', name: 'VitClinic Ba Đình', patients: 280, revenue: 680000000, occupancy: '84%' },
-        { branchId: 'hn-caugiay', name: 'VitClinic Cầu Giấy', patients: 310, revenue: 740000000, occupancy: '86%' },
-        { branchId: 'beauty-center', name: 'VitBeauty Center', patients: 190, revenue: 980000000, occupancy: '90%' }
-      ]
+      rfmSegments,
+      branchPerformance
     });
   });
 
@@ -1738,6 +2011,60 @@ Trả về JSON thuần túy:
     } catch (e: any) {
       res.status(500).json({ error: "Lỗi xuất file CSV", details: e.message });
     }
+  });
+
+  // =========================================================================
+  // APPOINTMENT REMINDER SCHEDULER (ZNS/SMS at ~24h and ~2h before the slot)
+  // =========================================================================
+  async function runReminderSweep() {
+    const now = Date.now();
+    const skip = new Set(['Đã hủy', 'Vắng mặt', 'Đã khám xong', 'Đã tiếp đón', 'Đang khám']);
+    let changed = false;
+    for (const apt of dbStore.appointments) {
+      if (skip.has(apt.status)) continue;
+      const start = appointmentStartMs(apt);
+      if (!start) continue;
+      const hoursTo = (start - now) / 3_600_000;
+
+      const fire = async (kind: '24h' | '2h') => {
+        const data = {
+          patient_name: apt.patientName,
+          date: apt.date,
+          time: (apt.timeSlot || '').split('-')[0].trim(),
+          department: apt.department,
+          doctor: apt.doctorName || ''
+        };
+        const zns = await sendZns({ phone: apt.patientPhone, templateType: 'ZNS_APPOINTMENT_CONFIRMED', templateData: data }).catch(() => null);
+        if (!zns || (!zns.ok && zns.mode === 'live')) {
+          await sendSms({ to: apt.patientPhone, message: `Nhac lich kham ${data.date} ${data.time} tai ${apt.department}. VitHospital.` }).catch(() => null);
+        }
+        emitChange({ type: 'reminder', appointmentId: apt.id, kind });
+        changed = true;
+      };
+
+      if (hoursTo <= 24 && hoursTo > 2 && !apt.reminder24hSentAt) {
+        apt.reminder24hSentAt = new Date().toISOString();
+        await fire('24h');
+      } else if (hoursTo <= 2 && hoursTo > 0 && !apt.reminder2hSentAt) {
+        apt.reminder2hSentAt = new Date().toISOString();
+        await fire('2h');
+      }
+    }
+    if (changed) { void persistStore(); emitChange({ type: 'store', path: '/api/appointments', method: 'PUT' }); }
+  }
+
+  if (process.env.REMINDER_ENABLED === 'true') {
+    console.log('[reminders] scheduler ON — sweeping every 5 minutes.');
+    setInterval(() => { void runReminderSweep(); }, 5 * 60 * 1000);
+    setTimeout(() => { void runReminderSweep(); }, 15_000);
+  } else {
+    console.log('[reminders] scheduler OFF (set REMINDER_ENABLED=true to enable).');
+  }
+
+  // Manual trigger for testing / ops.
+  app.post('/api/appointments/reminders/run', requireAuth, async (_req, res) => {
+    await runReminderSweep();
+    res.json({ success: true });
   });
 
   // =========================================================================

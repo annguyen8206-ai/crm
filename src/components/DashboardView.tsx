@@ -89,6 +89,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   tickets = [],
   supportTickets = [],
   branches = [],
+  serverKpis = null,
   currentBranchId,
   onSelectTab,
   onNavigate,
@@ -112,7 +113,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const totalB2BExamined = (b2bContracts || []).reduce((acc, c) => acc + (c.examinedCount || 0), 0);
   const totalB2BEmployees = (b2bContracts || []).reduce((acc, c) => acc + (c.employeeCount || 0), 0);
   const urgentTickets = (allTickets || []).filter(t => t?.priority?.includes('Khẩn cấp') && t?.status !== 'Đã đóng');
-  const todayAppointments = (appointments || []).filter(a => a?.appointmentDate === '2026-08-19');
+  const _todayISO = new Date().toISOString().slice(0, 10);
+  const todayAppointments = (appointments || []).filter(a => a?.appointmentDate === _todayISO);
 
   return (
     <div className="space-y-6 pb-12">
@@ -163,9 +165,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         onSelectPatient={onSelectPatient}
       />
 
+      {/* Server-computed KPIs (from /api/analytics/dashboard) */}
+      {serverKpis?.kpis && (
+        <div data-testid="server-kpi-strip" className="bg-slate-900 text-white rounded-2xl p-4">
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Chỉ số điều hành (máy chủ tính realtime)</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
+            {[
+              ['Doanh thu đã thu', serverKpis.kpis.revenueFormatted],
+              ['Bệnh nhân', serverKpis.kpis.totalPatients],
+              ['Lịch hôm nay', serverKpis.kpis.todayAppointments],
+              ['Đã check-in', serverKpis.kpis.checkedInToday],
+              ['Chờ xử lý ticket', serverKpis.kpis.openTickets],
+              ['SLA', serverKpis.kpis.slaRate],
+              ['Chờ tái khám', serverKpis.kpis.overdueRecalls],
+              ['Chờ thu (đ)', (serverKpis.kpis.pendingInvoiceValue || 0).toLocaleString('vi-VN')],
+              ['TG chờ TB (phút)', serverKpis.kpis.averageWaitTimeMinutes],
+              ['CLV bình quân (đ)', (serverKpis.kpis.avgCustomerLifetimeValue || 0).toLocaleString('vi-VN')]
+            ].map(([label, val]) => (
+              <div key={String(label)}>
+                <div className="text-[10px] text-slate-400">{label}</div>
+                <div className="font-bold">{val ?? '—'}</div>
+              </div>
+            ))}
+          </div>
+          {serverKpis && (serverKpis as any).rfmSegments && (
+            <div className="mt-3 pt-3 border-t border-slate-700 flex flex-wrap gap-2 text-[11px]">
+              {Object.entries((serverKpis as any).rfmSegments).map(([seg, n]) => (
+                <span key={seg} className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700">{seg}: <b>{n as number}</b></span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
+
         {/* Card 1: Patients & 360 dossiers */}
         <div 
           onClick={() => handleNavigate('patients')}

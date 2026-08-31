@@ -254,6 +254,14 @@ export const apiClient = {
         method: 'PUT',
         body: JSON.stringify(aptData)
       });
+    },
+
+    async checkin(id: string) {
+      return request<{ success: boolean; appointment: any; ticket: { queueNumber: string; patientName: string; department: string; doctorName: string; date: string; timeSlot: string; lookupUrl: string; qrUrl: string } }>(`/appointments/${id}/checkin`, { method: 'POST' });
+    },
+
+    async runReminders() {
+      return request<{ success: boolean }>('/appointments/reminders/run', { method: 'POST' });
     }
   },
 
@@ -401,6 +409,50 @@ export const apiClient = {
 
     async getLogs() {
       return request<{ calls: any[]; total: number }>('/calls/logs');
+    },
+
+    async simulateInbound(from: string, to = '1900') {
+      return request<{ success: boolean; call: any; patient: any }>('/calls/simulate-inbound', {
+        method: 'POST',
+        body: JSON.stringify({ from, to })
+      });
+    }
+  },
+
+  // Patient Portal — OTP-by-phone auth, patient-scoped data.
+  portal: {
+    async requestOtp(phone: string) {
+      return request<{ sent: boolean; channel?: string; mode?: string; devCode?: string }>('/portal/auth/request-otp', {
+        method: 'POST', body: JSON.stringify({ phone })
+      });
+    },
+    async verify(phone: string, code: string) {
+      const r = await request<{ success: boolean; token: string; patient: any }>('/portal/auth/verify', {
+        method: 'POST', body: JSON.stringify({ phone, code })
+      });
+      if (r.token && typeof window !== 'undefined') localStorage.setItem('vitcrm_portal_token', r.token);
+      return r;
+    },
+    logout() {
+      if (typeof window !== 'undefined') localStorage.removeItem('vitcrm_portal_token');
+    },
+    async me() {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('vitcrm_portal_token') : null;
+      return request<{ patient: any; appointments: any[]; invoices: any[]; recalls: any[] }>('/portal/me', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+    },
+    async book(data: any) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('vitcrm_portal_token') : null;
+      return request<{ success: boolean; appointment: any }>('/portal/appointments', {
+        method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: JSON.stringify(data)
+      });
+    },
+    async submitTicket(data: any) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('vitcrm_portal_token') : null;
+      return request<{ success: boolean; ticket: any }>('/portal/tickets', {
+        method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: JSON.stringify(data)
+      });
     }
   },
 

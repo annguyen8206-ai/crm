@@ -27,6 +27,7 @@ import {
   LogIn
 } from 'lucide-react';
 import { Patient, BranchId } from '../types';
+import { apiClient } from '../utils/apiClient';
 import { PatientAvatar } from './PatientAvatar';
 
 interface CustomerLoginViewProps {
@@ -67,63 +68,44 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Send OTP handler
-  const handleSendOtp = (e: React.FormEvent) => {
+  // Send OTP handler — real backend OTP (by phone).
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setSuccessMsg(null);
     const cleanPhone = phoneInput.replace(/\s+/g, '');
     if (cleanPhone.length < 9) {
       setErrorMsg('Vui lòng nhập số điện thoại hợp lệ (9 - 11 chữ số).');
       return;
     }
-
-    setIsOtpSent(true);
-    setOtpCountdown(60);
-    setSuccessMsg(`Mã xác thực OTP đã được gửi qua Zalo ZNS / SMS đến số ${phoneInput}. (Mã mẫu: 123456)`);
+    try {
+      const r = await apiClient.portal.requestOtp(cleanPhone);
+      setIsOtpSent(true);
+      setOtpCountdown(60);
+      setSuccessMsg(
+        r.mode === 'simulated'
+          ? `Mã OTP đã tạo (giả lập — chưa cấu hình SMS).${r.devCode ? ' Mã: ' + r.devCode : ' Xem log máy chủ.'}`
+          : `Mã xác thực OTP đã gửi tới ${phoneInput} qua ${r.channel === 'email' ? 'email' : 'SMS'}.`
+      );
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Không gửi được mã OTP.');
+    }
   };
 
-  // Submit Phone + OTP
-  const handleSubmitOtp = (e: React.FormEvent) => {
+  // Submit Phone + OTP — verify against backend, get a portal session token.
+  const handleSubmitOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-
-    if (otpInput.trim() !== '123456') {
-      setErrorMsg('Mã OTP không đúng hoặc đã hết hạn. Vui lòng yêu cầu mã mới.');
-      return;
-    }
-
     const cleanPhone = phoneInput.replace(/\s+/g, '');
-    const matched = patients.find(p => p.phone.replace(/\s+/g, '') === cleanPhone);
-
-    if (matched) {
-      onLoginSuccess(matched);
-    } else {
-      // Auto-create or select patient
-      const fallbackPatient = patients[0] || {
-        id: `pat-${Date.now()}`,
-        pid: `BN-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        name: 'Khách Hàng Mới',
-        phone: phoneInput,
-        gender: 'Nam',
-        age: 32,
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-        address: 'Hà Nội',
-        bloodType: 'O+',
-        allergies: [],
-        underlyingConditions: [],
-        membership: {
-          tier: 'Standard',
-          points: 100,
-          totalSpent: 0
-        },
-        insurance: {
-          hasBhyt: true
-        },
-        source: 'Cổng Khách Hàng Trực Tuyến',
-        primaryBranchId: 'hn-central',
-        tags: ['Khách Mới Đăng Ký']
-      };
-      onLoginSuccess(fallbackPatient);
+    try {
+      const r = await apiClient.portal.verify(cleanPhone, otpInput.trim());
+      onLoginSuccess({
+        ...(r.patient || {}),
+        phone: r.patient?.phone || phoneInput,
+        membership: r.patient?.membership || { tier: 'Standard', points: 0, totalSpent: 0 }
+      } as Patient);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Mã OTP không đúng hoặc đã hết hạn.');
     }
   };
 

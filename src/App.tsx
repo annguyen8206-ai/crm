@@ -164,6 +164,11 @@ export default function App() {
   const selectedConvRef = useRef<string | null>(null);
   selectedConvRef.current = selectedConversationId;
 
+  // Inbound-call screen pop + check-in queue ticket + patient portal session.
+  const [incomingCall, setIncomingCall] = useState<{ call: any; patient: any; at: number } | null>(null);
+  const [checkInTicket, setCheckInTicket] = useState<any | null>(null);
+  const [portalData, setPortalData] = useState<{ appointments: any[]; invoices: any[]; recalls: any[] } | null>(null);
+
   // Becomes true only after the initial server hydration finishes, so the
   // usePersistedCollection effects below don't immediately echo the seed data back.
   const collectionsHydrated = useRef(false);
@@ -176,16 +181,26 @@ export default function App() {
     let cancelled = false;
     const loadApiData = async () => {
       try {
-        const [patientsResponse, appointmentsResponse, ticketsResponse, collectionsResponse] = await Promise.all([
+        const [patientsResponse, appointmentsResponse, ticketsResponse, collectionsResponse, recallsR, followUpsR, csatR, invoicesR, dashR] = await Promise.all([
           apiClient.patients.list({ limit: 500 }),
           apiClient.appointments.list(),
           apiClient.tickets.list(),
-          apiClient.collections.getAll().catch(() => ({ collections: {} as Record<string, any[]> }))
+          apiClient.collections.getAll().catch(() => ({ collections: {} as Record<string, any[]> })),
+          apiClient.recalls.list().catch(() => ({ recalls: [] as any[] })),
+          apiClient.followUps.list().catch(() => ({ followUps: [] as any[] })),
+          apiClient.csat.getFeedbacks().catch(() => ({ feedbacks: [] as any[] })),
+          apiClient.invoices.list().catch(() => ({ invoices: [] as any[] })),
+          apiClient.analytics.getDashboard().catch(() => null as any)
         ]);
         if (cancelled) return;
         setPatients((patientsResponse.patients || []).map(mapApiPatient));
         setAppointments((appointmentsResponse.appointments || []).map(mapApiAppointment));
         setSupportTickets((ticketsResponse.tickets || []) as SupportTicket[]);
+        setRecalls((recallsR as any).recalls || []);
+        setFollowUps((followUpsR as any).followUps || []);
+        setCsatFeedbacks((csatR as any).feedbacks || []);
+        setInvoices((invoicesR as any).invoices || []);
+        setDashboardKpis(dashR);
 
         // Hydrate generic module collections. When the server has never stored a
         // collection we push the local seed up once so both sides agree.
@@ -210,21 +225,6 @@ export default function App() {
           const convRes = await apiClient.conversations.list();
           if (!cancelled) setConversations(convRes.conversations || []);
         } catch { /* inbox optional */ }
-
-        // Secondary modules — recalls, follow-ups, CSAT, invoices, dashboard KPIs.
-        const [recallsR, followUpsR, csatR, invoicesR, dashR] = await Promise.all([
-          apiClient.recalls.list().catch(() => ({ recalls: [] as any[] })),
-          apiClient.followUps.list().catch(() => ({ followUps: [] as any[] })),
-          apiClient.csat.getFeedbacks().catch(() => ({ feedbacks: [] as any[] })),
-          apiClient.invoices.list().catch(() => ({ invoices: [] as any[] })),
-          apiClient.analytics.getDashboard().catch(() => null as any)
-        ]);
-        if (cancelled) return;
-        setRecalls(recallsR.recalls || []);
-        setFollowUps(followUpsR.followUps || []);
-        setCsatFeedbacks(csatR.feedbacks || []);
-        setInvoices(invoicesR.invoices || []);
-        setDashboardKpis(dashR);
 
         // Staff accounts live in the auth_users table (admin only).
         try {
@@ -309,6 +309,10 @@ export default function App() {
         if (evt.conversationId && evt.conversationId === selectedConvRef.current && evt.message) {
           setInboxMessages(prev => (prev.some(m => m.id === evt.message.id) ? prev : [...prev, evt.message]));
         }
+      } else if (evt.type === 'incoming-call') {
+        setIncomingCall({ call: evt.call, patient: evt.patient, at: Date.now() });
+      } else if (evt.type === 'reminder') {
+        showToast('Đã gửi nhắc lịch khám tự động cho khách hàng.');
       }
     });
 
@@ -587,6 +591,44 @@ export default function App() {
     showToast('Đã ghi nhận yêu cầu / khiếu nại vào hệ thống CSKH & Quản trị SLA!');
   };
 
+  // Reception check-in: assign an electronic queue number + print QR ticket.
+  const handleCheckIn = async (appointmentId: string) => {
+    try {
+      const res = await apiClient.appointments.checkin(appointmentId);
+      setAppointments(prev => prev.map(a => a.id === appointmentId ? mapApiAppointment(res.appointment) : a));
+      setCheckInTicket(res.ticket);
+      showToast(`Đã cấp số thứ tự ${res.ticket.queueNumber} cho ${res.ticket.patientName}.`);
+    } catch (e: any) {
+      showToast(e?.message || 'Không thể tiếp đón lịch hẹn này.');
+    }
+  };
+
+  const refreshPortalData = async () => {
+    try {
+      const me = await apiClient.portal.me();
+      setPortalData({ appointments: me.appointments || [], invoices: me.invoices || [], recalls: me.recalls || [] });
+    } catch { /* ignore */ }
+  };
+
+  // Portal (patient-authenticated) self-service — writes with the portal token.
+  const handlePortalBooking = async (aptData: any) => {
+    try {
+      await apiClient.portal.book({ ...aptData, date: aptData.appointmentDate || aptData.date });
+      await refreshPortalData();
+      showToast('Đặt lịch thành công! Yêu cầu đã được ghi nhận.');
+    } catch (e: any) {
+      showToast(e?.message || 'Không đặt được lịch.');
+    }
+  };
+  const handlePortalTicket = async (t: any) => {
+    try {
+      await apiClient.portal.submitTicket(t);
+      showToast('Đã gửi phản ánh tới bộ phận CSKH.');
+    } catch (e: any) {
+      showToast(e?.message || 'Không gửi được phản ánh.');
+    }
+  };
+
   // Shared: patient self-booking from the portal — persisted via API.
   const handleSelfBooking = async (aptData: any) => {
     try {
@@ -625,10 +667,15 @@ export default function App() {
           )}
           <CustomerLoginView
             patients={patients}
-            onLoginSuccess={(patient) => {
+            onLoginSuccess={async (patient) => {
               setCurrentCustomerPatient(patient);
               setIsCustomerLoggedIn(true);
-              showToast(`Chào mừng Quý khách ${patient.name} (${patient.pid}) đã đăng nhập sổ khám!`);
+              showToast(`Chào mừng Quý khách ${patient.name} (${patient.pid || ''}) đã đăng nhập sổ khám!`);
+              try {
+                const me = await apiClient.portal.me();
+                setPortalData({ appointments: me.appointments || [], invoices: me.invoices || [], recalls: me.recalls || [] });
+                if (me.patient) setCurrentCustomerPatient(mapApiPatient(me.patient));
+              } catch { /* portal data optional */ }
             }}
             onNavigateToStaffLogin={() => {
               setAuthMode('staff');
@@ -704,12 +751,14 @@ export default function App() {
             doctors={effectiveDoctors}
             branches={mockBranches}
             tickets={supportTickets}
-            appointments={appointments}
+            appointments={portalData?.appointments ?? appointments}
             currentPatientOverride={currentCustomerPatient}
-            onAddNewTicket={handleCreateTicket}
-            onBookSelfAppointment={handleSelfBooking}
+            onAddNewTicket={handlePortalTicket}
+            onBookSelfAppointment={handlePortalBooking}
             onSelectPatient={(id) => setSelectedPatientId(id)}
             onCustomerLogout={() => {
+              apiClient.portal.logout();
+              setPortalData(null);
               setIsCustomerLoggedIn(false);
               showToast('Đã đăng xuất khỏi Cổng Khách Hàng');
             }}
@@ -765,6 +814,50 @@ export default function App() {
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 animate-in slide-in-from-bottom-5">
           <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Inbound call screen-pop */}
+      {incomingCall && (
+        <div className="fixed top-4 right-4 z-[60] w-80 bg-white border-2 border-emerald-500 rounded-2xl shadow-2xl p-4 animate-in slide-in-from-top-5">
+          <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold mb-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" /> CUỘC GỌI ĐẾN
+          </div>
+          <div className="text-sm font-bold text-slate-900">{incomingCall.patient?.name || incomingCall.call?.patientName || 'Khách chưa có hồ sơ'}</div>
+          <div className="text-xs text-slate-500 font-mono">{incomingCall.call?.patientPhone}</div>
+          {incomingCall.patient && (
+            <div className="text-[11px] text-slate-500 mt-1">
+              {incomingCall.patient.pid} · {incomingCall.patient.membership?.tier || incomingCall.patient.loyaltyTier || 'Standard'} · {incomingCall.patient.totalVisits || 0} lượt khám
+            </div>
+          )}
+          <div className="flex gap-2 mt-3">
+            {incomingCall.patient?.id && (
+              <button
+                onClick={() => { setSelectedPatientId(incomingCall.patient.id); setIncomingCall(null); }}
+                className="flex-1 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold cursor-pointer"
+              >
+                Mở hồ sơ 360°
+              </button>
+            )}
+            <button onClick={() => setIncomingCall(null)} className="px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold cursor-pointer">Ẩn</button>
+          </div>
+        </div>
+      )}
+
+      {/* Check-in queue ticket */}
+      {checkInTicket && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]" onClick={() => setCheckInTicket(null)}>
+          <div className="bg-white rounded-2xl p-6 max-w-xs w-full text-center space-y-2" onClick={e => e.stopPropagation()}>
+            <div className="text-xs font-bold text-slate-400">PHIẾU TIẾP ĐÓN</div>
+            <div className="text-5xl font-black text-blue-700 tracking-tight">{checkInTicket.queueNumber}</div>
+            <div className="text-sm font-bold text-slate-800">{checkInTicket.patientName}</div>
+            <div className="text-xs text-slate-500">{checkInTicket.department} · {checkInTicket.doctorName || 'Chưa phân bác sĩ'}</div>
+            <div className="text-xs text-slate-500">{checkInTicket.date} · {checkInTicket.timeSlot}</div>
+            <img src={checkInTicket.qrUrl} alt="QR tra cứu STT" className="w-40 h-40 mx-auto my-1" />
+            <div className="text-[11px] text-slate-400">Quét mã QR để theo dõi số thứ tự trên điện thoại</div>
+            <button onClick={() => window.print()} className="w-full py-2 bg-blue-600 text-white rounded-lg text-xs font-bold cursor-pointer">In phiếu</button>
+            <button onClick={() => setCheckInTicket(null)} className="w-full py-2 bg-slate-100 rounded-lg text-xs font-bold cursor-pointer">Đóng</button>
+          </div>
         </div>
       )}
 
@@ -865,6 +958,7 @@ export default function App() {
                 patients={patients}
                 currentBranchId={currentBranchId}
                 onUpdateStatus={handleUpdateAppointmentStatus}
+                onCheckIn={handleCheckIn}
                 onTriggerReminder={handleTriggerReminder}
                 onOpenBookModal={() => setIsBookModalOpen(true)}
                 onSelectPatient={(id) => setSelectedPatientId(id)}

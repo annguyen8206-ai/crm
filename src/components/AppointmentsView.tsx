@@ -31,6 +31,7 @@ interface AppointmentsViewProps {
   patients: Patient[];
   currentBranchId: BranchId;
   onUpdateStatus: (appointmentId: string, newStatus: AppointmentStatus) => void;
+  onCheckIn?: (appointmentId: string) => void;
   onTriggerReminder: (appointmentId: string, channel: 'zns' | 'sms') => void;
   onOpenBookModal: () => void;
   onSelectPatient: (patientId: string) => void;
@@ -43,11 +44,18 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({
   patients,
   currentBranchId,
   onUpdateStatus,
+  onCheckIn,
   onTriggerReminder,
   onOpenBookModal,
   onSelectPatient
 }) => {
-  const [selectedDate, setSelectedDate] = useState<string>('2026-08-19');
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const ddmm = (s: string) => { const p = s.split('-'); return `${p[2]}/${p[1]}`; };
+  const _today = new Date();
+  const dateYesterday = iso(new Date(_today.getTime() - 86400000));
+  const dateToday = iso(_today);
+  const dateTomorrow = iso(new Date(_today.getTime() + 86400000));
+  const [selectedDate, setSelectedDate] = useState<string>(dateToday);
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
   const [selectedDoctor, setSelectedDoctor] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -124,28 +132,36 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl p-1">
               <button
-                onClick={() => setSelectedDate('2026-08-18')}
+                onClick={() => setSelectedDate(dateYesterday)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  selectedDate === '2026-08-18' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  selectedDate === dateYesterday ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Hôm qua (18/08)
+                Hôm qua ({ddmm(dateYesterday)})
               </button>
               <button
-                onClick={() => setSelectedDate('2026-08-19')}
+                onClick={() => setSelectedDate(dateToday)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  selectedDate === '2026-08-19' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  selectedDate === dateToday ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Hôm nay (19/08)
+                Hôm nay ({ddmm(dateToday)})
               </button>
               <button
-                onClick={() => setSelectedDate('2026-08-20')}
+                onClick={() => setSelectedDate(dateTomorrow)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  selectedDate === '2026-08-20' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  selectedDate === dateTomorrow ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Ngày mai (20/08)
+                Ngày mai ({ddmm(dateTomorrow)})
+              </button>
+              <button
+                onClick={() => setSelectedDate('ALL')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  selectedDate === 'ALL' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tất cả
               </button>
             </div>
 
@@ -362,12 +378,12 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({
                               Xác nhận
                             </button>
                           )}
-                          {apt.status === 'Đã xác nhận' && (
+                          {(apt.status === 'Đã xác nhận' || apt.status === 'Chờ xác nhận') && (
                             <button
-                              onClick={() => onUpdateStatus(apt.id, 'Đã tiếp đón')}
+                              onClick={() => (onCheckIn ? onCheckIn(apt.id) : onUpdateStatus(apt.id, 'Đã tiếp đón'))}
                               className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer"
                             >
-                              Tiếp đón / Check-in
+                              Tiếp đón & Cấp số
                             </button>
                           )}
                           {apt.status === 'Đã tiếp đón' && (
