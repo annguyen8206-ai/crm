@@ -72,7 +72,8 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
   const [otpBusy, setOtpBusy] = useState<boolean>(false);
 
   const describeChannel = (channel?: string, mode?: string) => {
-    if (mode === 'simulated') return 'đã tạo (giả lập — chưa cấu hình SMS/email, xem log máy chủ hoặc mã dev bên dưới)';
+    if (mode === 'simulated') return 'đã tạo (giả lập — chưa cấu hình Zalo/SMS/email, xem log máy chủ hoặc mã dev bên dưới)';
+    if (channel === 'zalo') return 'đã gửi qua Zalo tới số điện thoại đã đăng ký';
     if (channel === 'sms') return 'đã gửi qua SMS tới số điện thoại đã đăng ký';
     if (channel === 'email') return 'đã gửi qua email công vụ';
     return 'đã được gửi tới kênh bảo mật đã đăng ký';

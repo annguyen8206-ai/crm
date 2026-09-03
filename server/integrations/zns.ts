@@ -10,7 +10,9 @@ import type { DispatchResult, IntegrationStatus } from './types';
  *
  * Map your approved template ids:
  *   ZNS_TEMPLATE_POST_VISIT_CARE, ZNS_TEMPLATE_AUTO_RECALL,
- *   ZNS_TEMPLATE_APPOINTMENT_CONFIRMED, ZNS_TEMPLATE_HEALTH_FOLLOWUP
+ *   ZNS_TEMPLATE_APPOINTMENT_CONFIRMED, ZNS_TEMPLATE_HEALTH_FOLLOWUP,
+ *   ZNS_TEMPLATE_OTP  (an approved "OTP / xác thực" ZNS template)
+ *   ZNS_OTP_PARAM     name of the code field in that template's data (default "otp")
  *
  * When unconfigured, sendZns() returns a simulated result (unchanged demo behaviour).
  */
@@ -18,6 +20,11 @@ const SEND_URL = 'https://business.openapi.zalo.me/message/template';
 const REFRESH_URL = 'https://oauth.zaloapp.com/v4/oa/access_token';
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
+
+/** Drop the cached OA access token — call after Zalo credentials change at runtime. */
+export function resetZnsCache(): void {
+  cachedToken = null;
+}
 
 export function znsConfigured(): boolean {
   return Boolean(
@@ -43,9 +50,30 @@ export function znsTemplateId(templateType: string): string | undefined {
     ZNS_POST_VISIT_CARE: process.env.ZNS_TEMPLATE_POST_VISIT_CARE,
     ZNS_AUTO_RECALL: process.env.ZNS_TEMPLATE_AUTO_RECALL,
     ZNS_APPOINTMENT_CONFIRMED: process.env.ZNS_TEMPLATE_APPOINTMENT_CONFIRMED,
-    ZNS_HEALTH_CARE_FOLLOWUP: process.env.ZNS_TEMPLATE_HEALTH_FOLLOWUP
+    ZNS_HEALTH_CARE_FOLLOWUP: process.env.ZNS_TEMPLATE_HEALTH_FOLLOWUP,
+    ZNS_OTP: process.env.ZNS_TEMPLATE_OTP
   };
   return map[templateType];
+}
+
+/** True when a real OA token AND an approved OTP template id are both configured. */
+export function znsOtpConfigured(): boolean {
+  return znsConfigured() && Boolean(process.env.ZNS_TEMPLATE_OTP);
+}
+
+/**
+ * Deliver an OTP code through an approved Zalo ZNS OTP template.
+ * `extra` lets a template that needs more than the code (e.g. `{ minutes: "5" }`)
+ * receive it. Returns a simulated result when ZNS OTP isn't configured.
+ */
+export async function sendZaloOtp(phone: string, code: string, extra?: Record<string, string>): Promise<DispatchResult> {
+  const param = process.env.ZNS_OTP_PARAM || 'otp';
+  return sendZns({
+    phone,
+    templateType: 'ZNS_OTP',
+    templateData: { [param]: code, ...(extra || {}) },
+    trackingId: `otp-${Date.now()}`
+  });
 }
 
 async function getAccessToken(): Promise<string | null> {

@@ -82,10 +82,11 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
       const r = await apiClient.portal.requestOtp(cleanPhone);
       setIsOtpSent(true);
       setOtpCountdown(60);
+      const channelLabel = r.channel === 'zalo' ? 'Zalo' : r.channel === 'email' ? 'email' : 'SMS';
       setSuccessMsg(
         r.mode === 'simulated'
-          ? `Mã OTP đã tạo (giả lập — chưa cấu hình SMS).${r.devCode ? ' Mã: ' + r.devCode : ' Xem log máy chủ.'}`
-          : `Mã xác thực OTP đã gửi tới ${phoneInput} qua ${r.channel === 'email' ? 'email' : 'SMS'}.`
+          ? `Mã OTP đã tạo (giả lập — chưa cấu hình kênh gửi).${r.devCode ? ' Mã: ' + r.devCode : ' Xem log máy chủ.'}`
+          : `Mã xác thực OTP đã gửi tới ${phoneInput} qua ${channelLabel}.`
       );
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Không gửi được mã OTP.');

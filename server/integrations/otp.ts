@@ -1,11 +1,20 @@
 import { sendSms } from './sms';
 import { sendEmail } from './email';
+import { sendZaloOtp, znsOtpConfigured } from './zns';
 import type { IntegrationStatus } from './types';
 
 /**
  * One-time passcodes for login 2FA / verification.
  * Challenges are kept in memory (fine for a single instance) with a short TTL.
- * Delivery uses the SMS integration, falling back to email when a channel is given.
+ *
+ * Delivery tries channels in order until one succeeds "for real":
+ *   OTP_CHANNEL_ORDER  comma list, default "zalo,sms,email"
+ *   - zalo  → Zalo ZNS OTP template (needs ZALO_OA_* + ZNS_TEMPLATE_OTP); phone only
+ *   - sms   → the SMS integration; phone only
+ *   - email → the email integration; only when an email is supplied
+ * A channel that is only "simulated" (unconfigured) does not stop the chain,
+ * except SMS keeps its historical behaviour of reporting a simulated success so
+ * local dev + OTP_DEV_ECHO still work with nothing configured.
  *
  *   OTP_TTL_SECONDS   default 300
  *   OTP_LENGTH        default 6
@@ -39,19 +48,29 @@ function genCode(): string {
   return out;
 }
 
+function channelOrder(): OtpChannel[] {
+  const raw = (process.env.OTP_CHANNEL_ORDER || 'zalo,sms,email')
+    .split(',').map(s => s.trim().toLowerCase())
+    .filter((s): s is OtpChannel => s === 'zalo' || s === 'sms' || s === 'email');
+  return raw.length ? raw : ['zalo', 'sms', 'email'];
+}
+
 export function otpStatus(): IntegrationStatus {
+  const primary = channelOrder()[0];
   return {
     name: 'otp',
     configured: true,
     mode: 'live',
     provider: 'in-memory',
-    detail: `TTL ${Number(process.env.OTP_TTL_SECONDS || 300)}s, ${store.size} challenge(s) đang chờ`
+    detail: `TTL ${Number(process.env.OTP_TTL_SECONDS || 300)}s · kênh: ${channelOrder().join('→')}${znsOtpConfigured() ? '' : primary === 'zalo' ? ' (zalo chưa cấu hình)' : ''} · ${store.size} challenge đang chờ`
   };
 }
 
+export type OtpChannel = 'zalo' | 'sms' | 'email';
+
 export interface OtpRequestResult {
   sent: boolean;
-  channel: 'sms' | 'email' | 'none';
+  channel: OtpChannel | 'none';
   mode: 'live' | 'simulated';
   devCode?: string;
   error?: string;
@@ -62,21 +81,39 @@ export async function requestOtp(identifier: string, opts: { phone?: string; ema
   const code = genCode();
   store.set(identifier, { codeHash: hash(code), expiresAt: Date.now() + ttlMs(), attempts: 0, target: opts.phone || opts.email || '' });
 
-  const message = `${code} la ma xac thuc VitCRM cua ban${opts.purpose ? ` (${opts.purpose})` : ''}. Ma het han sau ${Math.round(ttlMs() / 60000)} phut.`;
+  const minutes = String(Math.round(ttlMs() / 60000));
+  const message = `${code} la ma xac thuc VitCRM cua ban${opts.purpose ? ` (${opts.purpose})` : ''}. Ma het han sau ${minutes} phut.`;
   const devEcho = process.env.OTP_DEV_ECHO === 'true' ? { devCode: code } : {};
+  let lastError: string | undefined;
 
-  if (opts.phone) {
-    const r = await sendSms({ to: opts.phone, message });
-    if (r.ok) return { sent: true, channel: 'sms', mode: r.mode, ...devEcho };
-    if (r.mode === 'simulated') return { sent: true, channel: 'sms', mode: 'simulated', ...devEcho };
-    // fall through to email if available
+  for (const ch of channelOrder()) {
+    if (ch === 'zalo') {
+      if (!opts.phone || !znsOtpConfigured()) continue;
+      const r = await sendZaloOtp(opts.phone, code, { minutes });
+      if (r.ok && r.mode === 'live') return { sent: true, channel: 'zalo', mode: 'live', ...devEcho };
+      lastError = r.error || lastError;
+      // ZNS failed (e.g. recipient has no Zalo) → try the next channel.
+    } else if (ch === 'sms') {
+      if (!opts.phone) continue;
+      const r = await sendSms({ to: opts.phone, message });
+      if (r.ok && r.mode === 'live') return { sent: true, channel: 'sms', mode: 'live', ...devEcho };
+      if (r.mode === 'simulated') return { sent: true, channel: 'sms', mode: 'simulated', ...devEcho };
+      lastError = r.error || lastError;
+    } else if (ch === 'email') {
+      if (!opts.email) continue;
+      const r = await sendEmail({ to: opts.email, subject: 'Mã xác thực VitCRM', text: message });
+      if (r.ok) return { sent: true, channel: 'email', mode: r.mode, ...devEcho };
+      lastError = r.error || lastError;
+    }
   }
-  if (opts.email) {
-    const r = await sendEmail({ to: opts.email, subject: 'Mã xác thực VitCRM', text: message });
-    if (r.ok) return { sent: true, channel: 'email', mode: r.mode, ...devEcho };
-    return { sent: false, channel: 'email', mode: r.mode, error: r.error, ...devEcho };
-  }
-  return { sent: false, channel: 'none', mode: 'live', error: 'Không có số điện thoại hoặc email để gửi OTP', ...devEcho };
+
+  return {
+    sent: false,
+    channel: 'none',
+    mode: 'live',
+    error: lastError || 'Không có kênh gửi OTP khả dụng (thiếu số điện thoại/email hoặc chưa cấu hình provider)',
+    ...devEcho
+  };
 }
 
 export function verifyOtp(identifier: string, code: string): { ok: boolean; error?: string } {
