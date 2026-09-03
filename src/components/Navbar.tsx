@@ -30,6 +30,7 @@ import { mockUsers, mockBranches } from '../data/mockData';
 import { getRoleConfig, ROLE_CONFIGS } from '../utils/rbac';
 import { RbacMatrixModal } from './RbacMatrixModal';
 import { BackendApiModal } from './BackendApiModal';
+import { IntegrationSettingsModal } from './IntegrationSettingsModal';
 
 interface NavbarProps {
   branches?: Branch[];
@@ -87,6 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isRbacModalOpen, setIsRbacModalOpen] = useState(false);
   const [isBackendModalOpen, setIsBackendModalOpen] = useState(false);
+  const [isIntegrationSettingsOpen, setIsIntegrationSettingsOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
@@ -350,14 +352,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       onClick={() => {
                         setIsSettingsOpen(false);
-                        setIsBackendModalOpen(true);
+                        setIsIntegrationSettingsOpen(true);
                       }}
                       className="w-full text-left px-3 py-2 rounded-xl hover:bg-cyan-50 text-slate-700 hover:text-cyan-800 font-medium flex items-center gap-2 transition-colors cursor-pointer"
                     >
                       <Cable className="w-4 h-4 text-cyan-600" />
                       <div>
-                        <div className="font-bold text-xs">Cấu Hình API & Tích Hợp</div>
-                        <div className="text-[10px] text-slate-400">Zalo ZNS, VoIP, SMS & Webhooks</div>
+                        <div className="font-bold text-xs">Cấu Hình Khóa Tích Hợp</div>
+                        <div className="text-[10px] text-slate-400">Zalo OA/ZNS, SMS, OTP, Email, VietQR, VoIP, AI</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsSettingsOpen(false);
+                        setIsBackendModalOpen(true);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-100 text-slate-700 font-medium flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <Cable className="w-4 h-4 text-slate-500" />
+                      <div>
+                        <div className="font-bold text-xs">Tài Liệu API Backend</div>
+                        <div className="text-[10px] text-slate-400">Danh mục endpoint & ví dụ</div>
                       </div>
                     </button>
 
@@ -614,6 +630,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClose={() => setIsRbacModalOpen(false)}
         currentRole={currentRole}
       />
+
+      {isIntegrationSettingsOpen && (
+        <IntegrationSettingsModal isOpen onClose={() => setIsIntegrationSettingsOpen(false)} />
+      )}
 
       {isBackendModalOpen && (
         <BackendApiModal onClose={() => setIsBackendModalOpen(false)} />

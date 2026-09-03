@@ -39,6 +39,15 @@ describe('public integration callbacks', () => {
   });
 });
 
+describe('integration settings endpoint', () => {
+  it('is admin-gated', async () => {
+    const g = await request(app).get('/api/system/settings');
+    expect([401, 403, 503]).toContain(g.status);
+    const p = await request(app).put('/api/system/settings').send({ values: { SMS_PROVIDER: 'esms' } });
+    expect([401, 403, 503]).toContain(p.status);
+  });
+});
+
 describe('public electronic-queue lookup', () => {
   it('404s for an unknown queue code', async () => {
     const res = await request(app).get('/api/queue/DOES-NOT-EXIST');

@@ -18,8 +18,10 @@ import {
   verifyWebhookAuth, parseWebhookPayload, extractInvoiceCode, vietQrBankInfo,
   type IncomingMessage, type Channel,
   facebookVerifyChallenge, verifyFacebookSignature, verifyZaloSignature,
-  normalizeFacebookPayload, normalizeZaloPayload, sendReply, fetchProfile
+  normalizeFacebookPayload, normalizeZaloPayload, sendReply, fetchProfile,
+  resetZnsCache
 } from "./server/integrations";
+import { initSettings, saveSettings, describeSettings } from "./server/settings";
 
 dotenv.config();
 
@@ -548,6 +550,27 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   // =========================================================================
   app.get("/api/system/integrations", requireAdmin, (req, res) => {
     res.json({ integrations: integrationsStatus() });
+  });
+
+  // Runtime-editable integration config (admin). Secrets are returned masked.
+  app.get("/api/system/settings", requireAdmin, (req, res) => {
+    res.json({ ...describeSettings(), integrations: integrationsStatus() });
+  });
+
+  app.put("/api/system/settings", requireAdmin, async (req, res) => {
+    try {
+      const values = (req.body && (req.body.values ?? req.body)) || {};
+      if (typeof values !== 'object' || Array.isArray(values)) {
+        return res.status(400).json({ error: 'Payload phải là { values: { KEY: "..." } }' });
+      }
+      const { changed } = await saveSettings(values as Record<string, unknown>);
+      if (changed.some(k => k.startsWith('ZALO_') || k === 'ZNS_OTP_PARAM')) resetZnsCache();
+      dbStore.addAuditLog(req.authUser?.id || 'system', req.authUser?.name || '', req.authUser?.role || '',
+        'UPDATE_SETTINGS', 'Tích hợp', `Cập nhật: ${changed.join(', ') || '(không có thay đổi)'}`);
+      res.json({ success: true, changed, ...describeSettings(), integrations: integrationsStatus() });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || 'Không lưu được cấu hình' });
+    }
   });
 
   app.post("/api/email/send", requireAdmin, async (req, res) => {
@@ -2097,6 +2120,12 @@ async function startServer() {
     console.error('[startup] initializeAuth failed — auth_users / bootstrap admin NOT ready:', error.message);
     console.error('[startup] Fix the DB error above, or run `npm run init:auth` against the same DATABASE_URL, then restart.');
     throw error;
+  }
+
+  try {
+    await initSettings();
+  } catch (error: any) {
+    console.error('[startup] initSettings failed (app_settings table) — using .env only:', error.message);
   }
 
   const dbState = await checkDatabase();

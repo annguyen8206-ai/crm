@@ -80,6 +80,19 @@ export const apiClient = {
     }
   },
 
+  // Runtime integration settings (admin only). Secrets come back masked.
+  settings: {
+    async get() {
+      return request<{ groups: any[]; values: Record<string, { set: boolean; source: string; preview: string }>; integrations: any[] }>('/system/settings');
+    },
+    async save(values: Record<string, string>) {
+      return request<{ success: boolean; changed: string[]; groups: any[]; values: Record<string, any>; integrations: any[] }>('/system/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ values }),
+      });
+    }
+  },
+
   // 1c. Omnichannel inbox (Zalo OA + Facebook Messenger)
   conversations: {
     async list(params?: { channel?: string; status?: string }) {
