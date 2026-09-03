@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { dbStore, PatientRecord, AppointmentRecord, SupportTicketRecord, LeadDealRecord, InvoiceRecord, FollowUpTaskRecord, AutoRecallRecord, ZnsLogRecord, VoipCallRecord, CsatFeedbackRecord, ConversationRecord, MessageRecord } from "./server/store";
-import { checkDatabase, databaseConfigured, initializeDatabase, persistStore } from "./server/database";
+import { checkDatabase, databaseConfigured, flushStore, initializeDatabase, persistStore } from "./server/database";
 import { authConfigured, authStatus, authTableReady, completeStaff2fa, createStaff, initializeAuth, issuePortalToken, listStaff, loginStaff, requireAuth, requirePortalAuth, updateStaff, verifyPreAuthToken, verifySessionToken } from "./server/auth";
 import { bus, emitChange } from "./server/events";
 import {
@@ -59,57 +59,30 @@ const queueLookupUrl = (code: string) => `${APP_BASE_URL}/api/queue/${encodeURIC
 const queueQrUrl = (code: string) =>
   `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(queueLookupUrl(code) || code)}`;
 
-async function startServer() {
+/**
+ * Builds the Express application (all middleware + routes) WITHOUT binding a
+ * port, initialising the database, or printing startup diagnostics — those live
+ * in `startServer()`. Tests import this directly with `{ serveClient: false }`
+ * so no Vite dev server / static handler is attached.
+ */
+export async function createApp(opts: { serveClient?: boolean } = {}): Promise<express.Express> {
+  const serveClient = opts.serveClient !== false;
   const app = express();
-  const PORT = 3000;
 
-  const isProd = process.env.NODE_ENV === 'production';
-  const authState = authStatus();
-  console.log('=======================================================');
-  console.log('VitCRM startup diagnostics');
-  console.log(`  NODE_ENV              : ${process.env.NODE_ENV || 'development'}`);
-  console.log(`  DATABASE_URL          : ${process.env.DATABASE_URL ? 'set' : 'MISSING'}`);
-  console.log(`  DATABASE_SSL          : ${process.env.DATABASE_SSL || '(unset → no SSL)'}`);
-  console.log(`  JWT_SECRET            : ${process.env.JWT_SECRET ? 'set' : 'MISSING'}`);
-  console.log(`  AUTH_BOOTSTRAP_EMAIL  : ${process.env.AUTH_BOOTSTRAP_EMAIL ? 'set' : 'MISSING'}`);
-  console.log(`  AUTH_BOOTSTRAP_PASSWORD: ${process.env.AUTH_BOOTSTRAP_PASSWORD ? 'set' : 'MISSING'}`);
-  if (authState.missing.length) {
-    console.log(`  ⚠ Missing for full auth : ${authState.missing.join(', ')}`);
-  }
-  console.log('=======================================================');
-
-  if (isProd && authState.missing.length) {
-    throw new Error(
-      `Production requires these environment variables but they are missing: ${authState.missing.join(', ')}. ` +
-      `Set them (e.g. in the VPS .env / systemd unit) and restart.`
-    );
-  }
-
-  try {
-    await initializeDatabase();
-  } catch (error: any) {
-    console.error('[startup] Database initialization failed:', error.message);
-    console.error('[startup] Common causes: wrong DATABASE_URL credentials/host, or the database requires TLS — set DATABASE_SSL="true".');
-    throw error;
-  }
-  try {
-    await initializeAuth();
-  } catch (error: any) {
-    console.error('[startup] initializeAuth failed — auth_users / bootstrap admin NOT ready:', error.message);
-    console.error('[startup] Fix the DB error above, or run `npm run init:auth` against the same DATABASE_URL, then restart.');
-    throw error;
-  }
-
-  const dbState = await checkDatabase();
-  const tableReady = await authTableReady();
-  console.log(`[startup] Database: configured=${dbState.configured} connected=${dbState.connected}${dbState.error ? ` error="${dbState.error}"` : ''}`);
-  console.log(`[startup] Authentication: ${authConfigured ? 'ENABLED' : 'DISABLED (login will 503)'} | auth_users table: ${tableReady ? 'present' : 'MISSING'}`);
-  console.log('=======================================================');
-  logIntegrationsStatus();
-  console.log('=======================================================');
+  // Running behind nginx/one reverse proxy: use X-Forwarded-For so req.ip is the
+  // real client (rate limiting + audit logs) instead of 127.0.0.1.
+  app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
 
   app.use(helmet({ contentSecurityPolicy: false }));
-  app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false }));
+  app.use(rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    // The realtime stream is one long-lived connection that reconnects on drop —
+    // don't let it burn the per-IP budget for the rest of the app.
+    skip: (req) => req.path === '/api/stream',
+  }));
   // Keep the raw body around so webhook HMAC signatures can be verified.
   app.use(express.json({ limit: '2mb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
 
@@ -2070,13 +2043,13 @@ Trả về JSON thuần túy:
   // =========================================================================
   // 15. VITE SPA MIDDLEWARE / STATIC ASSETS
   // =========================================================================
-  if (process.env.NODE_ENV !== "production") {
+  if (serveClient && process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (serveClient) {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
@@ -2084,15 +2057,87 @@ Trả về JSON thuần túy:
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  return app;
+}
+
+async function startServer() {
+  const PORT = 3000;
+  const isProd = process.env.NODE_ENV === 'production';
+  const authState = authStatus();
+  console.log('=======================================================');
+  console.log('VitCRM startup diagnostics');
+  console.log(`  NODE_ENV              : ${process.env.NODE_ENV || 'development'}`);
+  console.log(`  DATABASE_URL          : ${process.env.DATABASE_URL ? 'set' : 'MISSING'}`);
+  console.log(`  DATABASE_SSL          : ${process.env.DATABASE_SSL || '(unset → no SSL)'}`);
+  console.log(`  JWT_SECRET            : ${process.env.JWT_SECRET ? 'set' : 'MISSING'}`);
+  console.log(`  AUTH_BOOTSTRAP_EMAIL  : ${process.env.AUTH_BOOTSTRAP_EMAIL ? 'set' : 'MISSING'}`);
+  console.log(`  AUTH_BOOTSTRAP_PASSWORD: ${process.env.AUTH_BOOTSTRAP_PASSWORD ? 'set' : 'MISSING'}`);
+  if (authState.missing.length) {
+    console.log(`  ⚠ Missing for full auth : ${authState.missing.join(', ')}`);
+  }
+  console.log('=======================================================');
+
+  if (isProd && authState.missing.length) {
+    throw new Error(
+      `Production requires these environment variables but they are missing: ${authState.missing.join(', ')}. ` +
+      `Set them (e.g. in the VPS .env / systemd unit) and restart.`
+    );
+  }
+
+  try {
+    await initializeDatabase();
+  } catch (error: any) {
+    console.error('[startup] Database initialization failed:', error.message);
+    console.error('[startup] Common causes: wrong DATABASE_URL credentials/host, or the database requires TLS — set DATABASE_SSL="true".');
+    throw error;
+  }
+  try {
+    await initializeAuth();
+  } catch (error: any) {
+    console.error('[startup] initializeAuth failed — auth_users / bootstrap admin NOT ready:', error.message);
+    console.error('[startup] Fix the DB error above, or run `npm run init:auth` against the same DATABASE_URL, then restart.');
+    throw error;
+  }
+
+  const dbState = await checkDatabase();
+  const tableReady = await authTableReady();
+  console.log(`[startup] Database: configured=${dbState.configured} connected=${dbState.connected}${dbState.error ? ` error="${dbState.error}"` : ''}`);
+  console.log(`[startup] Authentication: ${authConfigured ? 'ENABLED' : 'DISABLED (login will 503)'} | auth_users table: ${tableReady ? 'present' : 'MISSING'}`);
+  console.log('=======================================================');
+  logIntegrationsStatus();
+  console.log('=======================================================');
+
+  const app = await createApp();
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`=======================================================`);
     console.log(`VitHospital Healthcare Management Server running on port ${PORT}`);
     console.log(`Live Backend Endpoints ready on http://0.0.0.0:${PORT}/api/health`);
     console.log(`=======================================================`);
   });
+
+  // Graceful shutdown: on PM2 reload / deploy, stop accepting connections and
+  // make sure the last store write reaches Postgres before exiting.
+  let shuttingDown = false;
+  for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+    process.on(sig, () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log(`[shutdown] ${sig} received — draining...`);
+      // Hard-exit backstop if connections don't drain (keep-alive, slow client).
+      const kill = setTimeout(() => { console.warn('[shutdown] forced exit'); process.exit(0); }, 8000);
+      server.close(async () => {
+        try { await flushStore(); } catch { /* logged in database.ts */ }
+        clearTimeout(kill);
+        process.exit(0);
+      });
+    });
+  }
 }
 
-startServer().catch(error => {
-  console.error('VitCRM startup failed:', error);
-  process.exit(1);
-});
+// Don't auto-boot when imported by the test runner (Vitest sets VITEST=true).
+if (!process.env.VITEST) {
+  startServer().catch(error => {
+    console.error('VitCRM startup failed:', error);
+    process.exit(1);
+  });
+}

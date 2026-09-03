@@ -3,17 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { ShieldAlert, ArrowRight, ShieldCheck, Sparkles, Heart, LogOut } from 'lucide-react';
 import { Navbar } from './components/Navbar';
-import { DashboardView } from './components/DashboardView';
-import { Patient360View } from './components/Patient360View';
-import { AppointmentsView } from './components/AppointmentsView';
-import { SalesExcellenceView } from './components/SalesExcellenceView';
-import { MarketingAutomationView } from './components/MarketingAutomationView';
-import { CustomerCareSlaView } from './components/CustomerCareSlaView';
-import { PatientPortalView } from './components/PatientPortalView';
-import { LoyaltyReferralView } from './components/LoyaltyReferralView';
 import { PatientDetailModal } from './components/PatientDetailModal';
 import { AiAssistantModal } from './components/AiAssistantModal';
 import { BookAppointmentModal } from './components/BookAppointmentModal';
@@ -21,12 +13,32 @@ import { AddPatientModal } from './components/AddPatientModal';
 import { StaffLoginView } from './components/StaffLoginView';
 import { CustomerLoginView } from './components/CustomerLoginView';
 import { StaffManagementModal } from './components/StaffManagementModal';
-import { OmnichannelInboxView } from './components/OmnichannelInboxView';
-import { CatalogView } from './components/CatalogView';
-import { BillingView } from './components/BillingView';
 import { BranchManagementModal } from './components/BranchManagementModal';
 import { getRoleConfig, isTabAllowedForRole } from './utils/rbac';
 import { apiClient } from './utils/apiClient';
+
+// Heavy, tab-scoped views are code-split so the initial bundle only ships the
+// shell + login. Each is mounted under the <Suspense> boundary below.
+const DashboardView = lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
+const Patient360View = lazy(() => import('./components/Patient360View').then(m => ({ default: m.Patient360View })));
+const AppointmentsView = lazy(() => import('./components/AppointmentsView').then(m => ({ default: m.AppointmentsView })));
+const SalesExcellenceView = lazy(() => import('./components/SalesExcellenceView').then(m => ({ default: m.SalesExcellenceView })));
+const MarketingAutomationView = lazy(() => import('./components/MarketingAutomationView').then(m => ({ default: m.MarketingAutomationView })));
+const CustomerCareSlaView = lazy(() => import('./components/CustomerCareSlaView').then(m => ({ default: m.CustomerCareSlaView })));
+const PatientPortalView = lazy(() => import('./components/PatientPortalView').then(m => ({ default: m.PatientPortalView })));
+const LoyaltyReferralView = lazy(() => import('./components/LoyaltyReferralView').then(m => ({ default: m.LoyaltyReferralView })));
+const OmnichannelInboxView = lazy(() => import('./components/OmnichannelInboxView').then(m => ({ default: m.OmnichannelInboxView })));
+const CatalogView = lazy(() => import('./components/CatalogView').then(m => ({ default: m.CatalogView })));
+const BillingView = lazy(() => import('./components/BillingView').then(m => ({ default: m.BillingView })));
+
+/** Lightweight fallback while a lazy view chunk loads. */
+function ViewLoading() {
+  return (
+    <div className="flex items-center justify-center py-24 text-slate-400">
+      <div className="w-6 h-6 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  );
+}
 
 function mapApiPatient(patient: any): Patient {
   return {
@@ -66,17 +78,9 @@ import {
   mockBranches,
   mockPatients,
   mockDoctors,
-  mockAppointments,
-  mockB2BContracts,
-  mockB2CDeals,
   mockSegments,
-  mockCampaigns,
   mockAutomationRules,
-  mockSupportTickets,
   mockReferrals,
-  mockMedicalPartners,
-  mockPartnerPayouts,
-  mockInteractions,
   CURRENT_USERS
 } from './data/mockData';
 
@@ -746,23 +750,25 @@ export default function App() {
         </header>
 
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 pt-6">
-          <PatientPortalView
-            patients={patients}
-            doctors={effectiveDoctors}
-            branches={mockBranches}
-            tickets={supportTickets}
-            appointments={portalData?.appointments ?? appointments}
-            currentPatientOverride={currentCustomerPatient}
-            onAddNewTicket={handlePortalTicket}
-            onBookSelfAppointment={handlePortalBooking}
-            onSelectPatient={(id) => setSelectedPatientId(id)}
-            onCustomerLogout={() => {
-              apiClient.portal.logout();
-              setPortalData(null);
-              setIsCustomerLoggedIn(false);
-              showToast('Đã đăng xuất khỏi Cổng Khách Hàng');
-            }}
-          />
+          <Suspense fallback={<ViewLoading />}>
+            <PatientPortalView
+              patients={patients}
+              doctors={effectiveDoctors}
+              branches={mockBranches}
+              tickets={supportTickets}
+              appointments={portalData?.appointments ?? appointments}
+              currentPatientOverride={currentCustomerPatient}
+              onAddNewTicket={handlePortalTicket}
+              onBookSelfAppointment={handlePortalBooking}
+              onSelectPatient={(id) => setSelectedPatientId(id)}
+              onCustomerLogout={() => {
+                apiClient.portal.logout();
+                setPortalData(null);
+                setIsCustomerLoggedIn(false);
+                showToast('Đã đăng xuất khỏi Cổng Khách Hàng');
+              }}
+            />
+          </Suspense>
         </main>
       </div>
     );
@@ -892,6 +898,7 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 pt-6">
 
         {/* RBAC Permission Guard: If tab is not allowed for the active role */}
+        <Suspense fallback={<ViewLoading />}>
         {!isTabAllowedForRole(activeTab, currentRole) ? (
           <div className="bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 text-center max-w-2xl mx-auto shadow-sm my-8">
             <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-4 border border-amber-200">
@@ -1188,6 +1195,7 @@ export default function App() {
             )}
           </>
         )}
+        </Suspense>
 
       </main>
 
