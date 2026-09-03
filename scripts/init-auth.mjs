@@ -3,11 +3,16 @@
  *
  *   npm run init:auth
  *   npm run init:auth -- --email you@example.com --password 'S3cret!'
+ *   npm run init:auth -- --reset-password        # overwrite the existing admin's password
  *
  * Creates the `auth_users` table + indexes and the bootstrap admin using the
  * same DATABASE_URL / DATABASE_SSL / AUTH_BOOTSTRAP_* environment the server uses
  * (loaded from .env). Run this on the VPS if `auth_users` is missing — it does
  * NOT require restarting PM2. Idempotent: safe to run repeatedly.
+ *
+ * By default an EXISTING admin row is left untouched. Pass --reset-password to
+ * force its password_hash to the given --password / AUTH_BOOTSTRAP_PASSWORD and
+ * clear any failed-attempt lockout (use when you've lost the admin password).
  *
  * Keep the DDL below in sync with server/auth.ts (ensureAuthSchema).
  */
@@ -40,6 +45,7 @@ function argValue(flag) {
   const i = process.argv.indexOf(flag);
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
+const hasFlag = (flag) => process.argv.includes(flag);
 
 async function main() {
   const connectionString = process.env.DATABASE_URL;
@@ -72,14 +78,23 @@ async function main() {
   const password = argValue('--password') || process.env.AUTH_BOOTSTRAP_PASSWORD || '';
   if (email && password) {
     const hash = await bcrypt.hash(password, 12);
+    const resetPassword = hasFlag('--reset-password');
+    const onConflict = resetPassword
+      ? `ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, failed_attempts = 0, locked_until = NULL`
+      : `ON CONFLICT (email) DO NOTHING`;
     const result = await client.query(
       `INSERT INTO auth_users (id, email, staff_code, name, password_hash, role, role_title)
        VALUES ('bootstrap-admin', $1, 'ADMIN-001', 'Quản trị viên hệ thống', $2, 'admin', 'Quản trị viên hệ thống')
-       ON CONFLICT (email) DO NOTHING
-       RETURNING id`,
+       ${onConflict}
+       RETURNING (xmax = 0) AS inserted`,
       [email, hash]
     );
-    console.log(result.rowCount ? `✓ Bootstrap admin CREATED: ${email}` : `✓ Bootstrap admin already exists: ${email}`);
+    const row = result.rows[0];
+    console.log(
+      !result.rowCount ? `✓ Bootstrap admin already exists: ${email} (password unchanged — pass --reset-password to overwrite)`
+      : row?.inserted ? `✓ Bootstrap admin CREATED: ${email}`
+      : `✓ Bootstrap admin PASSWORD RESET: ${email}`
+    );
   } else {
     console.warn('⚠ No AUTH_BOOTSTRAP_EMAIL / AUTH_BOOTSTRAP_PASSWORD (and no --email/--password) → admin NOT created.');
   }
