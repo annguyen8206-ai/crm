@@ -224,7 +224,7 @@ export const PatientJourneyOverview: React.FC<PatientJourneyOverviewProps> = ({
         <div className="flex items-center gap-2 shrink-0">
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>6/6 Điểm Chạm Hoạt Động</span>
+            <span>{PATIENT_JOURNEY_STAGES.length} giai đoạn hành trình</span>
           </span>
         </div>
       </div>
@@ -331,30 +331,25 @@ export const PatientJourneyOverview: React.FC<PatientJourneyOverviewProps> = ({
             </ul>
           </div>
 
-          {/* Column 3: Live Real-world Metrics */}
+          {/* Column 3: Jump to the module that runs this stage */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2.5 flex flex-col justify-between">
             <div>
               <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                 <TrendingUp className="w-4 h-4 text-emerald-600" />
-                Chỉ Số Đo Lường Hiệu Quả (KPIs):
+                Phân Hệ Vận Hành Giai Đoạn Này:
               </span>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {activeStage.keyMetrics.map((m, idx) => (
-                  <div key={idx} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <span className="text-[11px] text-slate-500 block">{m.label}</span>
-                    <strong className="text-xs font-bold text-slate-900 block mt-0.5">{m.value}</strong>
-                  </div>
-                ))}
-              </div>
+              <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                {activeStage.description}
+              </p>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-              <span className="flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                Dữ liệu đồng bộ Real-time
-              </span>
-              <span className="text-indigo-600 font-bold">100% Sẵn Sàng</span>
-            </div>
+            <button
+              onClick={() => onNavigate?.(activeStage.targetTab)}
+              className="mt-2 w-full py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <span>Mở {activeStage.tabLabel}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
 
         </div>

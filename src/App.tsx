@@ -934,6 +934,8 @@ export default function App() {
                 supportTickets={supportTickets}
                 tickets={supportTickets}
                 invoices={invoices}
+                csatFeedbacks={csatFeedbacks}
+                recalls={recalls}
                 serverKpis={dashboardKpis}
                 branches={branches}
                 currentBranchId={currentBranchId}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Users,
   Calendar,
@@ -45,6 +45,8 @@ interface DashboardViewProps {
   supportTickets?: SupportTicket[];
   branches?: Branch[];
   invoices?: any[];
+  csatFeedbacks?: any[];
+  recalls?: any[];
   /** Server-computed KPIs from /api/analytics/dashboard (optional). */
   serverKpis?: { kpis?: any; branchPerformance?: any[] } | null;
   currentBranchId?: string;
@@ -54,32 +56,17 @@ interface DashboardViewProps {
   onOpenAiAssistant?: () => void;
 }
 
-const MONTHLY_DATA = [
-  { month: 'T1', b2cRevenue: 1200, b2bRevenue: 850, visits: 2150, noShowRate: 14.2 },
-  { month: 'T2', b2cRevenue: 1450, b2bRevenue: 920, visits: 2400, noShowRate: 11.5 },
-  { month: 'T3', b2cRevenue: 1800, b2bRevenue: 1400, visits: 3100, noShowRate: 8.4 },
-  { month: 'T4', b2cRevenue: 2100, b2bRevenue: 1900, visits: 3850, noShowRate: 6.2 },
-  { month: 'T5', b2cRevenue: 2350, b2bRevenue: 2200, visits: 4300, noShowRate: 5.1 },
-  { month: 'T6', b2cRevenue: 2600, b2bRevenue: 2480, visits: 4900, noShowRate: 4.8 },
-  { month: 'T7', b2cRevenue: 2900, b2bRevenue: 2610, visits: 5400, noShowRate: 4.2 },
-  { month: 'T8', b2cRevenue: 3150, b2bRevenue: 2850, visits: 5950, noShowRate: 3.9 }
-];
+// Colours reused for the acquisition-source donut, keyed by index.
+const SOURCE_COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', '#64748b', '#ec4899', '#14b8a6'];
 
-const SOURCE_DATA = [
-  { name: 'B2B KSK Đoàn', value: 38, color: '#0ea5e9' },
-  { name: 'Zalo OA & ZNS', value: 24, color: '#10b981' },
-  { name: 'Giới thiệu Bác sĩ', value: 16, color: '#8b5cf6' },
-  { name: 'Facebook & Ads', value: 14, color: '#f59e0b' },
-  { name: 'Hotline / Vãng lai', value: 8, color: '#64748b' }
-];
+const EmptyChart: React.FC<{ label?: string }> = ({ label = 'Chưa có dữ liệu' }) => (
+  <div className="h-full w-full flex flex-col items-center justify-center text-slate-400 gap-1">
+    <Activity className="w-6 h-6" />
+    <span className="text-xs">{label}</span>
+  </div>
+);
 
-const SPECIALTY_PERFORMANCE = [
-  { name: 'Tim Mạch - Nội Tiết', visits: 1420, revenue: 1250, occupancy: 94 },
-  { name: 'Sản Phụ Khoa', visits: 1250, revenue: 1480, occupancy: 91 },
-  { name: 'Cơ Xương Khớp', visits: 1100, revenue: 980, occupancy: 88 },
-  { name: 'Da Liễu & Thẩm Mỹ', visits: 830, revenue: 1850, occupancy: 96 },
-  { name: 'Xét Nghiệm & Tiêm Chủng', visits: 1350, revenue: 440, occupancy: 85 }
-];
+const monthKey = (iso?: string) => (iso && /^\d{4}-\d{2}/.test(iso) ? iso.slice(0, 7) : '');
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   currentRole = 'Ban Giám Đốc',
@@ -89,6 +76,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   tickets = [],
   supportTickets = [],
   branches = [],
+  invoices = [],
+  csatFeedbacks = [],
   serverKpis = null,
   currentBranchId,
   onSelectTab,
@@ -115,6 +104,93 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const urgentTickets = (allTickets || []).filter(t => t?.priority?.includes('Khẩn cấp') && t?.status !== 'Đã đóng');
   const _todayISO = new Date().toISOString().slice(0, 10);
   const todayAppointments = (appointments || []).filter(a => a?.appointmentDate === _todayISO);
+
+  // Every number below is derived from the records actually loaded — no seeded
+  // demo figures. With an empty database the dashboard reads 0 / "—".
+  const m = useMemo(() => {
+    const pats = patients || [];
+    const apts = appointments || [];
+    const invs = invoices || [];
+    const csat = csatFeedbacks || [];
+    const tix = allTickets || [];
+
+    // --- Patients ---
+    const totalPatients = serverKpis?.kpis?.totalPatients ?? pats.length;
+    const cutoff = Date.now() - 30 * 86400000;
+    const newPatients30d = pats.filter(p => {
+      const t = Date.parse(p.createdAt || p.membership?.memberSince || '');
+      return Number.isFinite(t) && t >= cutoff;
+    }).length;
+
+    // --- No-show ---
+    const isNoShow = (s?: string) => !!s && /vắng mặt|no-?show/i.test(s);
+    const isCancelled = (s?: string) => !!s && /hủy/i.test(s);
+    const concluded = apts.filter(a => isNoShow(a.status) || isCancelled(a.status) || /hoàn tất|khám xong|đã khám/i.test(a.status || '') || (a.appointmentDate && a.appointmentDate < _todayISO));
+    const noShowCount = apts.filter(a => isNoShow(a.status)).length;
+    const noShowRate = concluded.length ? (noShowCount / concluded.length) * 100 : null;
+    const confirmed = apts.filter(a => /đã xác nhận|đã tiếp đón|đang khám|hoàn tất|khám xong/i.test(a.status || '')).length;
+    const confirmRate = apts.length ? (confirmed / apts.length) * 100 : null;
+
+    // --- B2B ---
+    const b2bValueTy = totalB2BValue / 1e9;
+    const b2bCompanies = (b2bContracts || []).map(c => c.companyName).filter(Boolean).slice(0, 4).join(', ');
+
+    // --- CSAT / SLA ---
+    const ratings = csat.map(c => Number(c.rating)).filter(n => Number.isFinite(n) && n > 0);
+    const csatAvg = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
+    const npsVals = csat.map(c => Number(c.npsScore)).filter(n => Number.isFinite(n));
+    const promoters = npsVals.filter(n => n >= 9).length;
+    const detractors = npsVals.filter(n => n <= 6).length;
+    const nps = npsVals.length ? Math.round(((promoters - detractors) / npsVals.length) * 100) : null;
+    const slaRate = serverKpis?.kpis?.slaRate
+      ?? (tix.length ? `${Math.round((tix.filter(t => /giải quyết|đóng/i.test(t.status || '')).length / tix.length) * 100)}%` : null);
+    const overdueTickets = tix.filter(t => (t as any).isOverdue).length;
+
+    // --- Revenue by month (last 6 months present in paid invoices) ---
+    const paid = invs.filter(i => /đã thanh toán/i.test(i.status || ''));
+    const byMonth = new Map<string, number>();
+    for (const i of paid) {
+      const k = monthKey(i.paidAt || i.createdAt);
+      if (k) byMonth.set(k, (byMonth.get(k) || 0) + (Number(i.patientPayable) || 0));
+    }
+    const revenueByMonth = [...byMonth.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .slice(-6)
+      .map(([k, v]) => ({ month: k.slice(5) + '/' + k.slice(2, 4), revenue: Math.round(v / 1e6) }));
+
+    // --- Acquisition source (from patient.source) ---
+    const bySource = new Map<string, number>();
+    for (const p of pats) {
+      const s = (p.source || '').trim() || 'Chưa rõ nguồn';
+      bySource.set(s, (bySource.get(s) || 0) + 1);
+    }
+    const sourceTotal = pats.length || 1;
+    const sourceBreakdown = [...bySource.entries()]
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 6)
+      .map(([name, count], idx) => ({ name, value: Math.round((count / sourceTotal) * 100), count, color: SOURCE_COLORS[idx % SOURCE_COLORS.length] }));
+
+    // --- Department load (visits from appointments) ---
+    const byDept = new Map<string, number>();
+    for (const a of apts) {
+      const d = (a.department || '').trim();
+      if (d) byDept.set(d, (byDept.get(d) || 0) + 1);
+    }
+    const deptBreakdown = [...byDept.entries()]
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 6)
+      .map(([name, visits]) => ({ name, visits }));
+
+    return {
+      totalPatients, newPatients30d,
+      noShowRate, noShowCount, concludedCount: concluded.length, confirmRate,
+      b2bValueTy, b2bCompanies,
+      csatAvg, nps, csatCount: ratings.length, slaRate, overdueTickets,
+      revenueByMonth, sourceBreakdown, deptBreakdown,
+    };
+  }, [patients, appointments, invoices, csatFeedbacks, allTickets, b2bContracts, serverKpis, totalB2BValue, _todayISO]);
+
+  const pct = (v: number | null, digits = 1) => (v == null ? '—' : `${v.toFixed(digits)}%`);
 
   return (
     <div className="space-y-6 pb-12">
@@ -214,16 +290,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-bold text-slate-900 tracking-tight">
-              12,480 <span className="text-xs font-normal text-slate-500">hồ sơ</span>
+              {m.totalPatients.toLocaleString('vi-VN')} <span className="text-xs font-normal text-slate-500">hồ sơ</span>
             </div>
             <div className="flex items-center gap-1.5 mt-1 text-xs text-emerald-600 font-medium">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>+18.4% so với tháng trước</span>
+              {m.newPatients30d > 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : null}
+              <span>{m.newPatients30d > 0 ? `+${m.newPatients30d} hồ sơ mới trong 30 ngày` : 'Chưa có hồ sơ mới trong 30 ngày'}</span>
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-            <span>Đồng bộ HIS/LIS: 100%</span>
-            <span className="text-blue-600 font-semibold">100% 360 View</span>
+            <span>{branches.length} chi nhánh</span>
+            <span className="text-blue-600 font-semibold">{(patients || []).filter(p => (p.tags || []).length).length} hồ sơ gắn thẻ</span>
           </div>
         </div>
 
@@ -240,16 +316,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-bold text-emerald-600 tracking-tight">
-              3.9% <span className="text-xs font-normal text-slate-400">(Trước đó: 24.5%)</span>
+              {pct(m.noShowRate)} <span className="text-xs font-normal text-slate-400">({m.noShowCount}/{m.concludedCount} lịch)</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-1 text-xs text-emerald-600 font-medium">
-              <ArrowDownRight className="w-3.5 h-3.5" />
-              <span>Giảm 84% nhờ Zalo ZNS / SMS</span>
+            <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500 font-medium">
+              <span>{m.concludedCount ? 'Tính trên các lịch đã kết thúc' : 'Chưa có lịch đã kết thúc để tính'}</span>
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
             <span>Lịch hôm nay: {todayAppointments.length} ca</span>
-            <span className="text-emerald-700 font-semibold">96.1% Xác nhận</span>
+            <span className="text-emerald-700 font-semibold">{pct(m.confirmRate, 0)} đã xác nhận</span>
           </div>
         </div>
 
@@ -266,7 +341,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-bold text-slate-900 tracking-tight">
-              7.52 <span className="text-xs font-normal text-slate-500">tỷ VNĐ</span>
+              {m.b2bValueTy > 0 ? m.b2bValueTy.toFixed(2) : '0'} <span className="text-xs font-normal text-slate-500">tỷ VNĐ</span>
             </div>
             <div className="flex items-center gap-1.5 mt-1 text-xs text-indigo-600 font-medium">
               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -274,8 +349,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-            <span>FPT, VCB, VNG, SunGroup</span>
-            <span className="text-indigo-600 font-semibold">{b2bContracts.length} Hợp đồng</span>
+            <span className="truncate pr-2">{m.b2bCompanies || 'Chưa có hợp đồng'}</span>
+            <span className="text-indigo-600 font-semibold shrink-0">{b2bContracts.length} Hợp đồng</span>
           </div>
         </div>
 
@@ -292,16 +367,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-bold text-slate-900 tracking-tight">
-              4.92 <span className="text-xs font-semibold text-amber-500">/ 5.0 ⭐ (NPS +74)</span>
+              {m.csatAvg == null ? '—' : m.csatAvg.toFixed(2)}
+              <span className="text-xs font-semibold text-amber-500"> / 5.0 ⭐ {m.nps == null ? '' : `(NPS ${m.nps >= 0 ? '+' : ''}${m.nps})`}</span>
             </div>
             <div className="flex items-center gap-1.5 mt-1 text-xs text-emerald-600 font-medium">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>98.6% Ticket giải quyết chuẩn SLA</span>
+              <span>{m.slaRate ? `${m.slaRate} ticket đúng SLA` : 'Chưa có ticket'}</span>
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-            <span>FCR: 8.4 phút</span>
-            <span className="text-emerald-600 font-semibold">0 Ticket vi phạm</span>
+            <span>{m.csatCount} lượt đánh giá</span>
+            <span className={`font-semibold ${m.overdueTickets ? 'text-rose-600' : 'text-emerald-600'}`}>{m.overdueTickets} ticket quá hạn</span>
           </div>
         </div>
 
@@ -314,30 +390,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Xu Hướng Doanh Thu B2B vs B2C & Tỷ Lệ No-Show</h3>
-              <p className="text-xs text-slate-500">Hiệu quả tự động hóa tiếp thị và tối ưu hóa vận hành (Đơn vị: Triệu VNĐ)</p>
+              <h3 className="text-base font-bold text-slate-900">Doanh Thu Đã Thu Theo Tháng</h3>
+              <p className="text-xs text-slate-500">Tổng hợp từ hóa đơn đã thanh toán (Đơn vị: Triệu VNĐ)</p>
             </div>
             <div className="flex items-center gap-3 text-xs">
               <span className="flex items-center gap-1.5 text-slate-600">
-                <span className="w-3 h-3 rounded-sm bg-blue-600 inline-block" /> B2C Khám cá nhân
-              </span>
-              <span className="flex items-center gap-1.5 text-slate-600">
-                <span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" /> B2B Đoàn KSK
+                <span className="w-3 h-3 rounded-sm bg-blue-600 inline-block" /> Doanh thu đã thu
               </span>
             </div>
           </div>
 
           <div className="h-72 w-full">
+            {m.revenueByMonth.length === 0 ? (
+              <EmptyChart label="Chưa có hóa đơn đã thanh toán" />
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={MONTHLY_DATA} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <AreaChart data={m.revenueByMonth} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="colorB2C" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25} />
                     <stop offset="95%" stopColor="#2563eb" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="colorB2B" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -345,12 +417,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <YAxis stroke="#94a3b8" tick={{ fontSize: 12 }} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#0f172a', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: any) => [`${Number(value).toLocaleString()} Triệu VNĐ`, '']}
+                  formatter={(value: any) => [`${Number(value).toLocaleString('vi-VN')} Triệu VNĐ`, '']}
                 />
-                <Area type="monotone" dataKey="b2cRevenue" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorB2C)" name="Doanh thu B2C" />
-                <Area type="monotone" dataKey="b2bRevenue" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorB2B)" name="Doanh thu B2B" />
+                <Area type="monotone" dataKey="revenue" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" name="Doanh thu đã thu" />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -358,14 +430,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs flex flex-col justify-between">
           <div>
             <h3 className="text-base font-bold text-slate-900">Nguồn Thu Hút Bệnh Nhân</h3>
-            <p className="text-xs text-slate-500">Marketing Tracking & Tỷ trọng đa kênh</p>
+            <p className="text-xs text-slate-500">Theo trường "nguồn" trên hồ sơ khách hàng</p>
           </div>
 
           <div className="h-52 w-full my-2">
+            {m.sourceBreakdown.length === 0 ? (
+              <EmptyChart label="Chưa có hồ sơ khách hàng" />
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={SOURCE_DATA}
+                  data={m.sourceBreakdown}
                   cx="50%"
                   cy="50%"
                   innerRadius={55}
@@ -373,20 +448,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   paddingAngle={4}
                   dataKey="value"
                 >
-                  {SOURCE_DATA.map((entry, index) => (
+                  {m.sourceBreakdown.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip
                   contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#0f172a', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(val: any) => [`${val}%`, 'Tỷ trọng']}
+                  formatter={(val: any, _n: any, p: any) => [`${val}% (${p?.payload?.count ?? 0} hồ sơ)`, 'Tỷ trọng']}
                 />
               </PieChart>
             </ResponsiveContainer>
+            )}
           </div>
 
           <div className="space-y-1.5 text-xs">
-            {SOURCE_DATA.map((s, idx) => (
+            {m.sourceBreakdown.map((s, idx) => (
               <div key={idx} className="flex items-center justify-between text-slate-600">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
@@ -407,8 +483,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Hiệu Suất Chuyên Khoa & Công Suất Phòng Khám</h3>
-              <p className="text-xs text-slate-500">Tối ưu hóa thời gian trống và năng suất bác sĩ điều trị</p>
+              <h3 className="text-base font-bold text-slate-900">Lượt Hẹn Theo Chuyên Khoa</h3>
+              <p className="text-xs text-slate-500">Tổng hợp từ lịch hẹn đang có trong hệ thống</p>
             </div>
             <button
               onClick={() => handleNavigate('appointments')}
@@ -419,17 +495,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="h-64 w-full">
+            {m.deptBreakdown.length === 0 ? (
+              <EmptyChart label="Chưa có lịch hẹn" />
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={SPECIALTY_PERFORMANCE} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+              <BarChart data={m.deptBreakdown} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                <XAxis type="number" stroke="#94a3b8" tick={{ fontSize: 11 }} />
+                <XAxis type="number" stroke="#94a3b8" tick={{ fontSize: 11 }} allowDecimals={false} />
                 <YAxis dataKey="name" type="category" stroke="#64748b" tick={{ fontSize: 11 }} width={120} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#0f172a', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />
-                <Bar dataKey="occupancy" name="Công suất phòng (%)" fill="#2563eb" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="visits" name="Số lượt hẹn" fill="#2563eb" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
 

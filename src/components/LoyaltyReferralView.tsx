@@ -426,7 +426,7 @@ export const LoyaltyReferralView: React.FC<LoyaltyReferralViewProps> = ({
           <div className="text-2xl font-bold text-indigo-700 mt-2 font-mono">
             {totalReferredPatients} <span className="text-xs text-slate-500 font-sans font-normal">lượt khám</span>
           </div>
-          <div className="text-[11px] text-slate-500 font-medium mt-1">Tỷ lệ chuyển đổi khám đạt 92%</div>
+          <div className="text-[11px] text-slate-500 font-medium mt-1">Tổng lượt khám từ kênh giới thiệu</div>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">

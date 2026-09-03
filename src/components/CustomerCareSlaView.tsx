@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Headphones,
   ShieldAlert,
@@ -156,8 +156,40 @@ export const CustomerCareSlaView: React.FC<CustomerCareSlaViewProps> = ({
   const [newFollowUpDays, setNewFollowUpDays] = useState<number>(3);
   const [newFollowUpStaff, setNewFollowUpStaff] = useState('ĐD. Lê Thị Diệu');
 
-  // CSAT Feedbacks State
-  const [csatList, setCsatList] = useState<CsatFeedbackItem[]>(mockCsatFeedbacks);
+  // CSAT Feedbacks — driven by real data from the API (via props), not the demo seed.
+  const [csatList, setCsatList] = useState<CsatFeedbackItem[]>([]);
+  useEffect(() => {
+    setCsatList(((csatFeedbacks || []) as CsatFeedbackItem[]));
+  }, [csatFeedbacks]);
+
+  // Aggregates for the CSAT / NPS tab — all computed from csatList.
+  const csatAgg = useMemo(() => {
+    const rows = csatList || [];
+    const ratings = rows.map(r => Number(r.rating)).filter(n => Number.isFinite(n) && n > 0);
+    const nps = rows.map(r => Number(r.npsScore)).filter(n => Number.isFinite(n));
+    const promoters = nps.filter(n => n >= 9).length;
+    const passives = nps.filter(n => n >= 7 && n <= 8).length;
+    const detractors = nps.filter(n => n <= 6).length;
+    const npsScore = nps.length ? Math.round(((promoters - detractors) / nps.length) * 1000) / 10 : null;
+    const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
+    const pctOf = (n: number) => (nps.length ? Math.round((n / nps.length) * 100) : 0);
+
+    const byDept = new Map<string, { sum: number; n: number }>();
+    for (const r of rows) {
+      const d = (r.department || '').trim();
+      const v = Number(r.rating);
+      if (!d || !Number.isFinite(v) || v <= 0) continue;
+      const cur = byDept.get(d) || { sum: 0, n: 0 };
+      cur.sum += v; cur.n += 1;
+      byDept.set(d, cur);
+    }
+    const deptBars = [...byDept.entries()]
+      .map(([name, { sum, n }]) => ({ name, avg: sum / n, pct: Math.round((sum / n / 5) * 100), n }))
+      .sort((a, b) => b.avg - a.avg)
+      .slice(0, 6);
+
+    return { count: rows.length, npsScore, avgRating, promoterPct: pctOf(promoters), passivePct: pctOf(passives), detractorPct: pctOf(detractors), deptBars };
+  }, [csatList]);
   const [feedbackFilter, setFeedbackFilter] = useState<'ALL' | 'Tích cực' | 'Trung lập' | 'Tiêu cực'>('ALL');
   const [thankYouToast, setThankYouToast] = useState<string | null>(null);
 
@@ -566,8 +598,8 @@ export const CustomerCareSlaView: React.FC<CustomerCareSlaViewProps> = ({
           <div className="text-2xl font-bold text-slate-900 mt-2 font-mono">
             {avgFirstResponse} <span className="text-xs font-normal text-slate-500">phút</span>
           </div>
-          <span className="text-emerald-700 text-[11px] font-bold mt-1 block">
-            Nhanh hơn 35% so với cam kết
+          <span className="text-slate-500 text-[11px] mt-1 block">
+            Trung bình trên {totalTickets} ticket
           </span>
         </div>
 
@@ -577,9 +609,9 @@ export const CustomerCareSlaView: React.FC<CustomerCareSlaViewProps> = ({
             <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
           </div>
           <div className="text-2xl font-bold text-amber-600 mt-2 font-mono">
-            {avgCsat} <span className="text-xs font-normal text-slate-500">/ 5.0 ⭐</span>
+            {csatAgg.avgRating == null ? '—' : csatAgg.avgRating.toFixed(2)} <span className="text-xs font-normal text-slate-500">/ 5.0 ⭐</span>
           </div>
-          <span className="text-slate-500 text-[11px] mt-1 block">Khảo sát tự động ZNS sau ca khám</span>
+          <span className="text-slate-500 text-[11px] mt-1 block">{csatAgg.count} lượt khảo sát ZNS/App</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
@@ -1096,70 +1128,46 @@ export const CustomerCareSlaView: React.FC<CustomerCareSlaViewProps> = ({
             <div className="bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-2xl p-5 shadow-xs flex flex-col justify-between">
               <div>
                 <span className="text-blue-100 text-xs font-bold uppercase tracking-wider">Chỉ Số NPS Y Tế (Net Promoter Score)</span>
-                <div className="text-4xl font-bold mt-2 font-mono">+78.5</div>
-                <p className="text-xs text-blue-100 mt-1">Xếp hạng: <strong>Vùng Dịch Vụ Tuyệt Hảo</strong> (Top 5% Chuỗi BV Quốc Tế)</p>
+                <div className="text-4xl font-bold mt-2 font-mono">
+                  {csatAgg.npsScore == null ? '—' : `${csatAgg.npsScore > 0 ? '+' : ''}${csatAgg.npsScore}`}
+                </div>
+                <p className="text-xs text-blue-100 mt-1">
+                  {csatAgg.count
+                    ? <>Trên <strong>{csatAgg.count}</strong> lượt đánh giá{csatAgg.avgRating != null ? <> · TB <strong>{csatAgg.avgRating.toFixed(2)}/5</strong></> : null}</>
+                    : 'Chưa có đánh giá nào'}
+                </p>
               </div>
               <div className="pt-4 border-t border-blue-500/40 text-[11px] flex justify-between">
-                <span>Promoters: <strong>88%</strong></span>
-                <span>Passives: <strong>8%</strong></span>
-                <span>Detractors: <strong>4%</strong></span>
+                <span>Promoters: <strong>{csatAgg.promoterPct}%</strong></span>
+                <span>Passives: <strong>{csatAgg.passivePct}%</strong></span>
+                <span>Detractors: <strong>{csatAgg.detractorPct}%</strong></span>
               </div>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs md:col-span-2 space-y-3">
-              <span className="text-slate-700 text-xs font-bold block">Đánh Giá 5 Điểm Chạm Trải Nghiệm Bệnh Nhân (Touchpoints)</span>
-              
-              <div className="space-y-2 text-xs">
-                <div>
-                  <div className="flex justify-between text-slate-700 font-semibold mb-1">
-                    <span>🩺 Chuyên môn & Thái độ Bác sĩ (Doctor Care)</span>
-                    <strong className="text-blue-700 font-mono">4.9 / 5.0 (98% Hài lòng)</strong>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2">
-                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: '98%' }}></div>
-                  </div>
-                </div>
+              <span className="text-slate-700 text-xs font-bold block">Mức Hài Lòng Trung Bình Theo Chuyên Khoa</span>
 
-                <div>
-                  <div className="flex justify-between text-slate-700 font-semibold mb-1">
-                    <span>👩‍⚕️ Sự Ân Cần Của Điều Dưỡng & Tiếp Đón (Nurse Attitude)</span>
-                    <strong className="text-emerald-700 font-mono">4.8 / 5.0 (96% Hài lòng)</strong>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2">
-                    <div className="bg-emerald-600 h-2 rounded-full" style={{ width: '96%' }}></div>
-                  </div>
+              {csatAgg.deptBars.length === 0 ? (
+                <div className="text-xs text-slate-400 py-8 text-center">Chưa có đánh giá nào để tổng hợp theo chuyên khoa.</div>
+              ) : (
+                <div className="space-y-2 text-xs">
+                  {csatAgg.deptBars.map((d, i) => {
+                    const colors = ['bg-blue-600', 'bg-emerald-600', 'bg-purple-600', 'bg-amber-600', 'bg-indigo-600', 'bg-rose-600'];
+                    const textColors = ['text-blue-700', 'text-emerald-700', 'text-purple-700', 'text-amber-700', 'text-indigo-700', 'text-rose-700'];
+                    return (
+                      <div key={d.name}>
+                        <div className="flex justify-between text-slate-700 font-semibold mb-1">
+                          <span className="truncate pr-2">{d.name} <span className="text-slate-400 font-normal">({d.n})</span></span>
+                          <strong className={`${textColors[i % 6]} font-mono shrink-0`}>{d.avg.toFixed(1)} / 5.0 ({d.pct}%)</strong>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2">
+                          <div className={`${colors[i % 6]} h-2 rounded-full`} style={{ width: `${d.pct}%` }}></div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                <div>
-                  <div className="flex justify-between text-slate-700 font-semibold mb-1">
-                    <span>✨ Cơ Sở Vật Chất & Vệ Sinh Vô Trùng (Cleanliness)</span>
-                    <strong className="text-purple-700 font-mono">4.9 / 5.0 (98% Hài lòng)</strong>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2">
-                    <div className="bg-purple-600 h-2 rounded-full" style={{ width: '98%' }}></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-slate-700 font-semibold mb-1">
-                    <span>💳 Minh Bạch Viện Phí & Bảo Lãnh (Billing Transparency)</span>
-                    <strong className="text-amber-700 font-mono">4.7 / 5.0 (94% Hài lòng)</strong>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2">
-                    <div className="bg-amber-600 h-2 rounded-full" style={{ width: '94%' }}></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-slate-700 font-semibold mb-1">
-                    <span>⏳ Thời Gian Chờ Đợi Khám (Waiting Time)</span>
-                    <strong className="text-indigo-700 font-mono">4.2 / 5.0 (84% Hài lòng)</strong>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2">
-                    <div className="bg-indigo-600 h-2 rounded-full" style={{ width: '84%' }}></div>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
