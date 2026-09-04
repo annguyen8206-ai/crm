@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   X,
   User,
@@ -25,8 +25,14 @@ import {
   MessageCircle,
   HelpCircle,
   Building2,
-  CalendarCheck
+  CalendarCheck,
+  Paperclip,
+  Upload,
+  Download,
+  Trash2,
+  Loader2
 } from 'lucide-react';
+import { apiClient } from '../utils/apiClient';
 import {
   Patient,
   InteractionLog,
@@ -74,7 +80,7 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
 }) => {
   if (!patient) return null;
 
-  const [activeSubTab, setActiveSubTab] = useState<'timeline' | 'appointments' | 'membership' | 'preferences'>('timeline');
+  const [activeSubTab, setActiveSubTab] = useState<'timeline' | 'appointments' | 'membership' | 'preferences' | 'files'>('timeline');
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [aiSummary, setAiSummary] = useState<{ summary: string; keyAlerts: string[]; actionPlan: string[] } | null>(null);
 
@@ -376,6 +382,18 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
           >
             <Heart className="w-4 h-4" />
             <span>Nhu Cầu & Sở Thích Khách Hàng</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('files')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+              activeSubTab === 'files'
+                ? 'border-blue-600 text-blue-700 bg-white shadow-xs rounded-t-lg'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Paperclip className="w-4 h-4" />
+            <span>Tệp Đính Kèm</span>
           </button>
         </div>
 
@@ -831,6 +849,10 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
             </div>
           )}
 
+          {activeSubTab === 'files' && (
+            <PatientFilesSection patientId={patient.id} />
+          )}
+
         </div>
 
         {/* Modal: Upgrade Tier & Adjust Points */}
@@ -919,6 +941,160 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
         )}
 
       </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Tệp đính kèm hồ sơ bệnh nhân (ảnh chụp, kết quả, giấy tờ...)
+// ---------------------------------------------------------------------------
+type FileRow = {
+  id: string;
+  filename: string;
+  mime: string;
+  size: number | string;
+  uploadedByName?: string;
+  createdAt: string;
+};
+
+const formatBytes = (raw: number | string) => {
+  const n = Number(raw) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const PatientFilesSection: React.FC<{ patientId: string }> = ({ patientId }) => {
+  const [files, setFiles] = useState<FileRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiClient.files.list('patient', patientId);
+      setFiles(res.files || []);
+    } catch (e: any) {
+      setError(e?.message || 'Không tải được danh sách tệp');
+    } finally {
+      setLoading(false);
+    }
+  }, [patientId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.files.upload('patient', patientId, file);
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Tải lên thất bại');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Xoá tệp "${name}"?`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.files.remove(id);
+      setFiles((prev) => prev.filter((f) => f.id !== id));
+    } catch (err: any) {
+      setError(err?.message || 'Không xoá được tệp');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <Paperclip className="w-4 h-4 text-blue-600" />
+            Tệp Đính Kèm
+          </h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Ảnh chụp, kết quả xét nghiệm, giấy tờ... (PDF, ảnh, Word, Excel — tối đa 15MB)
+          </p>
+        </div>
+        <button
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+        >
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          <span>Tải lên</span>
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          className="hidden"
+          onChange={onPick}
+          accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.txt,.csv"
+        />
+      </div>
+
+      {error && (
+        <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="py-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" /> Đang tải...
+        </div>
+      ) : files.length === 0 ? (
+        <div className="py-10 text-center text-slate-400 text-xs border-2 border-dashed border-slate-200 rounded-xl">
+          Chưa có tệp nào. Nhấn <span className="font-bold text-slate-500">Tải lên</span> để thêm.
+        </div>
+      ) : (
+        <ul className="divide-y divide-slate-100 bg-white rounded-xl border border-slate-200 overflow-hidden">
+          {files.map((f) => (
+            <li key={f.id} className="flex items-center gap-3 p-3 hover:bg-slate-50">
+              <FileCheck2 className="w-5 h-5 text-slate-400 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-800 truncate">{f.filename}</p>
+                <p className="text-[10px] text-slate-500">
+                  {formatBytes(f.size)} · {formatDateTimeVN(f.createdAt)}
+                  {f.uploadedByName ? ` · ${f.uploadedByName}` : ''}
+                </p>
+              </div>
+              <a
+                href={apiClient.files.downloadUrl(f.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="Tải xuống / Xem"
+              >
+                <Download className="w-4 h-4" />
+              </a>
+              <button
+                onClick={() => onDelete(f.id, f.filename)}
+                disabled={busy}
+                className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                title="Xoá tệp"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };

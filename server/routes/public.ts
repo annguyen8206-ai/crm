@@ -14,6 +14,7 @@ import {
 } from '../integrations';
 import { ingestIncoming, ingestInboundCall } from '../messaging-core';
 import { registerPublicOptOut } from './messaging-bulk';
+import { registerPublicFileDownload } from './files';
 import { digitsOnly, phoneMatches } from '../http-util';
 
 /** Routes reachable WITHOUT a staff bearer token (verified by shared secret,
@@ -316,6 +317,8 @@ export function registerPublicRoutes(app: Express): void {
 
   // Marketing unsubscribe (phone-based, no bearer).
   registerPublicOptOut(app);
+  // File download — authenticates via ?token= so <a href> works.
+  registerPublicFileDownload(app);
 
   app.post('/api/webhooks/voip', (req, res) => {
     if (!voipWebhookOk(req)) return res.sendStatus(401);

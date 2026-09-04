@@ -85,6 +85,25 @@ const MIGRATIONS: { id: string; sql: string }[] = [
       CREATE INDEX tickets_patient_idx  ON tickets (patient_id);
     `,
   },
+  {
+    id: '002_file_attachments',
+    sql: `
+      CREATE TABLE IF NOT EXISTS file_attachments (
+        id TEXT PRIMARY KEY,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        size BIGINT NOT NULL,
+        storage_path TEXT NOT NULL,
+        uploaded_by TEXT,
+        uploaded_by_name TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS file_attachments_entity_idx ON file_attachments (entity_type, entity_id);
+      CREATE INDEX IF NOT EXISTS file_attachments_created_idx ON file_attachments (created_at DESC);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

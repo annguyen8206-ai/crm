@@ -28,6 +28,7 @@ import { registerExportRoutes } from "./server/routes/export";
 import { registerNotificationRoutes } from "./server/routes/notifications";
 import { registerReportRoutes, startDailyReportScheduler } from "./server/daily-report";
 import { registerBulkMessagingRoutes } from "./server/routes/messaging-bulk";
+import { registerFileRoutes } from "./server/routes/files";
 
 dotenv.config();
 
@@ -147,6 +148,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   registerNotificationRoutes(app);
   registerReportRoutes(app);
   registerBulkMessagingRoutes(app);
+  registerFileRoutes(app);
   registerReminderRoutes(app);
 
   startReminderScheduler();

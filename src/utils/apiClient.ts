@@ -80,6 +80,33 @@ export const apiClient = {
     }
   },
 
+  files: {
+    async list(entityType: string, entityId: string) {
+      return request<{ files: Array<{ id: string; filename: string; mime: string; size: number; uploadedByName?: string; createdAt: string }> }>(`/files?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`);
+    },
+    async upload(entityType: string, entityId: string, file: File) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('vitcrm_access_token') : null;
+      const res = await fetch(`/api/files?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+          'x-filename': encodeURIComponent(file.name),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: file,
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Tải lên thất bại (${res.status})`);
+      return res.json() as Promise<{ id: string; filename: string; mime: string; size: number }>;
+    },
+    downloadUrl(id: string) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('vitcrm_access_token') : '';
+      return `/api/files/${id}?token=${encodeURIComponent(token || '')}`;
+    },
+    async remove(id: string) {
+      return request<{ success: boolean }>(`/files/${id}`, { method: 'DELETE' });
+    },
+  },
+
   messaging: {
     async bulk(payload: { channel: 'zns' | 'sms'; templateType?: string; message?: string; recipients: Array<{ phone: string; name?: string; data?: Record<string, string> }> }) {
       return request<{ jobId: string; total: number }>('/messaging/bulk', { method: 'POST', body: JSON.stringify(payload) });
