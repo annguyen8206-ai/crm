@@ -24,8 +24,7 @@ import {
   RefreshCw,
   Trash2
 } from 'lucide-react';
-import { CurrentUser, UserRole, BranchId } from '../types';
-import { INITIAL_BRANCHES } from '../data/mockData';
+import { CurrentUser, UserRole, BranchId, Branch } from '../types';
 import { ROLE_CONFIGS } from '../utils/rbac';
 
 // Helper to get monogram initials from staff name
@@ -42,6 +41,7 @@ interface StaffManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
   staffList: CurrentUser[];
+  branches?: Branch[];
   onAddStaff: (newStaff: CurrentUser) => void;
   onUpdateStaff: (updatedStaff: CurrentUser) => void;
   onDeleteStaff?: (staffId: string) => void;
@@ -51,6 +51,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
   isOpen,
   onClose,
   staffList,
+  branches = [],
   onAddStaff,
   onUpdateStaff,
   onDeleteStaff
@@ -358,8 +359,8 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
               className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-700 font-semibold focus:outline-none cursor-pointer"
             >
               <option value="ALL">Tất cả chi nhánh</option>
-              {INITIAL_BRANCHES.map(b => (
-                <option key={b.id} value={b.id}>{b.shortName}</option>
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.shortName || b.name}</option>
               ))}
             </select>
 
@@ -473,7 +474,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
                           {staff.branchId === 'ALL' ? (
                             <span className="text-blue-700 font-bold">Toàn hệ thống</span>
                           ) : (
-                            INITIAL_BRANCHES.find(b => b.id === staff.branchId)?.shortName || staff.branchId
+                            branches.find(b => b.id === staff.branchId)?.shortName || branches.find(b => b.id === staff.branchId)?.name || staff.branchId
                           )}
                         </td>
 
@@ -669,10 +670,13 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                   >
                     <option value="ALL">Toàn Hệ Thống (Trụ sở & Chi nhánh)</option>
-                    {INITIAL_BRANCHES.map(b => (
+                    {branches.map(b => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
+                  {branches.length === 0 && (
+                    <p className="text-[11px] text-amber-600 mt-1">Chưa có chi nhánh — thêm tại "Quản Trị → Quản Lý & Tạo Chi Nhánh".</p>
+                  )}
                 </div>
 
                 <div>

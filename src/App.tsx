@@ -75,7 +75,6 @@ function mapApiAppointment(appointment: any): Appointment {
 }
 
 import {
-  mockBranches,
   mockPatients,
   mockSegments,
   mockAutomationRules,
@@ -756,7 +755,7 @@ export default function App() {
             <PatientPortalView
               patients={patients}
               doctors={effectiveDoctors}
-              branches={mockBranches}
+              branches={branches}
               tickets={supportTickets}
               appointments={portalData?.appointments ?? appointments}
               currentPatientOverride={currentCustomerPatient}
@@ -1138,7 +1137,7 @@ export default function App() {
               <PatientPortalView
                 patients={patients}
                 doctors={effectiveDoctors}
-                branches={mockBranches}
+                branches={branches}
                 tickets={supportTickets}
                 appointments={appointments}
                 onAddNewTicket={handleCreateTicket}
@@ -1210,7 +1209,7 @@ export default function App() {
         isOpen={selectedPatient !== null}
         onClose={() => setSelectedPatientId(null)}
         interactions={interactions}
-        branches={mockBranches}
+        branches={branches}
         appointments={appointments}
         onAddInteraction={(newInter) => {
           const createdInter: InteractionLog = {
