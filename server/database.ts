@@ -4,6 +4,10 @@ import { dbStore } from './store';
 
 dotenv.config();
 
+// Imported lazily inside functions to avoid a circular module-init dependency
+// (migrations.ts / relational-sync.ts both import `pool` from here).
+
+
 export type DbSnapshot = {
   patients: unknown[];
   appointments: unknown[];
@@ -87,6 +91,22 @@ export async function initializeDatabase(): Promise<void> {
     );
     currentVersion = 0;
   }
+
+  // Numbered migrations (relational read-model + legacy cleanup). Fails startup
+  // if a migration errors — the transaction rolls back, nothing half-applied.
+  try {
+    const { runMigrations } = await import('./migrations');
+    await runMigrations();
+  } catch (e: any) {
+    console.error('[startup] migrations failed:', e.message);
+    throw e;
+  }
+
+  // Seed the relational read-model from the just-restored snapshot (best-effort).
+  try {
+    const { syncRelational } = await import('./relational-sync');
+    void syncRelational({ force: true });
+  } catch { /* optional */ }
 }
 
 /**
@@ -169,6 +189,12 @@ async function doPersist(): Promise<void> {
     } catch (historyErr: any) {
       console.warn('[persist] history append failed:', historyErr.message);
     }
+
+    // Keep the relational read-model in step (throttled, best-effort).
+    try {
+      const { syncRelational } = await import('./relational-sync');
+      void syncRelational();
+    } catch { /* optional */ }
   } catch (err: any) {
     console.error('[persist] failed to write snapshot:', err.message);
   }
