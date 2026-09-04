@@ -191,6 +191,17 @@ export const apiClient = {
       });
     },
 
+    async duplicates() {
+      return request<{ groups: Array<{ key: string; matchedOn: 'phone' | 'idCard'; patients: Array<{ id: string; pid: string; name: string; phone: string; idCard: string; branchId: string; totalVisits: number; lastVisitDate: string; refs: number }> }>; total: number }>('/patients/duplicates');
+    },
+
+    async merge(keepId: string, mergeId: string) {
+      return request<{ success: boolean; patient: any; moved: Record<string, number>; totalMoved: number }>('/patients/merge', {
+        method: 'POST',
+        body: JSON.stringify({ keepId, mergeId }),
+      });
+    },
+
     async update(id: string, patientData: any) {
       return request<{ success: boolean; patient: any }>(`/patients/${id}`, {
         method: 'PUT',

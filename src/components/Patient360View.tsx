@@ -7,6 +7,7 @@ import {
   Phone,
   Calendar,
   Sparkles,
+  GitMerge,
   Shield,
   Activity,
   FileText,
@@ -29,6 +30,7 @@ interface Patient360ViewProps {
   onSelectPatient: (patientId: string) => void;
   onAddPatient: () => void;
   onOpenAiAssistant: () => void;
+  onOpenDedupe?: () => void;
 }
 
 export const Patient360View: React.FC<Patient360ViewProps> = ({
@@ -37,7 +39,8 @@ export const Patient360View: React.FC<Patient360ViewProps> = ({
   currentBranchId = 'ALL',
   onSelectPatient,
   onAddPatient,
-  onOpenAiAssistant
+  onOpenAiAssistant,
+  onOpenDedupe
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTag, setSelectedTag] = useState<string>('ALL');
@@ -83,6 +86,16 @@ export const Patient360View: React.FC<Patient360ViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {onOpenDedupe && (
+            <button
+              onClick={onOpenDedupe}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+              title="Phát hiện & gộp hồ sơ trùng lặp"
+            >
+              <GitMerge className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Trùng lặp</span>
+            </button>
+          )}
           <button
             onClick={onOpenAiAssistant}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"

@@ -14,6 +14,7 @@ import { StaffLoginView } from './components/StaffLoginView';
 import { CustomerLoginView } from './components/CustomerLoginView';
 import { StaffManagementModal } from './components/StaffManagementModal';
 import { BranchManagementModal } from './components/BranchManagementModal';
+import { PatientDedupeModal } from './components/PatientDedupeModal';
 import { getRoleConfig, isTabAllowedForRole } from './utils/rbac';
 import { apiClient } from './utils/apiClient';
 
@@ -386,6 +387,7 @@ export default function App() {
   const [isAddPatientModalOpen, setIsAddPatientModalOpen] = useState(false);
   const [isStaffManagementOpen, setIsStaffManagementOpen] = useState(false);
   const [isBranchManagementOpen, setIsBranchManagementOpen] = useState(false);
+  const [isDedupeOpen, setIsDedupeOpen] = useState(false);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -962,6 +964,7 @@ export default function App() {
                 onSelectPatient={(id) => setSelectedPatientId(id)}
                 onAddPatient={() => setIsAddPatientModalOpen(true)}
                 onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
+                onOpenDedupe={getRoleConfig(currentRole).roleKey === 'admin' ? () => setIsDedupeOpen(true) : undefined}
               />
             )}
 
@@ -1304,6 +1307,14 @@ export default function App() {
         onUpdateBranch={handleUpdateBranch}
         onDeleteBranch={handleDeleteBranch}
       />
+
+      {isDedupeOpen && (
+        <PatientDedupeModal
+          isOpen
+          onClose={() => setIsDedupeOpen(false)}
+          onMerged={(msg) => showToast(msg)}
+        />
+      )}
 
     </div>
   );
