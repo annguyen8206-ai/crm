@@ -80,6 +80,18 @@ export const apiClient = {
     }
   },
 
+  messaging: {
+    async bulk(payload: { channel: 'zns' | 'sms'; templateType?: string; message?: string; recipients: Array<{ phone: string; name?: string; data?: Record<string, string> }> }) {
+      return request<{ jobId: string; total: number }>('/messaging/bulk', { method: 'POST', body: JSON.stringify(payload) });
+    },
+    async bulkStatus(jobId: string) {
+      return request<{ id: string; channel: string; total: number; sent: number; failed: number; skipped: number; status: 'running' | 'done'; errors: Array<{ phone: string; error: string }> }>(`/messaging/bulk/${jobId}`);
+    },
+    async optOuts() {
+      return request<{ optOuts: Array<{ phone: string; at: string; reason?: string }> }>('/messaging/opt-outs');
+    },
+  },
+
   notifications: {
     async list() {
       return request<{ notifications: Array<{ id: string; severity: 'high' | 'med' | 'low'; title: string; detail: string; tab: string; count: number }>; total: number; highCount: number }>('/notifications');

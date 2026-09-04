@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { apiClient } from '../utils/apiClient';
 import {
   TrendingUp,
   Target,
@@ -36,7 +37,7 @@ export const MarketingAutomationView: React.FC<MarketingAutomationViewProps> = (
   onToggleRule,
   patients = []
 }) => {
-  const [activeTab, setActiveTab] = useState<'campaigns' | 'segments' | 'rules'>('campaigns');
+  const [activeTab, setActiveTab] = useState<'campaigns' | 'segments' | 'rules' | 'bulk'>('campaigns');
   
   // AI Generator state
   const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -145,7 +146,17 @@ export const MarketingAutomationView: React.FC<MarketingAutomationViewProps> = (
         >
           Kịch Bản Chăm Sóc ({automationRules.length})
         </button>
+        <button
+          onClick={() => setActiveTab('bulk')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'bulk' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Gửi Hàng Loạt
+        </button>
       </div>
+
+      {activeTab === 'bulk' && <BulkSendPanel patients={patients} />}
 
       {/* TAB 1: CAMPAIGNS & AI BUILDER */}
       {activeTab === 'campaigns' && (
@@ -355,4 +366,145 @@ export const MarketingAutomationView: React.FC<MarketingAutomationViewProps> = (
     </div>
   );
 
+};
+
+// ---------------------------------------------------------------------------
+// Bulk Zalo ZNS / SMS sender — throttled server-side, opt-outs auto-excluded.
+// ---------------------------------------------------------------------------
+const BulkSendPanel: React.FC<{ patients: Patient[] }> = ({ patients }) => {
+  const [channel, setChannel] = useState<'zns' | 'sms'>('zns');
+  const [tag, setTag] = useState<string>('ALL');
+  const [message, setMessage] = useState('Kính gửi Quý khách, VitHospital nhắc lịch chăm sóc sức khỏe định kỳ. Soạn HUY gửi 8080 để ngừng nhận tin.');
+  const [templateType, setTemplateType] = useState('ZNS_HEALTH_CARE_FOLLOWUP');
+  const [job, setJob] = useState<any>(null);
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [optOutCount, setOptOutCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    apiClient.messaging.optOuts().then(r => setOptOutCount(r.optOuts?.length ?? 0)).catch(() => setOptOutCount(null));
+  }, []);
+
+  const allTags = useMemo(() => [...new Set((patients || []).flatMap(p => p?.tags || []))], [patients]);
+  const recipients = useMemo(() => (patients || [])
+    .filter(p => p?.phone && (tag === 'ALL' || (p.tags || []).includes(tag)))
+    .map(p => ({ phone: p.phone, name: p.name, data: { patient_name: p.name || 'Quý khách' } })), [patients, tag]);
+
+  useEffect(() => {
+    if (!job || job.status === 'done') return;
+    const t = setInterval(async () => {
+      try {
+        const s = await apiClient.messaging.bulkStatus(job.id);
+        setJob(s);
+        if (s.status === 'done') clearInterval(t);
+      } catch { clearInterval(t); }
+    }, 1500);
+    return () => clearInterval(t);
+  }, [job?.id, job?.status]);
+
+  const send = async () => {
+    setErr(null);
+    if (!recipients.length) { setErr('Không có người nhận phù hợp bộ lọc.'); return; }
+    if (channel === 'sms' && !message.trim()) { setErr('Cần nội dung tin SMS.'); return; }
+    if (!confirm(`Gửi ${channel.toUpperCase()} tới ${recipients.length} người? (đã tự loại ${optOutCount ?? 0} người từ chối nhận tin)`)) return;
+    setSending(true); setJob(null);
+    try {
+      const r = await apiClient.messaging.bulk({ channel, templateType: channel === 'zns' ? templateType : undefined, message: channel === 'sms' ? message : undefined, recipients });
+      setJob({ id: r.jobId, total: r.total, sent: 0, failed: 0, skipped: 0, status: 'running' });
+    } catch (e: any) {
+      setErr(/quyền|403/i.test(e?.message || '') ? 'Vai trò của bạn không được phép gửi tin hàng loạt.' : (e?.message || 'Gửi thất bại.'));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const pct = job && job.total ? Math.round(((job.sent + job.failed + job.skipped) / job.total) * 100) : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex items-center gap-2">
+          <Send className="w-4 h-4 text-blue-600" />
+          <h3 className="text-sm font-bold text-slate-900">Gửi Tin Hàng Loạt (Zalo ZNS / SMS)</h3>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div>
+            <label className="font-bold text-slate-600 block mb-1">Kênh</label>
+            <div className="flex gap-1.5">
+              {(['zns', 'sms'] as const).map(c => (
+                <button key={c} onClick={() => setChannel(c)}
+                  className={`flex-1 py-1.5 rounded-lg font-bold border ${channel === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                  {c === 'zns' ? 'Zalo ZNS' : 'SMS'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="font-bold text-slate-600 block mb-1">Nhóm khách hàng</label>
+            <select value={tag} onChange={e => setTag(e.target.value)} className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg">
+              <option value="ALL">Tất cả ({(patients || []).filter(p => p?.phone).length})</option>
+              {allTags.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="font-bold text-slate-600 block mb-1">Sẽ gửi tới</label>
+            <div className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900">
+              {recipients.length} người
+            </div>
+          </div>
+        </div>
+
+        {channel === 'zns' ? (
+          <div className="text-xs">
+            <label className="font-bold text-slate-600 block mb-1">Mã template ZNS đã duyệt</label>
+            <input value={templateType} onChange={e => setTemplateType(e.target.value)} className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg font-mono" />
+            <p className="text-[11px] text-slate-400 mt-1">Dùng key (vd ZNS_HEALTH_CARE_FOLLOWUP) đã map ở Cấu Hình Khóa Tích Hợp. Tham số gửi kèm: patient_name.</p>
+          </div>
+        ) : (
+          <div className="text-xs">
+            <label className="font-bold text-slate-600 block mb-1">Nội dung SMS</label>
+            <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg" />
+            <p className="text-[11px] text-slate-400 mt-1">{message.length} ký tự. Nên kèm cách huỷ nhận tin.</p>
+          </div>
+        )}
+
+        {err && <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs">{err}</div>}
+
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-slate-500">
+            {optOutCount != null ? `${optOutCount} khách đã từ chối nhận tin — tự động loại trừ.` : ''}
+          </span>
+          <button onClick={send} disabled={sending || (job && job.status === 'running')}
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold cursor-pointer">
+            <Send className="w-3.5 h-3.5" /> Gửi ngay
+          </button>
+        </div>
+      </div>
+
+      {job && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-2 text-xs">
+          <div className="flex items-center justify-between font-bold text-slate-900">
+            <span>{job.status === 'running' ? 'Đang gửi…' : 'Hoàn tất'}</span>
+            <span>{pct}%</span>
+          </div>
+          <div className="w-full bg-slate-100 rounded-full h-2">
+            <div className={`h-2 rounded-full ${job.status === 'done' ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${pct}%` }} />
+          </div>
+          <div className="flex gap-4 text-slate-600 pt-1">
+            <span>Thành công: <b className="text-emerald-700">{job.sent}</b></span>
+            <span>Thất bại: <b className="text-rose-700">{job.failed}</b></span>
+            <span>Bỏ qua (opt-out/SĐT lỗi): <b>{job.skipped}</b></span>
+            <span>/ {job.total}</span>
+          </div>
+          {job.errors?.length > 0 && (
+            <details className="text-[11px] text-slate-500">
+              <summary className="cursor-pointer">Lỗi ({job.errors.length})</summary>
+              <ul className="mt-1 space-y-0.5">{job.errors.slice(0, 20).map((e: any, i: number) => <li key={i}>{e.phone}: {e.error}</li>)}</ul>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  );
 };

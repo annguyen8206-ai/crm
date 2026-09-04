@@ -13,6 +13,7 @@ import {
   normalizeFacebookPayload, normalizeZaloPayload,
 } from '../integrations';
 import { ingestIncoming, ingestInboundCall } from '../messaging-core';
+import { registerPublicOptOut } from './messaging-bulk';
 import { digitsOnly, phoneMatches } from '../http-util';
 
 /** Routes reachable WITHOUT a staff bearer token (verified by shared secret,
@@ -312,6 +313,9 @@ export function registerPublicRoutes(app: Express): void {
     const bearer = String(req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
     return bearer === secret || String(req.query.secret || '') === secret;
   };
+
+  // Marketing unsubscribe (phone-based, no bearer).
+  registerPublicOptOut(app);
 
   app.post('/api/webhooks/voip', (req, res) => {
     if (!voipWebhookOk(req)) return res.sendStatus(401);
