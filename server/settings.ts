@@ -111,6 +111,9 @@ export const SETTING_GROUPS: SettingGroup[] = [
     fields: [
       { key: 'APP_URL', label: 'URL công khai (cho QR số thứ tự, webhook...)' },
       { key: 'REMINDER_ENABLED', label: 'Bật nhắc lịch tự động (true/false)', placeholder: 'false' },
+      { key: 'DAILY_REPORT_ENABLED', label: 'Bật báo cáo cuối ngày (true/false)', placeholder: 'false' },
+      { key: 'DAILY_REPORT_TO', label: 'Email nhận báo cáo (phân tách bằng dấu phẩy)' },
+      { key: 'DAILY_REPORT_HOUR', label: 'Giờ gửi báo cáo (0-23)', placeholder: '18' },
     ],
   },
 ];

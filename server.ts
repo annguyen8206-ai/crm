@@ -26,6 +26,7 @@ import { registerCommsRoutes } from "./server/routes/comms";
 import { registerAiRoutes } from "./server/routes/ai";
 import { registerExportRoutes } from "./server/routes/export";
 import { registerNotificationRoutes } from "./server/routes/notifications";
+import { registerReportRoutes, startDailyReportScheduler } from "./server/daily-report";
 
 dotenv.config();
 
@@ -143,9 +144,11 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   registerAiRoutes(app);
   registerExportRoutes(app);
   registerNotificationRoutes(app);
+  registerReportRoutes(app);
   registerReminderRoutes(app);
 
   startReminderScheduler();
+  startDailyReportScheduler();
 
   // Unknown /api/* path → JSON 404 (not the SPA HTML fallback below).
   app.use('/api', (req, res) => {
