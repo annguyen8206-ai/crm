@@ -246,18 +246,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div data-testid="server-kpi-strip" className="bg-slate-900 text-white rounded-2xl p-4">
           <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Chỉ số điều hành (máy chủ tính realtime)</div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
-            {[
-              ['Doanh thu đã thu', serverKpis.kpis.revenueFormatted],
+            {([
               ['Bệnh nhân', serverKpis.kpis.totalPatients],
               ['Lịch hôm nay', serverKpis.kpis.todayAppointments],
               ['Đã check-in', serverKpis.kpis.checkedInToday],
               ['Chờ xử lý ticket', serverKpis.kpis.openTickets],
               ['SLA', serverKpis.kpis.slaRate],
               ['Chờ tái khám', serverKpis.kpis.overdueRecalls],
-              ['Chờ thu (đ)', (serverKpis.kpis.pendingInvoiceValue || 0).toLocaleString('vi-VN')],
               ['TG chờ TB (phút)', serverKpis.kpis.averageWaitTimeMinutes],
-              ['CLV bình quân (đ)', (serverKpis.kpis.avgCustomerLifetimeValue || 0).toLocaleString('vi-VN')]
-            ].map(([label, val]) => (
+              // Financial — only present for roles with canViewFinancialBI
+              ...(serverKpis.kpis.revenueFormatted !== undefined ? [['Doanh thu đã thu', serverKpis.kpis.revenueFormatted]] : []),
+              ...(serverKpis.kpis.pendingInvoiceValue !== undefined ? [['Chờ thu (đ)', Number(serverKpis.kpis.pendingInvoiceValue).toLocaleString('vi-VN')]] : []),
+              ...(serverKpis.kpis.avgCustomerLifetimeValue !== undefined ? [['CLV bình quân (đ)', Number(serverKpis.kpis.avgCustomerLifetimeValue).toLocaleString('vi-VN')]] : []),
+            ] as [string, unknown][]).map(([label, val]) => (
               <div key={String(label)}>
                 <div className="text-[10px] text-slate-400">{label}</div>
                 <div className="font-bold">{val ?? '—'}</div>

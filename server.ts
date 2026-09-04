@@ -22,6 +22,8 @@ import {
   resetZnsCache
 } from "./server/integrations";
 import { initSettings, saveSettings, describeSettings } from "./server/settings";
+import { requirePerm, hasPerm, isAdmin, COLLECTION_WRITE_PERM } from "./server/rbac";
+import { ensureAuditSchema, recordAudit, queryAudit } from "./server/audit";
 
 dotenv.config();
 
@@ -500,23 +502,49 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   // All business APIs require a valid backend token.
   app.use('/api', requireAuth);
 
-  // System Audit Logs
-  app.get("/api/system/audit-logs", (req, res) => {
-    res.json({
-      logs: dbStore.auditLogs,
-      total: dbStore.auditLogs.length
-    });
+  const requireAdmin = (req: any, res: any, next: any) => {
+    if (isAdmin(req.authUser?.role)) return next();
+    res.status(403).json({ error: 'Chỉ Quản trị viên / Ban Giám Đốc mới thực hiện được thao tác này' });
+  };
+
+  // Persist every authenticated write to the append-only audit_log table, keyed
+  // by the VERIFIED session user (not spoofable headers).
+  app.use((req, _res, next) => {
+    if (req.path.startsWith('/api') && req.method !== 'GET' && req.authUser) {
+      const safeBody = { ...(req.body || {}) };
+      for (const k of ['password', 'password_hash', 'token', 'accessToken', 'secret', 'apiKey', 'value', 'values']) delete safeBody[k];
+      recordAudit({
+        userId: req.authUser.id, userName: req.authUser.name, role: req.authUser.role,
+        action: `${req.method} ${req.path}`, module: 'API',
+        details: JSON.stringify(safeBody).slice(0, 300),
+        ip: req.ip,
+      });
+    }
+    next();
+  });
+
+  // System Audit Logs — from the durable table when available (paginated).
+  app.get("/api/system/audit-logs", requireAdmin, async (req, res) => {
+    try {
+      const q = req.query;
+      const out = await queryAudit({
+        limit: q.limit ? Number(q.limit) : undefined,
+        offset: q.offset ? Number(q.offset) : undefined,
+        action: typeof q.action === 'string' ? q.action : undefined,
+        userId: typeof q.userId === 'string' ? q.userId : undefined,
+      });
+      if (out.total === 0 && dbStore.auditLogs.length) {
+        return res.json({ logs: dbStore.auditLogs, total: dbStore.auditLogs.length, source: 'memory' });
+      }
+      res.json({ ...out, source: 'table' });
+    } catch (e: any) {
+      res.json({ logs: dbStore.auditLogs, total: dbStore.auditLogs.length, source: 'memory', error: e.message });
+    }
   });
 
   // =========================================================================
   // 1b. STAFF ACCOUNTS (auth_users) — admin / ban giám đốc only
   // =========================================================================
-  const requireAdmin = (req: any, res: any, next: any) => {
-    const role = String(req.authUser?.role || '').toLowerCase();
-    if (role === 'admin' || role.includes('admin') || role.includes('giám đốc') || role.includes('quản trị')) return next();
-    res.status(403).json({ error: 'Chỉ Quản trị viên / Ban Giám Đốc mới quản lý được tài khoản nhân viên' });
-  };
-
   app.get("/api/staff", requireAdmin, async (req, res) => {
     try {
       res.json({ staff: await listStaff() });
@@ -693,6 +721,10 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   app.put("/api/collections/:name", (req, res) => {
     const { name } = req.params;
     if (!COLLECTION_NAMES.has(name)) return res.status(404).json({ error: `Collection "${name}" không hợp lệ` });
+    const needed = COLLECTION_WRITE_PERM[name];
+    if (needed && !(needed === 'canAdminister' ? isAdmin(req.authUser?.role) : hasPerm(req.authUser?.role, needed))) {
+      return res.status(403).json({ error: `Vai trò của bạn không được phép sửa "${name}"` });
+    }
     const items = (req.body && req.body.items) ?? req.body;
     if (!Array.isArray(items)) return res.status(400).json({ error: 'Payload phải là mảng hoặc { items: [...] }' });
     dbStore.collections[name] = items;
@@ -750,6 +782,12 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
       return res.status(404).json({ error: "Không tìm thấy bệnh nhân" });
     }
 
+    // PII access trail (Nghị định 13/2023): who opened which patient record.
+    recordAudit({
+      userId: req.authUser?.id || '', userName: req.authUser?.name || '', role: req.authUser?.role || '',
+      action: 'PATIENT_VIEW', module: 'Hồ sơ 360', details: `${patient.pid} · ${patient.name}`, ip: req.ip,
+    });
+
     // Correlated patient data
     const patientAppointments = dbStore.appointments.filter(a => a.patientId === patient.id);
     const patientTickets = dbStore.tickets.filter(t => t.patientId === patient.id);
@@ -767,7 +805,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     });
   });
 
-  app.post("/api/patients", (req, res) => {
+  app.post("/api/patients", requirePerm('canManageAppointments', 'canEditClinicalEMR'), (req, res) => {
     try {
       const data = req.body;
       if (!data.name || !data.phone) {
@@ -830,7 +868,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     res.json({ success: true, patient: dbStore.patients[idx] });
   });
 
-  app.delete("/api/patients/:id", (req, res) => {
+  app.delete("/api/patients/:id", requireAdmin, (req, res) => {
     const idx = dbStore.patients.findIndex(p => p.id === req.params.id);
     if (idx < 0) {
       return res.status(404).json({ error: "Không tìm thấy bệnh nhân" });
@@ -840,7 +878,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   });
 
   // Add Vital Signs
-  app.post("/api/patients/:id/vitals", (req, res) => {
+  app.post("/api/patients/:id/vitals", requirePerm('canEditClinicalEMR', 'canManageAppointments'), (req, res) => {
     const patient = dbStore.patients.find(p => p.id === req.params.id);
     if (!patient) {
       return res.status(404).json({ error: "Không tìm thấy bệnh nhân" });
@@ -1019,7 +1057,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     res.json({ tickets: filtered, total: filtered.length });
   });
 
-  app.post("/api/tickets", (req, res) => {
+  app.post("/api/tickets", requirePerm('canManageTickets'), (req, res) => {
     try {
       const data = req.body;
       const code = `SLA-2026-${Math.floor(100 + Math.random() * 900)}`;
@@ -1050,7 +1088,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     }
   });
 
-  app.put("/api/tickets/:id", (req, res) => {
+  app.put("/api/tickets/:id", requirePerm('canManageTickets'), (req, res) => {
     const idx = dbStore.tickets.findIndex(t => t.id === req.params.id);
     if (idx < 0) {
       return res.status(404).json({ error: "Không tìm thấy phiếu hỗ trợ" });
@@ -1097,7 +1135,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     });
   });
 
-  app.post("/api/leads", (req, res) => {
+  app.post("/api/leads", requirePerm('canManageB2BContracts'), (req, res) => {
     const data = req.body;
     const newLead: LeadDealRecord = {
       id: `deal-${Date.now()}`,
@@ -1121,7 +1159,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     res.status(201).json({ success: true, lead: newLead });
   });
 
-  app.put("/api/leads/:id", (req, res) => {
+  app.put("/api/leads/:id", requirePerm('canManageB2BContracts'), (req, res) => {
     const idx = dbStore.leads.findIndex(l => l.id === req.params.id);
     if (idx < 0) {
       return res.status(404).json({ error: "Không tìm thấy cơ hội kinh doanh" });
@@ -1247,7 +1285,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     res.json({ followUps: filtered, total: filtered.length });
   });
 
-  app.put("/api/follow-ups/:id", (req, res) => {
+  app.put("/api/follow-ups/:id", requirePerm('canManageTickets'), (req, res) => {
     const idx = dbStore.followUps.findIndex(f => f.id === req.params.id);
     if (idx < 0) {
       return res.status(404).json({ error: "Không tìm thấy ca chăm sóc sau khám" });
@@ -1667,25 +1705,32 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     }
     const branchPerformance = [...byBranch.entries()].map(([branchId, v]) => ({ branchId, ...v }));
 
+    // Financial figures are only returned to roles with canViewFinancialBI.
+    const seesFinance = hasPerm(req.authUser?.role, 'canViewFinancialBI');
+    const kpis: Record<string, unknown> = {
+      totalPatients,
+      totalAppointments: dbStore.appointments.length,
+      todayAppointments: dbStore.appointments.filter(a => a.date === today).length,
+      checkedInToday: dbStore.appointments.filter(a => a.date === today && a.checkedInAt).length,
+      openTickets,
+      resolvedTickets: closedTickets,
+      slaRate: `${slaRate}%`,
+      overdueRecalls: dbStore.recalls.filter(r => (r.daysOverdue || 0) > 0).length,
+      paidInvoices: paidInvoices.length,
+      averageWaitTimeMinutes: averageWaitMinutes,
+    };
+    if (seesFinance) {
+      kpis.totalRevenue = totalRevenue;
+      kpis.revenueFormatted = `${(totalRevenue / 1_000_000).toFixed(1)} Triệu VNĐ`;
+      kpis.pendingInvoiceValue = dbStore.invoices.filter(i => i.status === 'Chờ thanh toán').reduce((a, c) => a + (c.patientPayable || 0), 0);
+      kpis.avgCustomerLifetimeValue = avgClv;
+    }
+
     res.json({
-      kpis: {
-        totalRevenue,
-        revenueFormatted: `${(totalRevenue / 1_000_000).toFixed(1)} Triệu VNĐ`,
-        totalPatients,
-        totalAppointments: dbStore.appointments.length,
-        todayAppointments: dbStore.appointments.filter(a => a.date === today).length,
-        checkedInToday: dbStore.appointments.filter(a => a.date === today && a.checkedInAt).length,
-        openTickets,
-        resolvedTickets: closedTickets,
-        slaRate: `${slaRate}%`,
-        overdueRecalls: dbStore.recalls.filter(r => (r.daysOverdue || 0) > 0).length,
-        paidInvoices: paidInvoices.length,
-        pendingInvoiceValue: dbStore.invoices.filter(i => i.status === 'Chờ thanh toán').reduce((a, c) => a + (c.patientPayable || 0), 0),
-        averageWaitTimeMinutes: averageWaitMinutes,
-        avgCustomerLifetimeValue: avgClv
-      },
+      kpis,
       rfmSegments,
-      branchPerformance
+      branchPerformance: seesFinance ? branchPerformance : branchPerformance.map(({ branchId, patients }) => ({ branchId, patients })),
+      financeVisible: seesFinance,
     });
   });
 
@@ -2126,6 +2171,11 @@ async function startServer() {
     await initSettings();
   } catch (error: any) {
     console.error('[startup] initSettings failed (app_settings table) — using .env only:', error.message);
+  }
+  try {
+    await ensureAuditSchema();
+  } catch (error: any) {
+    console.error('[startup] ensureAuditSchema failed — audit_log not persisted:', error.message);
   }
 
   const dbState = await checkDatabase();

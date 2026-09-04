@@ -15,7 +15,6 @@ export type DbSnapshot = {
   znsLogs: unknown[];
   voipCalls: unknown[];
   csatFeedbacks: unknown[];
-  auditLogs: unknown[];
   conversations: unknown[];
   messages: unknown[];
   collections: Record<string, unknown[]>;
@@ -197,7 +196,7 @@ function createSnapshot(): DbSnapshot {
     znsLogs: dbStore.znsLogs,
     voipCalls: dbStore.voipCalls,
     csatFeedbacks: dbStore.csatFeedbacks,
-    auditLogs: dbStore.auditLogs,
+    // auditLogs is NOT snapshotted — it lives in the append-only audit_log table.
     conversations: dbStore.conversations,
     messages: dbStore.messages,
     collections: dbStore.collections

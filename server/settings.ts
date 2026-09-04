@@ -1,4 +1,5 @@
 import { pool } from './database';
+import { encryptSecret, decryptSecret } from './crypto';
 
 /**
  * Runtime-editable integration settings.
@@ -155,7 +156,9 @@ export async function initSettings(): Promise<void> {
   const rows = await pool.query<{ key: string; value: string }>('SELECT key, value FROM app_settings');
   overlay.clear();
   for (const r of rows.rows) {
-    if (EDITABLE_KEYS.has(r.key) && r.value !== '') overlay.set(r.key, r.value);
+    if (!EDITABLE_KEYS.has(r.key)) continue;
+    const plain = SECRET_KEYS.has(r.key) ? decryptSecret(r.value) : r.value;
+    if (plain !== '') overlay.set(r.key, plain);
   }
   applyToProcessEnv();
 }
@@ -177,10 +180,11 @@ export async function saveSettings(patch: Record<string, unknown>): Promise<{ ch
       if (overlay.get(key) !== value) changed.push(key);
       overlay.set(key, value);
       if (pool) {
+        const stored = SECRET_KEYS.has(key) ? encryptSecret(value) : value;
         await pool.query(
           `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, NOW())
            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-          [key, value]
+          [key, stored]
         );
       }
     }
