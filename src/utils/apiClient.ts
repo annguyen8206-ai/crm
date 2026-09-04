@@ -439,9 +439,9 @@ export const apiClient = {
         method: 'POST', body: JSON.stringify({ phone })
       });
     },
-    async verify(phone: string, code: string) {
+    async verify(phone: string, code: string, remember = false) {
       const r = await request<{ success: boolean; token: string; patient: any }>('/portal/auth/verify', {
-        method: 'POST', body: JSON.stringify({ phone, code })
+        method: 'POST', body: JSON.stringify({ phone, code, remember })
       });
       if (r.token && typeof window !== 'undefined') localStorage.setItem('vitcrm_portal_token', r.token);
       return r;

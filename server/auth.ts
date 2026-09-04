@@ -316,10 +316,15 @@ export async function updateStaff(id: string, input: {
   return rowToStaff(rows[0]);
 }
 
-/** Patient-portal tokens: OTP-based, scoped 'portal', carry the patient id. */
-export function issuePortalToken(patientId: string, phone: string): string {
+/** Patient-portal tokens: OTP-based, scoped 'portal', carry the patient id.
+ *  TTL: `remember` → PORTAL_REMEMBER_TTL (default 30d); otherwise
+ *  PORTAL_TOKEN_TTL (default 12h). */
+export function issuePortalToken(patientId: string, phone: string, remember = false): string {
   if (!jwtSecret) throw new Error('Máy chủ chưa cấu hình JWT_SECRET');
-  return jwt.sign({ sub: patientId, scope: 'portal', phone }, jwtSecret, { expiresIn: '12h' });
+  const ttl = remember
+    ? (process.env.PORTAL_REMEMBER_TTL || '30d')
+    : (process.env.PORTAL_TOKEN_TTL || '12h');
+  return jwt.sign({ sub: patientId, scope: 'portal', phone }, jwtSecret, { expiresIn: ttl as any });
 }
 
 export function verifyPortalToken(token: string): { patientId: string; phone: string } | null {

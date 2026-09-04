@@ -50,6 +50,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
   const [otpInput, setOtpInput] = useState<string>('123456');
   const [isOtpSent, setIsOtpSent] = useState<boolean>(false);
   const [otpCountdown, setOtpCountdown] = useState<number>(60);
+  const [rememberMe, setRememberMe] = useState<boolean>(true);
 
   // Method 2: PID / CCCD + Password / PIN
   const [pidOrCccd, setPidOrCccd] = useState<string>('BN-2026-001');
@@ -99,7 +100,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
     setErrorMsg(null);
     const cleanPhone = phoneInput.replace(/\s+/g, '');
     try {
-      const r = await apiClient.portal.verify(cleanPhone, otpInput.trim());
+      const r = await apiClient.portal.verify(cleanPhone, otpInput.trim(), rememberMe);
       onLoginSuccess({
         ...(r.patient || {}),
         phone: r.patient?.phone || phoneInput,
@@ -379,6 +380,15 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                           Gửi lại OTP
                         </button>
                       </div>
+                      <label className="flex items-center gap-2 text-[11px] text-slate-300 mt-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={rememberMe}
+                          onChange={(e) => setRememberMe(e.target.checked)}
+                          className="rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500"
+                        />
+                        <span>Ghi nhớ đăng nhập trên thiết bị này (30 ngày)</span>
+                      </label>
                     </div>
 
                     <div className="flex gap-2">

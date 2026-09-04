@@ -39,6 +39,14 @@ function getAi(): GoogleGenAI | null {
   return aiClient;
 }
 
+/** Read ?limit/?offset and slice. Defaults keep the old "return everything" behaviour. */
+function pageOf<T>(rows: T[], q: any): { page: T[]; total: number; limit: number; offset: number } {
+  const total = rows.length;
+  const limit = Math.min(5000, Math.max(1, Number(q?.limit) || 1000));
+  const offset = Math.max(0, Number(q?.offset) || 0);
+  return { page: rows.slice(offset, offset + limit), total, limit, offset };
+}
+
 const digitsOnly = (s: string) => String(s || '').replace(/\D/g, '');
 const phoneMatches = (a: string, b: string) => {
   const x = digitsOnly(a), y = digitsOnly(b);
@@ -77,7 +85,29 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   // real client (rate limiting + audit logs) instead of 127.0.0.1.
   app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
 
-  app.use(helmet({ contentSecurityPolicy: false }));
+  // CSP: previously disabled. This policy allows what the app actually uses
+  // (Google Fonts, VietQR/QR images, same-origin API + SSE, Vite HMR ws in dev)
+  // and blocks the rest. `unsafe-eval` is dev-only (Vite middleware). Tightening
+  // script-src to a nonce is a later step.
+  const devCsp = process.env.NODE_ENV !== 'production';
+  app.use(helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", ...(devCsp ? ["'unsafe-eval'"] : [])],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+        connectSrc: ["'self'", 'ws:', 'wss:'],
+        frameAncestors: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        upgradeInsecureRequests: devCsp ? null : [],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  }));
   app.use(rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 1200,
@@ -381,12 +411,13 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   app.post('/api/portal/auth/verify', (req, res) => {
     const phone = String(req.body?.phone || '').trim();
     const code = String(req.body?.code || '').trim();
+    const remember = req.body?.remember === true || req.body?.remember === 'true';
     if (!phone || !code) return res.status(400).json({ error: 'Thiếu số điện thoại hoặc mã OTP' });
     const check = verifyOtp(`portal:${digitsOnly(phone).slice(-9)}`, code);
     if (!check.ok) return res.status(400).json({ error: check.error || 'Mã OTP không đúng' });
     const patient = dbStore.patients.find(p => phoneMatches(p.phone, phone));
     if (!patient) return res.status(404).json({ error: 'Không tìm thấy hồ sơ' });
-    const token = issuePortalToken(patient.id, patient.phone);
+    const token = issuePortalToken(patient.id, patient.phone, remember);
     res.json({ success: true, token, patient: { id: patient.id, name: patient.name, pid: patient.pid, phone: patient.phone } });
   });
 
@@ -619,11 +650,11 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     if (channel && typeof channel === 'string') list = list.filter(c => c.channel === channel);
     if (status && typeof status === 'string') list = list.filter(c => c.status === status);
     list.sort((a, b) => (a.lastMessageAt < b.lastMessageAt ? 1 : -1));
-    res.json({
-      conversations: list,
-      total: list.length,
+    { const p = pageOf(list, req.query); res.json({
+      conversations: p.page,
+      total: p.total, limit: p.limit, offset: p.offset,
       unread: dbStore.conversations.reduce((n, c) => n + (c.unreadCount || 0), 0)
-    });
+    }); }
   });
 
   app.get("/api/conversations/:id/messages", (req, res) => {
@@ -931,7 +962,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
         filtered = filtered.filter(a => a.patientId === patientId);
       }
 
-      res.json({ appointments: filtered, total: filtered.length });
+      { const p = pageOf(filtered, req.query); res.json({ appointments: p.page, total: p.total, limit: p.limit, offset: p.offset }); }
     } catch (e: any) {
       res.status(500).json({ error: "Lỗi tải danh sách lịch hẹn", details: e.message });
     }
@@ -1054,7 +1085,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
       filtered = filtered.filter(t => t.isOverdue === (isOverdue === 'true'));
     }
 
-    res.json({ tickets: filtered, total: filtered.length });
+    { const p = pageOf(filtered, req.query); res.json({ tickets: p.page, total: p.total, limit: p.limit, offset: p.offset }); }
   });
 
   app.post("/api/tickets", requirePerm('canManageTickets'), (req, res) => {
@@ -1127,12 +1158,12 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     const totalPipelineValue = filtered.reduce((acc, curr) => acc + (curr.expectedValue || 0), 0);
     const weightedPipelineValue = filtered.reduce((acc, curr) => acc + ((curr.expectedValue || 0) * (curr.probability || 50) / 100), 0);
 
-    res.json({
-      leads: filtered,
-      total: filtered.length,
+    { const p = pageOf(filtered, req.query); res.json({
+      leads: p.page,
+      total: p.total, limit: p.limit, offset: p.offset,
       totalPipelineValue,
       weightedPipelineValue
-    });
+    }); }
   });
 
   app.post("/api/leads", requirePerm('canManageB2BContracts'), (req, res) => {
@@ -1189,12 +1220,12 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     const totalCollected = filtered.filter(i => i.status === 'Đã thanh toán').reduce((acc, curr) => acc + curr.patientPayable, 0);
     const totalPending = filtered.filter(i => i.status === 'Chờ thanh toán').reduce((acc, curr) => acc + curr.patientPayable, 0);
 
-    res.json({
-      invoices: filtered,
-      total: filtered.length,
+    { const p = pageOf(filtered, req.query); res.json({
+      invoices: p.page,
+      total: p.total, limit: p.limit, offset: p.offset,
       totalCollected,
       totalPending
-    });
+    }); }
   });
 
   app.post("/api/invoices", (req, res) => {
@@ -1282,7 +1313,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
       filtered = filtered.filter(f => f.assignedStaff === assignedStaff);
     }
 
-    res.json({ followUps: filtered, total: filtered.length });
+    { const p = pageOf(filtered, req.query); res.json({ followUps: p.page, total: p.total, limit: p.limit, offset: p.offset }); }
   });
 
   app.put("/api/follow-ups/:id", requirePerm('canManageTickets'), (req, res) => {
@@ -1309,7 +1340,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
       filtered = filtered.filter(r => r.status === status);
     }
 
-    res.json({ recalls: filtered, total: filtered.length });
+    { const p = pageOf(filtered, req.query); res.json({ recalls: p.page, total: p.total, limit: p.limit, offset: p.offset }); }
   });
 
   app.post("/api/recalls", (req, res) => {
@@ -1591,14 +1622,14 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     const detractors = filtered.filter(c => c.npsScore <= 6).length;
     const npsIndex = totalRatings > 0 ? Math.round(((promoters - detractors) / totalRatings) * 100) : 85;
 
-    res.json({
-      feedbacks: filtered,
-      total: totalRatings,
+    { const p = pageOf(filtered, req.query); res.json({
+      feedbacks: p.page,
+      total: totalRatings, limit: p.limit, offset: p.offset,
       avgRating: Number(avgRating),
       npsIndex,
       promotersCount: promoters,
       detractorsCount: detractors
-    });
+    }); }
   });
 
   app.post("/api/csat/submit", (req, res) => {
