@@ -226,7 +226,7 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({
             >
               <option value="ALL" className="bg-white">Tất cả Bác sĩ</option>
               {doctors.map(d => (
-                <option key={d.id} value={d.id} className="bg-white">{d.name} ({d.specialty})</option>
+                <option key={d.id} value={d.id} className="bg-white">{[d.title, d.name].filter(Boolean).join(' ')}{(d.department || d.specialty) ? ` — ${d.department || d.specialty}` : ''}</option>
               ))}
             </select>
           </div>

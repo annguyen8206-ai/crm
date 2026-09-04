@@ -610,8 +610,9 @@ export const PatientPortalView: React.FC<PatientPortalViewProps> = ({
                     onChange={(e) => setBookDoctorId(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white cursor-pointer"
                   >
+                    {doctors.length === 0 && <option value="" disabled>Chưa có bác sĩ được cấu hình</option>}
                     {doctors.map(d => (
-                      <option key={d.id} value={d.id}>{d.name} ({d.specialty}) - {d.title}</option>
+                      <option key={d.id} value={d.id}>{[d.title, d.name].filter(Boolean).join(' ')}{(d.department || d.specialty) ? ` — ${d.department || d.specialty}` : ''}</option>
                     ))}
                   </select>
                 </div>

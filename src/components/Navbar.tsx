@@ -107,7 +107,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'appointments' as ActiveTab, label: 'Lịch khám & Tiếp đón', icon: Calendar },
     { id: 'care' as ActiveTab, label: 'CSKH & Quản trị SLA', icon: Headphones },
     { id: 'inbox' as ActiveTab, label: 'Tin nhắn đa kênh', icon: MessageSquare },
-    { id: 'catalog' as ActiveTab, label: 'Gói khám & Dịch vụ', icon: Stethoscope },
+    { id: 'catalog' as ActiveTab, label: 'Gói khám, Dịch vụ & Bác sĩ', icon: Stethoscope },
     { id: 'billing' as ActiveTab, label: 'Viện phí & Thanh toán', icon: Cable },
     { id: 'sales' as ActiveTab, label: 'Kinh doanh & B2B', icon: Briefcase },
     { id: 'marketing' as ActiveTab, label: 'Marketing Automation', icon: TrendingUp },

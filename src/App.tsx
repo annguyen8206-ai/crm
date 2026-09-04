@@ -77,7 +77,6 @@ function mapApiAppointment(appointment: any): Appointment {
 import {
   mockBranches,
   mockPatients,
-  mockDoctors,
   mockSegments,
   mockAutomationRules,
   mockReferrals,
@@ -653,7 +652,10 @@ export default function App() {
   // Selected Patient Details for 360 View
   const selectedPatient = (patients || []).find(p => p && p.id === selectedPatientId) || null;
   // Doctors come from the catalog once configured; fall back to the demo list.
-  const effectiveDoctors: any[] = doctors.length ? doctors : mockDoctors;
+  // Doctors are master data configured in "Gói khám, Dịch vụ & Bác sĩ" (catalog tab)
+  // and persisted via /api/collections/doctors. No demo fallback — an empty list
+  // shows a "configure first" hint in the pickers.
+  const effectiveDoctors: any[] = doctors;
 
   // =========================================================================
   // 1. DEDICATED CUSTOMER / PATIENT AUTHENTICATION & STANDALONE PORTAL

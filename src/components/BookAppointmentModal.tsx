@@ -321,8 +321,9 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
                   onChange={e => setDoctorId(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
+                  {doctors.length === 0 && <option value="" disabled>Chưa có bác sĩ — cấu hình tại "Gói khám, Dịch vụ & Bác sĩ"</option>}
                   {doctors.map(d => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.specialty})</option>
+                    <option key={d.id} value={d.id}>{[d.title, d.name].filter(Boolean).join(' ')}{(d.department || d.specialty) ? ` — ${d.department || d.specialty}` : ''}</option>
                   ))}
                 </select>
               </div>
