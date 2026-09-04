@@ -11,6 +11,7 @@ import { emitChange } from "./server/events";
 import { logIntegrationsStatus } from "./server/integrations";
 import { initSettings } from "./server/settings";
 import { ensureAuditSchema, recordAudit } from "./server/audit";
+import { requestLogger, errorHandler, installProcessLogging } from "./server/logger";
 import { startReminderScheduler, registerReminderRoutes } from "./server/reminders";
 import { registerPublicRoutes } from "./server/routes/public";
 import { registerSystemRoutes } from "./server/routes/system";
@@ -78,6 +79,9 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   // Keep the raw body around so webhook HMAC signatures can be verified.
   app.use(express.json({ limit: '2mb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
 
+  // Structured access log (non-GET / errors / slow requests only).
+  app.use(requestLogger);
+
   // Persist every successful write request after handlers complete, and notify
   // connected CRM clients so their views refresh in real time.
   app.use((req, res, next) => {
@@ -143,6 +147,11 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
 
   startReminderScheduler();
 
+  // Unknown /api/* path → JSON 404 (not the SPA HTML fallback below).
+  app.use('/api', (req, res) => {
+    res.status(404).json({ error: `Không tìm thấy endpoint: ${req.method} ${req.originalUrl}` });
+  });
+
   // ---- Vite dev middleware / static client ----
   if (serveClient && process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -158,10 +167,14 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     });
   }
 
+  // Terminal error handler — must be last.
+  app.use(errorHandler);
+
   return app;
 }
 
 async function startServer() {
+  installProcessLogging();
   const PORT = 3000;
   const isProd = process.env.NODE_ENV === 'production';
   const authState = authStatus();
