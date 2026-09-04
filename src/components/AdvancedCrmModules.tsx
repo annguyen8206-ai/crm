@@ -397,28 +397,20 @@ export const AdvancedCrmModules: React.FC<AdvancedCrmModulesProps> = ({
             </div>
           </div>
 
-          {/* Quick Metrics */}
+          {/* Quick Metrics — chờ nối dữ liệu tổng đài thực tế */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-              <span className="text-xs font-bold text-slate-500">Tổng Cuộc Gọi Hôm Nay</span>
-              <div className="text-2xl font-bold text-slate-900 mt-1 font-mono">148 cuộc</div>
-              <span className="text-[11px] text-emerald-600 font-semibold">↑ 12% so với hôm qua</span>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-              <span className="text-xs font-bold text-slate-500">Thời Lượng Đàm Thoại TB</span>
-              <div className="text-2xl font-bold text-blue-600 mt-1 font-mono">2m 45s</div>
-              <span className="text-[11px] text-slate-500">Chất lượng tư vấn tốt</span>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-              <span className="text-xs font-bold text-slate-500">Tỷ Lệ Nhỡ Cuộc Gọi (Abandon)</span>
-              <div className="text-2xl font-bold text-emerald-600 mt-1 font-mono">1.8%</div>
-              <span className="text-[11px] text-emerald-600">Đạt mục tiêu SLA &lt; 3%</span>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-              <span className="text-xs font-bold text-slate-500">Chỉ Số Cảm Xúc Hài Lòng</span>
-              <div className="text-2xl font-bold text-purple-600 mt-1 font-mono">94.5%</div>
-              <span className="text-[11px] text-purple-600">AI Speech Emotion Analysis</span>
-            </div>
+            {[
+              ['Tổng Cuộc Gọi Hôm Nay', 'từ nhật ký VoIP'],
+              ['Thời Lượng Đàm Thoại TB', 'từ nhật ký VoIP'],
+              ['Tỷ Lệ Nhỡ Cuộc Gọi (Abandon)', 'mục tiêu SLA < 3%'],
+              ['Chỉ Số Cảm Xúc Hài Lòng', 'AI Speech Emotion (chưa bật)'],
+            ].map(([label, hint]) => (
+              <div key={label} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                <span className="text-xs font-bold text-slate-500">{label}</span>
+                <div className="text-2xl font-bold text-slate-400 mt-1 font-mono">—</div>
+                <span className="text-[11px] text-slate-400">{hint}</span>
+              </div>
+            ))}
           </div>
 
           {/* Call Logs Table */}
@@ -648,8 +640,8 @@ export const AdvancedCrmModules: React.FC<AdvancedCrmModulesProps> = ({
                 <span className="text-xs font-bold text-slate-500">Kênh Zalo OA</span>
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
               </div>
-              <div className="text-xl font-bold text-slate-900 mt-2 font-mono">42 leads/ngày</div>
-              <p className="text-[11px] text-slate-500 mt-1">Phản hồi trung bình: 1.5 phút</p>
+              <div className="text-xl font-bold text-slate-900 mt-2 font-mono">Đã kết nối</div>
+              <p className="text-[11px] text-slate-500 mt-1">Webhook ZNS + Zalo OA</p>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
@@ -657,8 +649,8 @@ export const AdvancedCrmModules: React.FC<AdvancedCrmModulesProps> = ({
                 <span className="text-xs font-bold text-slate-500">Hotline 24/7 (VoIP)</span>
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
               </div>
-              <div className="text-xl font-bold text-blue-600 mt-2 font-mono">148 cuộc/ngày</div>
-              <p className="text-[11px] text-slate-500 mt-1">Tỷ lệ nhấc máy: 98.2%</p>
+              <div className="text-xl font-bold text-blue-600 mt-2 font-mono">Sẵn sàng</div>
+              <p className="text-[11px] text-slate-500 mt-1">Click-to-call từ hồ sơ khách hàng</p>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
@@ -666,7 +658,7 @@ export const AdvancedCrmModules: React.FC<AdvancedCrmModulesProps> = ({
                 <span className="text-xs font-bold text-slate-500">Facebook Fanpage</span>
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
               </div>
-              <div className="text-xl font-bold text-purple-600 mt-2 font-mono">29 inbox/ngày</div>
+              <div className="text-xl font-bold text-purple-600 mt-2 font-mono">Đã kết nối</div>
               <p className="text-[11px] text-slate-500 mt-1">Tự động gán CSKH trực ca</p>
             </div>
 
@@ -675,8 +667,8 @@ export const AdvancedCrmModules: React.FC<AdvancedCrmModulesProps> = ({
                 <span className="text-xs font-bold text-slate-500">SMS CSKH Brandname</span>
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
               </div>
-              <div className="text-xl font-bold text-amber-600 mt-2 font-mono">99.8% Gửi thành công</div>
-              <p className="text-[11px] text-slate-500 mt-1">Tích hợp mạng Viettel/VNPT/Mobi</p>
+              <div className="text-xl font-bold text-amber-600 mt-2 font-mono">Brandname</div>
+              <p className="text-[11px] text-slate-500 mt-1">Cấu hình eSMS/Twilio ở Tích hợp</p>
             </div>
           </div>
 

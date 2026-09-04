@@ -13,7 +13,6 @@ import {
   CareAutomationRule,
   SupportTicket,
   TelemedicineCall,
-  InsuranceClaim,
   ReferralRecord,
   MedicalPartner,
   PartnerCommissionPayout,
@@ -947,57 +946,6 @@ export const INITIAL_TELEMEDICINE_CALLS: TelemedicineCall[] = [
     chiefComplaint: 'Hướng dẫn chế độ ăn Low-Carb và kiểm tra nhật ký đường huyết tuần qua.',
     videoRoomUrl: 'https://meet.vitcrm.vn/room-tele-0820-pat1',
     prescribedDrugsCount: 2
-  }
-];
-
-export const INITIAL_INSURANCE_CLAIMS: InsuranceClaim[] = [
-  {
-    id: 'clm-1',
-    code: 'CLM-BV-2026-0812',
-    patientId: 'pat-1',
-    patientName: 'Nguyễn Thị Bích Thủy',
-    patientPhone: '0912 889 933',
-    provider: 'Bảo Việt',
-    cardNumber: 'BV-VIP-2026-0988',
-    serviceType: 'Khám ngoại trú',
-    requestedAmount: 2450000,
-    approvedAmount: 2082500,
-    patientCoPay: 367500,
-    status: 'Đã phê duyệt bảo lãnh',
-    submittedDate: '2026-07-28',
-    diagnosis: 'Tăng huyết áp vô căn, Đái tháo đường Type 2'
-  },
-  {
-    id: 'clm-2',
-    code: 'CLM-PVI-2026-0941',
-    patientId: 'pat-2',
-    patientName: 'Trần Đăng Khoa',
-    patientPhone: '0983 112 244',
-    provider: 'PVI',
-    cardNumber: 'PVI-CORP-FPT-883',
-    serviceType: 'Khám ngoại trú',
-    requestedAmount: 3800000,
-    approvedAmount: 3800000,
-    patientCoPay: 0,
-    status: 'Đã phê duyệt bảo lãnh',
-    submittedDate: '2026-08-10',
-    diagnosis: 'Thoát vị đĩa đệm L4-L5 có chèn ép rễ'
-  },
-  {
-    id: 'clm-3',
-    code: 'CLM-LIB-2026-0155',
-    patientId: 'pat-3',
-    patientName: 'Vũ Hoàng Yến Nhi',
-    patientPhone: '0975 667 889',
-    provider: 'Liberty',
-    cardNumber: 'LIB-HN-2026-339',
-    serviceType: 'Khám ngoại trú',
-    requestedAmount: 1800000,
-    approvedAmount: 0,
-    patientCoPay: 1800000,
-    status: 'Từ chối bảo lãnh',
-    submittedDate: '2026-08-15',
-    diagnosis: 'Điều trị da liễu thẩm mỹ nằm trong danh mục loại trừ của bảo hiểm'
   }
 ];
 
@@ -2486,7 +2434,6 @@ export const mockCampaigns = INITIAL_CAMPAIGNS;
 export const mockAutomationRules = INITIAL_AUTOMATION_RULES;
 export const mockSupportTickets = INITIAL_TICKETS;
 export const mockTelemedicineCalls = INITIAL_TELEMEDICINE_CALLS;
-export const mockInsuranceClaims = INITIAL_INSURANCE_CLAIMS;
 export const mockReferrals = INITIAL_REFERRALS;
 export const mockMedicalPartners = INITIAL_MEDICAL_PARTNERS;
 export const mockPartnerPayouts = INITIAL_PARTNER_PAYOUTS;

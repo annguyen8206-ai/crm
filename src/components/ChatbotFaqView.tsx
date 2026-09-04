@@ -639,12 +639,12 @@ export const ChatbotFaqView: React.FC<ChatbotFaqViewProps> = ({
             <span className="text-lg font-bold text-rose-700">{urgentCount} yêu cầu</span>
           </div>
           <div className="bg-sky-50 p-2.5 rounded-xl border border-sky-200">
-            <span className="text-sky-600 block text-[11px] font-medium">Bot giải quyết tự động</span>
-            <span className="text-lg font-bold text-sky-700">78.4% (84 ca)</span>
+            <span className="text-sky-600 block text-[11px] font-medium">Bot xử lý không cần chuyển tiếp</span>
+            <span className="text-lg font-bold text-sky-700">{totalConvs - urgentCount} / {totalConvs}</span>
           </div>
           <div className="bg-purple-50 p-2.5 rounded-xl border border-purple-200">
-            <span className="text-purple-600 block text-[11px] font-medium">Thời gian phản hồi TB</span>
-            <span className="text-lg font-bold text-purple-700">42 giây (Chuẩn SLA &lt; 2p)</span>
+            <span className="text-purple-600 block text-[11px] font-medium">Đã chuyển CSKH xử lý</span>
+            <span className="text-lg font-bold text-purple-700">{urgentCount} yêu cầu</span>
           </div>
         </div>
       </div>

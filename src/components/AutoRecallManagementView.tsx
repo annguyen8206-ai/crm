@@ -182,7 +182,7 @@ export const AutoRecallManagementView: React.FC<AutoRecallManagementViewProps> =
           <div className="text-2xl font-bold text-blue-700 mt-2 font-mono">
             {znsSentCount} <span className="text-xs font-normal text-slate-500">tin nhắn</span>
           </div>
-          <span className="text-[11px] text-slate-500 block mt-1">Tỷ lệ mở xem đạt 96.8%</span>
+          <span className="text-[11px] text-slate-500 block mt-1">Nhắc tái khám qua Zalo ZNS</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
@@ -204,7 +204,7 @@ export const AutoRecallManagementView: React.FC<AutoRecallManagementViewProps> =
           <div className="text-2xl font-bold text-purple-700 mt-2 font-mono">
             {conversionRate}%
           </div>
-          <span className="text-[11px] text-emerald-600 font-bold block mt-1">Tăng +22% so với nhắc thủ công</span>
+          <span className="text-[11px] text-slate-500 block mt-1">Tỷ lệ chốt lịch trên tổng ca đến hạn</span>
         </div>
       </div>
 
