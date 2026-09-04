@@ -80,6 +80,12 @@ export const apiClient = {
     }
   },
 
+  notifications: {
+    async list() {
+      return request<{ notifications: Array<{ id: string; severity: 'high' | 'med' | 'low'; title: string; detail: string; tab: string; count: number }>; total: number; highCount: number }>('/notifications');
+    }
+  },
+
   // Runtime integration settings (admin only). Secrets come back masked.
   settings: {
     async get() {

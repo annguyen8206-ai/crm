@@ -24,6 +24,7 @@ import { registerBillingRoutes } from "./server/routes/billing";
 import { registerCommsRoutes } from "./server/routes/comms";
 import { registerAiRoutes } from "./server/routes/ai";
 import { registerExportRoutes } from "./server/routes/export";
+import { registerNotificationRoutes } from "./server/routes/notifications";
 
 dotenv.config();
 
@@ -137,6 +138,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   registerCommsRoutes(app);
   registerAiRoutes(app);
   registerExportRoutes(app);
+  registerNotificationRoutes(app);
   registerReminderRoutes(app);
 
   startReminderScheduler();

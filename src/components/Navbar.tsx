@@ -53,6 +53,7 @@ interface NavbarProps {
   onStaffLogout?: () => void;
   onOpenStaffManagement?: () => void;
   onOpenBranchManagement?: () => void;
+  notifications?: Array<{ id: string; severity: 'high' | 'med' | 'low'; title: string; detail: string; tab: string; count: number }>;
 }
 
 function getStaffInitials(name: string): string {
@@ -84,7 +85,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onQuickAddPatient,
   onStaffLogout,
   onOpenStaffManagement,
-  onOpenBranchManagement
+  onOpenBranchManagement,
+  notifications = []
 }) => {
   const [isRbacModalOpen, setIsRbacModalOpen] = useState(false);
   const [isBackendModalOpen, setIsBackendModalOpen] = useState(false);
@@ -422,44 +424,45 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="p-1.5 text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors relative cursor-pointer"
               >
                 <Bell className="w-4 h-4" />
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
+                {notifications.length > 0 && (
+                  <span className={`absolute top-1 right-1 w-2 h-2 rounded-full ring-2 ring-white ${
+                    notifications.some(n => n.severity === 'high') ? 'bg-rose-500' : 'bg-amber-500'
+                  }`} />
+                )}
               </button>
 
               {isNotificationsOpen && (
                 <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-4 text-xs space-y-3">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <span className="font-bold text-slate-900 text-sm">Thông Báo</span>
-                    <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 font-bold text-[10px]">3 Mới</span>
+                    {notifications.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 font-bold text-[10px]">
+                        {notifications.reduce((s, n) => s + n.count, 0)} việc
+                      </span>
+                    )}
                   </div>
 
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    <div 
-                      onClick={() => {
-                        handleTabClick('care');
-                        setIsNotificationsOpen(false);
-                      }}
-                      className="p-2.5 rounded-xl bg-amber-50/60 hover:bg-amber-100/60 border border-amber-200 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center justify-between font-bold text-amber-900">
-                        <span>Lịch đặt trực tuyến</span>
-                        <span className="text-[10px] text-amber-600">Vừa xong</span>
-                      </div>
-                      <p className="text-slate-600 text-[11px] mt-0.5">Khách hàng đặt khám mới. CSKH cần gọi xác nhận.</p>
-                    </div>
-
-                    <div 
-                      onClick={() => {
-                        handleTabClick('care');
-                        setIsNotificationsOpen(false);
-                      }}
-                      className="p-2.5 rounded-xl bg-blue-50/60 hover:bg-blue-100/60 border border-blue-200 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center justify-between font-bold text-blue-900">
-                        <span>Phiếu SLA khẩn cấp</span>
-                        <span className="text-[10px] text-blue-600">10p trước</span>
-                      </div>
-                      <p className="text-slate-600 text-[11px] mt-0.5">Cần xử lý khiếu nại viện phí theo cam kết SLA 2h.</p>
-                    </div>
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {notifications.length === 0 && (
+                      <p className="text-slate-400 text-[11px] py-6 text-center">Không có việc nào cần chú ý.</p>
+                    )}
+                    {notifications.map(n => {
+                      const tone = n.severity === 'high'
+                        ? 'bg-rose-50/60 hover:bg-rose-100/60 border-rose-200 text-rose-900'
+                        : n.severity === 'med'
+                        ? 'bg-amber-50/60 hover:bg-amber-100/60 border-amber-200 text-amber-900'
+                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800';
+                      return (
+                        <div
+                          key={n.id}
+                          onClick={() => { handleTabClick(n.tab as ActiveTab); setIsNotificationsOpen(false); }}
+                          className={`p-2.5 rounded-xl border cursor-pointer transition-colors ${tone}`}
+                        >
+                          <div className="font-bold">{n.title}</div>
+                          {n.detail && <p className="text-slate-600 text-[11px] mt-0.5 line-clamp-2">{n.detail}</p>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

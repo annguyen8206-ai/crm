@@ -156,6 +156,7 @@ export default function App() {
   const [csatFeedbacks, setCsatFeedbacks] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [dashboardKpis, setDashboardKpis] = useState<any | null>(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [apiSyncError, setApiSyncError] = useState<string | null>(null);
 
   // Omnichannel inbox (Zalo OA + Facebook) — realtime via SSE
@@ -183,7 +184,7 @@ export default function App() {
     let cancelled = false;
     const loadApiData = async () => {
       try {
-        const [patientsResponse, appointmentsResponse, ticketsResponse, collectionsResponse, recallsR, followUpsR, csatR, invoicesR, dashR] = await Promise.all([
+        const [patientsResponse, appointmentsResponse, ticketsResponse, collectionsResponse, recallsR, followUpsR, csatR, invoicesR, dashR, notifR] = await Promise.all([
           apiClient.patients.list({ limit: 500 }),
           apiClient.appointments.list(),
           apiClient.tickets.list(),
@@ -192,9 +193,11 @@ export default function App() {
           apiClient.followUps.list().catch(() => ({ followUps: [] as any[] })),
           apiClient.csat.getFeedbacks().catch(() => ({ feedbacks: [] as any[] })),
           apiClient.invoices.list().catch(() => ({ invoices: [] as any[] })),
-          apiClient.analytics.getDashboard().catch(() => null as any)
+          apiClient.analytics.getDashboard().catch(() => null as any),
+          apiClient.notifications.list().catch(() => ({ notifications: [] as any[] }))
         ]);
         if (cancelled) return;
+        setNotifications((notifR as any).notifications || []);
         setPatients((patientsResponse.patients || []).map(mapApiPatient));
         setAppointments((appointmentsResponse.appointments || []).map(mapApiAppointment));
         setSupportTickets((ticketsResponse.tickets || []) as SupportTicket[]);
@@ -271,7 +274,7 @@ export default function App() {
       if (refetchTimer) clearTimeout(refetchTimer);
       refetchTimer = setTimeout(async () => {
         try {
-          const [p, a, t, r, f, c, inv, dash] = await Promise.all([
+          const [p, a, t, r, f, c, inv, dash, notif] = await Promise.all([
             apiClient.patients.list({ limit: 500 }),
             apiClient.appointments.list(),
             apiClient.tickets.list(),
@@ -279,7 +282,8 @@ export default function App() {
             apiClient.followUps.list().catch(() => ({ followUps: [] as any[] })),
             apiClient.csat.getFeedbacks().catch(() => ({ feedbacks: [] as any[] })),
             apiClient.invoices.list().catch(() => ({ invoices: [] as any[] })),
-            apiClient.analytics.getDashboard().catch(() => null as any)
+            apiClient.analytics.getDashboard().catch(() => null as any),
+            apiClient.notifications.list().catch(() => ({ notifications: [] as any[] }))
           ]);
           setPatients((p.patients || []).map(mapApiPatient));
           setAppointments((a.appointments || []).map(mapApiAppointment));
@@ -288,6 +292,7 @@ export default function App() {
           setFollowUps(f.followUps || []);
           setCsatFeedbacks(c.feedbacks || []);
           setInvoices(inv.invoices || []);
+          setNotifications((notif as any).notifications || []);
           if (dash) setDashboardKpis(dash);
         } catch { /* ignore */ }
       }, 500);
@@ -873,6 +878,7 @@ export default function App() {
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        notifications={notifications}
         branches={branches}
         currentBranchId={currentBranchId}
         setCurrentBranchId={setCurrentBranchId}
