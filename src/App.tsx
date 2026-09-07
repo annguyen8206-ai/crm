@@ -670,9 +670,9 @@ export default function App() {
     // 1.1 Customer is NOT logged in -> Dedicated Customer Login Screen
     if (!isCustomerLoggedIn) {
       return (
-        <div className="min-h-screen bg-slate-900 font-sans selection:bg-teal-500 selection:text-white">
+        <div className="min-h-screen bg-slate-50 font-sans selection:bg-teal-500 selection:text-white">
           {toastMessage && (
-            <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 animate-in slide-in-from-bottom-5">
+            <div className="fixed bottom-6 right-6 z-50 bg-white text-slate-800 px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border border-slate-200 animate-in slide-in-from-bottom-5">
               <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" />
               <span>{toastMessage}</span>
             </div>
@@ -704,7 +704,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-900 pb-10 w-full max-w-full overflow-x-hidden">
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 animate-in slide-in-from-bottom-5">
+          <div className="fixed bottom-6 right-6 z-50 bg-white text-slate-800 px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border border-slate-200 animate-in slide-in-from-bottom-5">
             <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" />
             <span>{toastMessage}</span>
           </div>
@@ -788,9 +788,9 @@ export default function App() {
   // If staff is logged out, show the dedicated Staff Authentication Portal
   if (!isStaffLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-950 font-sans selection:bg-blue-500 selection:text-white">
+      <div className="min-h-screen bg-slate-50 font-sans selection:bg-blue-500 selection:text-white">
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 animate-in slide-in-from-bottom-5">
+          <div className="fixed bottom-6 right-6 z-50 bg-white text-slate-800 px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border border-slate-200 animate-in slide-in-from-bottom-5">
             <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
             <span>{toastMessage}</span>
           </div>
@@ -825,7 +825,7 @@ export default function App() {
 
       {/* Toast Banner */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-6 right-6 z-50 bg-white text-slate-800 px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border border-slate-200 animate-in slide-in-from-bottom-5">
           <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
           <span>{toastMessage}</span>
         </div>

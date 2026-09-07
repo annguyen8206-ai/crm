@@ -212,7 +212,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
   };
 
   return (
-    <div className="min-h-[90vh] bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[90vh] bg-gradient-to-b from-slate-50 via-white to-blue-50/40 text-slate-800 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
       {/* Top Brand Bar */}
       <div className="max-w-6xl mx-auto w-full mb-8 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -221,21 +221,21 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-white">VitHospital Enterprise CRM</h1>
-              <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[10px] font-bold uppercase tracking-wider">
+              <h1 className="text-xl font-bold tracking-tight text-slate-900">VitHospital Enterprise CRM</h1>
+              <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold uppercase tracking-wider">
                 Staff Portal
               </span>
             </div>
-            <p className="text-xs text-slate-400">Hệ Thống Quản Trị Y Tế & Phân Quyền Nhân Viên Phòng Khám</p>
+            <p className="text-xs text-slate-500">Hệ Thống Quản Trị Y Tế & Phân Quyền Nhân Viên Phòng Khám</p>
           </div>
         </div>
 
         {/* View Switcher / Secondary Nav */}
-        <div className="flex items-center gap-2 bg-slate-800/80 p-1.5 rounded-2xl border border-slate-700/80 text-xs">
+        <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 text-xs">
           <button
             onClick={() => setActiveTab('login')}
             className={`px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-              activeTab === 'login' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'
+              activeTab === 'login' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             Đăng Nhập
@@ -244,7 +244,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
             <button
               id="btn-switch-to-customer-portal"
               onClick={handleGoToCustomer}
-              className="px-3 py-1.5 rounded-xl font-bold text-teal-300 hover:text-teal-200 bg-teal-950/50 border border-teal-700/50 transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+              className="px-3 py-1.5 rounded-xl font-bold text-teal-700 hover:text-teal-800 bg-teal-50 border border-teal-200 transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
             >
               <UserCheck className="w-3.5 h-3.5" />
               <span>Cổng Đăng Nhập Khách Hàng</span>
@@ -261,21 +261,21 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
         {activeTab === 'login' && (
           <div className="max-w-xl mx-auto">
             {/* Official Staff Login Box */}
-            <div className="lg:col-span-5 bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md space-y-6">
+            <div className="lg:col-span-5 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl backdrop-blur-md space-y-6">
               <div className="space-y-1.5">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   Xác Thực Cấp Y Tế & 2FA
                 </div>
-                <h2 className="text-xl font-bold text-white tracking-tight">Đăng Nhập Cán Bộ Y Tế & Nhân Viên</h2>
-                <p className="text-xs text-slate-400">
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight">Đăng Nhập Cán Bộ Y Tế & Nhân Viên</h2>
+                <p className="text-xs text-slate-500">
                   Nhập mã nhân viên hoặc email nội bộ được cấp bởi Ban Quản trị Bệnh viện.
                 </p>
               </div>
 
               {errorMsg && (
-                <div className="p-3.5 bg-rose-950/50 border border-rose-800/60 rounded-xl text-rose-300 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                   <span>{errorMsg}</span>
                 </div>
               )}
@@ -283,7 +283,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
               {!requires2FA ? (
                 <form onSubmit={handleFormLogin} className="space-y-4 text-xs">
                   <div>
-                    <label className="block font-bold text-slate-300 mb-1.5">Mã Nhân Viên / Email Công Vụ:</label>
+                    <label className="block font-bold text-slate-700 mb-1.5">Mã Nhân Viên / Email Công Vụ:</label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
@@ -292,13 +292,13 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                         value={usernameOrEmail}
                         onChange={(e) => setUsernameOrEmail(e.target.value)}
                         placeholder="VD: tuan.hm@vithospital.vn hoặc BGD-001"
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-500"
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-300 mb-1.5">Mật Khẩu Đăng Nhập:</label>
+                    <label className="block font-bold text-slate-700 mb-1.5">Mật Khẩu Đăng Nhập:</label>
                     <div className="relative">
                       <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
@@ -306,12 +306,12 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full pl-10 pr-10 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-200 cursor-pointer"
+                        className="absolute right-3 top-3 text-slate-500 hover:text-slate-800 cursor-pointer"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -319,13 +319,13 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                   </div>
 
                   <div className="hidden">
-                    <label className="block font-bold text-slate-300 mb-1.5">Cơ Sở / Chi Nhánh Làm Việc:</label>
+                    <label className="block font-bold text-slate-700 mb-1.5">Cơ Sở / Chi Nhánh Làm Việc:</label>
                     <div className="relative">
                       <Building2 className="hidden w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <select
                         value={selectedBranch}
                         onChange={(e) => setSelectedBranch(e.target.value as BranchId)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                       >
                         <option value="ALL">Toàn Hệ Thống (Trụ sở & Các Chi nhánh)</option>
                         {INITIAL_BRANCHES.map(b => (
@@ -346,7 +346,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
               ) : (
                 /* 2FA Verification Step */
                 <form onSubmit={handleVerify2FA} className="space-y-4 text-xs">
-                  <div className="p-3 bg-blue-950/50 border border-blue-800/60 rounded-xl text-blue-300 text-xs">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-xs">
                     {pendingPreAuth ? (
                       <>Mã xác thực OTP {otpChannelHint || 'đã được gửi'}. Nhập mã để hoàn tất đăng nhập (hết hạn sau ~5 phút).</>
                     ) : (
@@ -355,13 +355,13 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                   </div>
 
                   {otpDevCode && (
-                    <div className="p-2.5 bg-amber-950/40 border border-amber-800/50 rounded-xl text-amber-300 text-xs font-mono">
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-xs font-mono">
                       Mã OTP (chế độ dev): <strong>{otpDevCode}</strong>
                     </div>
                   )}
 
                   <div>
-                    <label className="block font-bold text-slate-300 mb-1.5">Mã Xác Thực 2FA (6 chữ số):</label>
+                    <label className="block font-bold text-slate-700 mb-1.5">Mã Xác Thực 2FA (6 chữ số):</label>
                     <div className="relative">
                       <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
@@ -370,7 +370,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                         maxLength={8}
                         value={otpInput}
                         onChange={(e) => setOtpInput(e.target.value)}
-                        className="w-full text-center tracking-widest text-lg font-mono font-bold py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full text-center tracking-widest text-lg font-mono font-bold py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required
                       />
                     </div>
@@ -379,7 +379,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                         type="button"
                         onClick={handleResendOtp}
                         disabled={otpBusy}
-                        className="mt-2 text-blue-400 hover:text-blue-300 font-bold disabled:opacity-50 cursor-pointer"
+                        className="mt-2 text-blue-600 hover:text-blue-700 font-bold disabled:opacity-50 cursor-pointer"
                       >
                         Gửi lại mã
                       </button>
@@ -390,7 +390,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                     <button
                       type="button"
                       onClick={handleCancel2FA}
-                      className="w-1/3 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl font-bold transition-colors cursor-pointer"
+                      className="w-1/3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-colors cursor-pointer"
                     >
                       Quay lại
                     </button>
@@ -410,54 +410,54 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
 
             {/* Right Column: Security Guidance & Quick Lookup */}
             <div className="hidden lg:col-span-7 space-y-4">
-              <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-700/80">
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                   <div className="flex items-center gap-2">
                     <Shield className="w-5 h-5 text-blue-400" />
-                    <h3 className="text-sm font-bold text-white">Chính Sách Bảo Mật & Xác Thực Danh Tính</h3>
+                    <h3 className="text-sm font-bold text-slate-900">Chính Sách Bảo Mật & Xác Thực Danh Tính</h3>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
                     ISO 27799 / HIPAA
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 bg-slate-900/60 rounded-2xl border border-slate-700/50 space-y-1">
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
                     <div className="flex items-center gap-1.5 text-blue-400 font-bold">
                       <Lock className="w-4 h-4" />
                       <span>Kiểm Soát Phiên Làm Việc</span>
                     </div>
-                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                    <p className="text-slate-500 text-[11px] leading-relaxed">
                       Mỗi nhân viên chỉ hoạt động trên một phiên làm việc được mã hóa. Đã khóa hoàn toàn tính năng chuyển đổi tài khoản tùy tiện.
                     </p>
                   </div>
 
-                  <div className="p-3 bg-slate-900/60 rounded-2xl border border-slate-700/50 space-y-1">
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
                     <div className="flex items-center gap-1.5 text-indigo-400 font-bold">
                       <Users className="w-4 h-4" />
                       <span>Admin Cấp Quyền & Tạo TK</span>
                     </div>
-                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                    <p className="text-slate-500 text-[11px] leading-relaxed">
                       Chỉ tài khoản Ban Giám Đốc (Admin) mới có quyền khởi tạo, chỉnh sửa và phân bổ quyền cho nhân viên các khoa phòng.
                     </p>
                   </div>
 
-                  <div className="p-3 bg-slate-900/60 rounded-2xl border border-slate-700/50 space-y-1">
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
                     <div className="flex items-center gap-1.5 text-amber-400 font-bold">
                       <KeyRound className="w-4 h-4" />
                       <span>Mật Khẩu Mặc Định</span>
                     </div>
-                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                    <p className="text-slate-500 text-[11px] leading-relaxed">
                       Mật khẩu được quản lý riêng cho từng tài khoản và không hiển thị trên màn hình đăng nhập.
                     </p>
                   </div>
 
-                  <div className="p-3 bg-slate-900/60 rounded-2xl border border-slate-700/50 space-y-1">
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
                     <div className="flex items-center gap-1.5 text-purple-400 font-bold">
                       <ShieldCheck className="w-4 h-4" />
                       <span>Xác Thực 2 Lớp (2FA)</span>
                     </div>
-                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                    <p className="text-slate-500 text-[11px] leading-relaxed">
                       Các tài khoản quản trị và bác sĩ trưởng khoa được kích hoạt 2FA. Mã xác nhận được gửi qua kênh bảo mật đã đăng ký.
                     </p>
                   </div>
@@ -466,10 +466,10 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                 {/* Account Reference Summary */}
                 <div className="pt-2">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-300">Tài khoản tiêu biểu theo từng vị trí:</span>
+                    <span className="text-xs font-bold text-slate-600">Tài khoản tiêu biểu theo từng vị trí:</span>
                     <button
                       onClick={() => setActiveTab('staff_list')}
-                      className="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 cursor-pointer"
+                      className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <span>Xem toàn bộ {staffList.length} tài khoản</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -480,13 +480,13 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                     {staffList.slice(0, 5).map((user) => (
                       <div
                         key={user.id}
-                        className="bg-slate-900/70 border border-slate-700/60 rounded-xl p-2.5 flex items-center justify-between text-xs"
+                        className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex items-center justify-between text-xs"
                       >
                         <div className="flex items-center gap-2.5">
                           <div
                             className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-xs shrink-0 ${
                               user.role === 'Quản Trị Viên Hệ Thống (Admin)' || user.role.toLowerCase().includes('admin') || user.role.toLowerCase().includes('it')
-                                ? 'bg-slate-950 text-cyan-300 ring-1 ring-cyan-500/50'
+                                ? 'bg-slate-800 text-white ring-1 ring-slate-300'
                                 : user.role === 'Ban Giám Đốc'
                                 ? 'bg-purple-700 text-white'
                                 : user.role === 'Bác sĩ Trưởng Khoa'
@@ -502,8 +502,8 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-white">{user.name}</span>
-                              <span className="px-1.5 py-0.2 rounded bg-slate-800 text-blue-300 font-mono text-[10px] border border-slate-700">
+                              <span className="font-bold text-slate-900">{user.name}</span>
+                              <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 font-mono text-[10px] border border-blue-200">
                                 {user.staffCode}
                               </span>
                             </div>
@@ -518,7 +518,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                               setUsernameOrEmail(user.email || user.staffCode || '');
                               setPassword('');
                             }}
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 rounded-lg text-[11px] font-bold border border-slate-700 cursor-pointer transition-colors"
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-blue-600 hover:text-blue-700 rounded-lg text-[11px] font-bold border border-slate-200 cursor-pointer transition-colors"
                           >
                             Điền biểu mẫu
                           </button>
@@ -536,14 +536,14 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
         {/* 2. STAFF LIST DIRECTORY TAB (REFERENCE ONLY, NO ONE-CLICK LOGIN BYPASS) */}
         {/* ========================================================================= */}
         {activeTab === 'staff_list' && (
-          <div className="bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                   <Users className="w-6 h-6 text-blue-400" />
                   Danh Mục Tài Khoản Cán Bộ & Nhân Viên
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   Danh sách vai trò và trạng thái tài khoản. Thông tin xác thực không được hiển thị công khai.
                 </p>
               </div>
@@ -560,13 +560,13 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
               {staffList.map((user) => (
                 <div
                   key={user.id}
-                  className="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-4 space-y-3"
+                  className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3"
                 >
                   <div className="flex items-start gap-3">
                     <div
                       className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm shadow-xs shrink-0 ${
                         user.role === 'Quản Trị Viên Hệ Thống (Admin)' || user.role.toLowerCase().includes('admin') || user.role.toLowerCase().includes('it')
-                          ? 'bg-slate-950 text-cyan-300 ring-1 ring-cyan-500/50'
+                          ? 'bg-slate-800 text-white ring-1 ring-slate-300'
                           : user.role === 'Ban Giám Đốc'
                           ? 'bg-purple-700 text-white'
                           : user.role === 'Bác sĩ Trưởng Khoa'
@@ -582,38 +582,38 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
-                        <h4 className="font-bold text-white text-xs truncate">{user.name}</h4>
-                        <span className="px-1.5 py-0.5 rounded bg-blue-900/60 border border-blue-700 text-blue-300 text-[10px] font-mono">
+                        <h4 className="font-bold text-slate-900 text-xs truncate">{user.name}</h4>
+                        <span className="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-mono">
                           {user.staffCode}
                         </span>
                       </div>
-                      <p className="text-[11px] text-blue-400 font-medium mt-0.5">{user.role}</p>
+                      <p className="text-[11px] text-blue-600 font-medium mt-0.5">{user.role}</p>
                       <p className="text-[10px] text-slate-400 truncate">{user.department}</p>
                     </div>
                   </div>
 
-                  <div className="text-[11px] space-y-1.5 pt-2 border-t border-slate-800 text-slate-400">
+                  <div className="text-[11px] space-y-1.5 pt-2 border-t border-slate-200 text-slate-500">
                     <div className="flex items-center justify-between">
                       <span>Email đăng nhập:</span>
-                      <span className="text-slate-200 font-mono">{user.email}</span>
+                      <span className="text-slate-700 font-mono">{user.email}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Mật khẩu:</span>
-                      <span className="text-slate-500 font-semibold">Được bảo mật</span>
+                      <span className="text-slate-400 font-semibold">Được bảo mật</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>SĐT:</span>
-                      <span className="text-slate-200 font-mono">{user.phone}</span>
+                      <span className="text-slate-700 font-mono">{user.phone}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Bảo mật 2FA:</span>
-                      <span className={user.twoFactorEnabled ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
+                      <span className={user.twoFactorEnabled ? "text-emerald-600 font-bold" : "text-slate-400"}>
                         {user.twoFactorEnabled ? '● Đã bật' : '○ Chưa bật'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Trạng thái:</span>
-                      <span className={user.status === 'suspended' ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
+                      <span className={user.status === "suspended" ? "text-rose-600 font-bold" : "text-emerald-600"}>
                         {user.status === 'suspended' ? 'Đã khóa' : 'Hoạt động'}
                       </span>
                     </div>
@@ -626,7 +626,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                       setPassword('');
                       setActiveTab('login');
                     }}
-                    className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 border border-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-blue-600 hover:text-blue-700 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <span>Điền vào form đăng nhập</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -641,153 +641,153 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
         {/* 3. RBAC PERMISSIONS MATRIX TAB */}
         {/* ========================================================================= */}
         {activeTab === 'matrix' && (
-          <div className="bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                 <ShieldCheck className="w-6 h-6 text-blue-400" />
                 Ma Trận Phân Quyền Chi Tiết Theo Vai Trò (RBAC Matrix)
               </h2>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-500 mt-1">
                 Quy định cụ thể các phân hệ và quyền hạn thao tác dữ liệu được cấp cho từng vị trí cán bộ nhân viên trong bệnh viện/phòng khám.
               </p>
             </div>
 
-            <div className="border border-slate-700 rounded-2xl overflow-hidden shadow-xs">
+            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-900/90 text-slate-300 font-bold border-b border-slate-700">
+                    <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                       <th className="py-3.5 px-4 min-w-[200px]">Phân Hệ Nghiệp Vụ</th>
                       {Object.values(ROLE_CONFIGS).map(role => (
                         <th key={role.id} className="py-3.5 px-3 text-center min-w-[130px]">
-                          <span className="block text-white font-bold">{role.shortTitle}</span>
-                          <span className="text-[10px] text-slate-400 font-normal">{role.department.split(' ')[0]}</span>
+                          <span className="block text-slate-900 font-bold">{role.shortTitle}</span>
+                          <span className="text-[10px] text-slate-500 font-normal">{role.department.split(' ')[0]}</span>
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700/60 text-slate-300">
-                    <tr className="hover:bg-slate-700/30">
-                      <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
+                  <tbody className="divide-y divide-slate-200 text-slate-600">
+                    <tr className="hover:bg-slate-50">
+                      <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
                         <BarChart3 className="w-4 h-4 text-purple-400" />
                         <span>Tổng quan BI & Quản Trị Nhân Viên</span>
                       </td>
                       {Object.values(ROLE_CONFIGS).map(role => (
                         <td key={role.id} className="py-3 px-3 text-center">
                           {role.permissions.canViewFinancialBI ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400 font-bold text-[11px]">
+                            <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-[11px]">
                               <Check className="w-3.5 h-3.5" /> Toàn quyền Admin
                             </span>
                           ) : (
-                            <span className="text-slate-500 text-[11px]">- Khóa -</span>
+                            <span className="text-slate-400 text-[11px]">- Khóa -</span>
                           )}
                         </td>
                       ))}
                     </tr>
 
-                    <tr className="hover:bg-slate-700/30">
-                      <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
+                    <tr className="hover:bg-slate-50">
+                      <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
                         <Users className="w-4 h-4 text-blue-400" />
                         <span>Hồ Sơ Khách Hàng CRM 360°</span>
                       </td>
                       {Object.values(ROLE_CONFIGS).map(role => (
                         <td key={role.id} className="py-3 px-3 text-center">
                           {role.permissions.canViewClinicalEMR ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400 font-bold text-[11px]">
+                            <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-[11px]">
                               <Check className="w-3.5 h-3.5" /> Xem & Kê đơn
                             </span>
                           ) : (
-                            <span className="text-slate-500 text-[11px]">- Ẩn EMR -</span>
+                            <span className="text-slate-400 text-[11px]">- Ẩn EMR -</span>
                           )}
                         </td>
                       ))}
                     </tr>
 
-                    <tr className="hover:bg-slate-700/30">
-                      <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
-                        <UserCheck className="w-4 h-4 text-emerald-400" />
+                    <tr className="hover:bg-slate-50">
+                      <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
+                        <UserCheck className="w-4 h-4 text-emerald-500" />
                         <span>Lịch Khám Đa Kênh & Tiếp Đón Quầy</span>
                       </td>
                       {Object.values(ROLE_CONFIGS).map(role => (
                         <td key={role.id} className="py-3 px-3 text-center">
                           {role.permissions.canManageAppointments ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400 font-bold text-[11px]">
+                            <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-[11px]">
                               <Check className="w-3.5 h-3.5" /> Check-in & Đặt
                             </span>
                           ) : (
-                            <span className="text-slate-500 text-[11px]">- Khóa -</span>
+                            <span className="text-slate-400 text-[11px]">- Khóa -</span>
                           )}
                         </td>
                       ))}
                     </tr>
 
-                    <tr className="hover:bg-slate-700/30">
-                      <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
+                    <tr className="hover:bg-slate-50">
+                      <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
                         <Briefcase className="w-4 h-4 text-indigo-400" />
                         <span>Hợp Đồng B2B & Gói Khám Doanh Nghiệp</span>
                       </td>
                       {Object.values(ROLE_CONFIGS).map(role => (
                         <td key={role.id} className="py-3 px-3 text-center">
                           {role.permissions.canManageB2BContracts ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400 font-bold text-[11px]">
+                            <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-[11px]">
                               <Check className="w-3.5 h-3.5" /> Quản lý Sales
                             </span>
                           ) : (
-                            <span className="text-slate-500 text-[11px]">- Khóa -</span>
+                            <span className="text-slate-400 text-[11px]">- Khóa -</span>
                           )}
                         </td>
                       ))}
                     </tr>
 
-                    <tr className="hover:bg-slate-700/30">
-                      <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
+                    <tr className="hover:bg-slate-50">
+                      <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
                         <TrendingUp className="w-4 h-4 text-pink-400" />
                         <span>Marketing Automation & Zalo ZNS</span>
                       </td>
                       {Object.values(ROLE_CONFIGS).map(role => (
                         <td key={role.id} className="py-3 px-3 text-center">
                           {role.permissions.canManageMarketing ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400 font-bold text-[11px]">
+                            <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-[11px]">
                               <Check className="w-3.5 h-3.5" /> Gửi ZNS & Target
                             </span>
                           ) : (
-                            <span className="text-slate-500 text-[11px]">- Khóa -</span>
+                            <span className="text-slate-400 text-[11px]">- Khóa -</span>
                           )}
                         </td>
                       ))}
                     </tr>
 
-                    <tr className="hover:bg-slate-700/30">
-                      <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
+                    <tr className="hover:bg-slate-50">
+                      <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
                         <Headphones className="w-4 h-4 text-amber-400" />
                         <span>CSKH, Khiếu Nại & Quản Trị SLA</span>
                       </td>
                       {Object.values(ROLE_CONFIGS).map(role => (
                         <td key={role.id} className="py-3 px-3 text-center">
                           {role.permissions.canManageTickets ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400 font-bold text-[11px]">
+                            <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-[11px]">
                               <Check className="w-3.5 h-3.5" /> Xử lý Ticket
                             </span>
                           ) : (
-                            <span className="text-slate-500 text-[11px]">- Khóa -</span>
+                            <span className="text-slate-400 text-[11px]">- Khóa -</span>
                           )}
                         </td>
                       ))}
                     </tr>
 
-                    <tr className="hover:bg-slate-700/30">
-                      <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
+                    <tr className="hover:bg-slate-50">
+                      <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
                         <Award className="w-4 h-4 text-cyan-400" />
                         <span>Hội Viên VIP, Điểm Thưởng & Referral</span>
                       </td>
                       {Object.values(ROLE_CONFIGS).map(role => (
                         <td key={role.id} className="py-3 px-3 text-center">
                           {role.permissions.canManageLoyalty ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400 font-bold text-[11px]">
+                            <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-[11px]">
                               <Check className="w-3.5 h-3.5" /> Duyệt & Nâng hạng
                             </span>
                           ) : (
-                            <span className="text-slate-500 text-[11px]">- Khóa -</span>
+                            <span className="text-slate-400 text-[11px]">- Khóa -</span>
                           )}
                         </td>
                       ))}

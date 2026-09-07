@@ -186,24 +186,24 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-between py-6 px-4 sm:px-6 lg:px-8 font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-between py-6 px-4 sm:px-6 lg:px-8 font-sans selection:bg-blue-600 selection:text-white">
 
       {/* Top Header Bar */}
-      <header className="max-w-6xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-4 pb-6 border-b border-slate-800">
+      <header className="max-w-6xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-4 pb-6 border-b border-slate-200">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-teal-400 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 ring-1 ring-blue-400/30">
             <Heart className="w-6 h-6 fill-white/20" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
                 VitHospital Patient Care
               </h1>
-              <span className="px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30 text-[10px] font-bold uppercase tracking-wider">
+              <span className="px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200 text-[10px] font-bold uppercase tracking-wider">
                 Cổng Khách Hàng 24/7
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Cổng Thông Tin Y Tế, Sổ Khám Điện Tử & Đặt Lịch Khám Trực Tuyến
             </p>
           </div>
@@ -214,7 +214,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
           <button
             id="btn-switch-to-staff"
             onClick={onNavigateToStaffLogin}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 transition-all cursor-pointer shadow-xs"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 transition-all cursor-pointer shadow-xs"
           >
             <Stethoscope className="w-4 h-4 text-blue-400" />
             <span>Cổng Nhân Viên & Bác Sĩ</span>
@@ -228,18 +228,18 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
           {/* Left Column: Customer Login Box */}
-          <div className="lg:col-span-7 bg-slate-800/95 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md space-y-6">
+          <div className="lg:col-span-7 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
 
             {/* Title & Subtitle */}
             <div className="space-y-1.5">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-300 text-xs font-semibold">
-                <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-teal-700 text-xs font-semibold">
+                <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
                 Bảo Mật Y Khoa Chuẩn JCI & HIPAA
               </div>
-              <h2 className="text-2xl font-bold text-white tracking-tight">
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
                 {loginMethod === 'register' ? 'Đăng Ký Hồ Sơ Khám Mới' : 'Đăng Nhập Sổ Khám Khách Hàng'}
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 {loginMethod === 'register'
                   ? 'Tạo tài khoản và nhận ngay Mã Y tế (PID) để lưu trữ lịch sử thăm khám trọn đời.'
                   : 'Tra cứu kết quả xét nghiệm, lịch hẹn bác sĩ và ưu đãi hội viên thân thiết.'}
@@ -247,7 +247,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
             </div>
 
             {/* Login Method Tabs */}
-            <div className="grid grid-cols-3 gap-1 bg-slate-900/90 p-1 rounded-2xl border border-slate-700/70 text-xs font-bold">
+            <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 text-xs font-bold">
               <button
                 type="button"
                 onClick={() => {
@@ -257,7 +257,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                 className={`py-2 px-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer truncate ${
                   loginMethod === 'otp'
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <Smartphone className="w-3.5 h-3.5 shrink-0" />
@@ -272,7 +272,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                 className={`py-2 px-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer truncate ${
                   loginMethod === 'pid_password'
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <KeyRound className="w-3.5 h-3.5 shrink-0" />
@@ -287,7 +287,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                 className={`py-2 px-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer truncate ${
                   loginMethod === 'register'
                     ? 'bg-teal-600 text-white shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <UserPlus className="w-3.5 h-3.5 shrink-0" />
@@ -297,16 +297,16 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
 
             {/* Error Message */}
             {errorMsg && (
-              <div className="p-3.5 bg-rose-950/60 border border-rose-800/80 rounded-xl text-rose-300 text-xs flex items-center gap-2 animate-in fade-in">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
             {/* Success Message */}
             {successMsg && (
-              <div className="p-3.5 bg-emerald-950/60 border border-emerald-800/80 rounded-xl text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-xs flex items-center gap-2 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
                 <span>{successMsg}</span>
               </div>
             )}
@@ -317,7 +317,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                 {!isOtpSent ? (
                   <form onSubmit={handleSendOtp} className="space-y-4 text-xs">
                     <div>
-                      <label className="block font-bold text-slate-300 mb-1.5">
+                      <label className="block font-bold text-slate-700 mb-1.5">
                         Số Điện Thoại Đăng Ký Khám Bệnh:
                       </label>
                       <div className="relative">
@@ -328,10 +328,10 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                           value={phoneInput}
                           onChange={(e) => setPhoneInput(e.target.value)}
                           placeholder="VD: 0912 345 678"
-                          className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-slate-700 rounded-xl text-white font-medium text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-500"
+                          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400"
                         />
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1">
+                      <p className="text-[11px] text-slate-500 mt-1">
                         Hệ thống sẽ gửi mã OTP xác thực miễn phí qua tin nhắn Zalo ZNS hoặc SMS Brandname.
                       </p>
                     </div>
@@ -349,10 +349,10 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                   <form onSubmit={handleSubmitOtp} className="space-y-4 text-xs">
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="font-bold text-slate-300">
+                        <label className="font-bold text-slate-700">
                           Nhập Mã Xác Thực OTP:
                         </label>
-                        <span className="text-[11px] text-blue-400">
+                        <span className="text-[11px] text-blue-600">
                           Gửi tới {phoneInput}
                         </span>
                       </div>
@@ -365,27 +365,27 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                           value={otpInput}
                           onChange={(e) => setOtpInput(e.target.value)}
                           placeholder="Nhập 6 số OTP (Demo: 123456)"
-                          className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-slate-700 rounded-xl text-white font-bold text-base tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-500 placeholder:tracking-normal placeholder:text-xs"
+                          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold text-base tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400 placeholder:tracking-normal placeholder:text-xs"
                         />
                       </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5">
                         <span>Chưa nhận được mã?</span>
                         <button
                           type="button"
                           onClick={() => {
                             setSuccessMsg('Đã gửi lại mã OTP 123456');
                           }}
-                          className="text-blue-400 hover:underline font-bold cursor-pointer"
+                          className="text-blue-600 hover:underline font-bold cursor-pointer"
                         >
                           Gửi lại OTP
                         </button>
                       </div>
-                      <label className="flex items-center gap-2 text-[11px] text-slate-300 mt-2 cursor-pointer select-none">
+                      <label className="flex items-center gap-2 text-[11px] text-slate-600 mt-2 cursor-pointer select-none">
                         <input
                           type="checkbox"
                           checked={rememberMe}
                           onChange={(e) => setRememberMe(e.target.checked)}
-                          className="rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500"
+                          className="rounded border-slate-300 bg-white text-blue-600 focus:ring-blue-500"
                         />
                         <span>Ghi nhớ đăng nhập trên thiết bị này (30 ngày)</span>
                       </label>
@@ -395,7 +395,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setIsOtpSent(false)}
-                        className="w-1/3 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl font-bold transition-colors cursor-pointer"
+                        className="w-1/3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-colors cursor-pointer"
                       >
                         Đổi Số ĐT
                       </button>
@@ -417,7 +417,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
             {loginMethod === 'pid_password' && (
               <form onSubmit={handleSubmitPidPassword} className="space-y-4 text-xs">
                 <div>
-                  <label className="block font-bold text-slate-300 mb-1.5">
+                  <label className="block font-bold text-slate-700 mb-1.5">
                     Mã Bệnh Nhân (PID) hoặc Số CCCD:
                   </label>
                   <div className="relative">
@@ -428,17 +428,17 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                       value={pidOrCccd}
                       onChange={(e) => setPidOrCccd(e.target.value)}
                       placeholder="VD: BN-2026-001 hoặc 001201009876"
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-500"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400"
                     />
                   </div>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="font-bold text-slate-300">
+                    <label className="font-bold text-slate-700">
                       Mật Khẩu hoặc Mã PIN Khám Bệnh:
                     </label>
-                    <span className="text-[11px] text-slate-400">Demo PIN: 123456</span>
+                    <span className="text-[11px] text-slate-500">Demo PIN: 123456</span>
                   </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -448,12 +448,12 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                       value={passwordOrPin}
                       onChange={(e) => setPasswordOrPin(e.target.value)}
                       placeholder="Nhập mật khẩu"
-                      className="w-full pl-10 pr-10 py-2.5 bg-slate-900/90 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-200 cursor-pointer"
+                      className="absolute right-3.5 top-3 text-slate-500 hover:text-slate-800 cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -476,8 +476,8 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
               <form onSubmit={handleSubmitRegister} className="space-y-4 text-xs">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-300 mb-1.5">
-                      Họ và Tên Bệnh Nhân: <span className="text-rose-400">*</span>
+                    <label className="block font-bold text-slate-700 mb-1.5">
+                      Họ và Tên Bệnh Nhân: <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -485,13 +485,13 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                       value={regName}
                       onChange={(e) => setRegName(e.target.value)}
                       placeholder="VD: Nguyễn Văn Nam"
-                      className="w-full px-3.5 py-2 bg-slate-900/90 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-300 mb-1.5">
-                      Số Điện Thoại: <span className="text-rose-400">*</span>
+                    <label className="block font-bold text-slate-700 mb-1.5">
+                      Số Điện Thoại: <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="tel"
@@ -499,20 +499,20 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                       value={regPhone}
                       onChange={(e) => setRegPhone(e.target.value)}
                       placeholder="VD: 0988 123 456"
-                      className="w-full px-3.5 py-2 bg-slate-900/90 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-300 mb-1.5">
+                    <label className="block font-bold text-slate-700 mb-1.5">
                       Giới Tính:
                     </label>
                     <select
                       value={regGender}
                       onChange={(e) => setRegGender(e.target.value as any)}
-                      className="w-full px-3 py-2 bg-slate-900/90 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
                     >
                       <option value="Nam">Nam</option>
                       <option value="Nữ">Nữ</option>
@@ -521,19 +521,19 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-300 mb-1.5">
+                    <label className="block font-bold text-slate-700 mb-1.5">
                       Ngày Sinh:
                     </label>
                     <input
                       type="date"
                       value={regDob}
                       onChange={(e) => setRegDob(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-900/90 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-300 mb-1.5">
+                    <label className="block font-bold text-slate-700 mb-1.5">
                       Số CCCD (Nếu có):
                     </label>
                     <input
@@ -541,13 +541,13 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                       value={regCitizenId}
                       onChange={(e) => setRegCitizenId(e.target.value)}
                       placeholder="12 chữ số"
-                      className="w-full px-3 py-2 bg-slate-900/90 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-300 mb-1.5">
+                  <label className="block font-bold text-slate-700 mb-1.5">
                     Địa Chỉ Nơi Ở:
                   </label>
                   <input
@@ -555,7 +555,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                     value={regAddress}
                     onChange={(e) => setRegAddress(e.target.value)}
                     placeholder="Quận/Huyện, Tỉnh/Thành Phố"
-                    className="w-full px-3.5 py-2 bg-slate-900/90 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
                 </div>
 
@@ -572,9 +572,9 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
 
             <div className="hidden">
               {/* Quick Demo Patients Selection */}
-              <div className="pt-4 border-t border-slate-700/80 space-y-2.5">
+              <div className="pt-4 border-t border-slate-200 space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                   Hoặc chọn nhanh hồ sơ bệnh nhân mẫu để trải nghiệm:
                 </span>
@@ -588,26 +588,26 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
                       key={p.id}
                       type="button"
                       onClick={() => onLoginSuccess(p)}
-                      className="p-3 bg-slate-900/70 hover:bg-blue-950/50 border border-slate-700/70 hover:border-blue-500/50 rounded-2xl text-left transition-all flex items-center gap-3 cursor-pointer group"
+                      className="p-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-2xl text-left transition-all flex items-center gap-3 cursor-pointer group"
                     >
                       <PatientAvatar
                         src={p.avatar}
                         name={p.name}
                         gender={p.gender}
-                        className="w-9 h-9 rounded-full object-cover ring-1 ring-slate-600 group-hover:ring-blue-400 shrink-0"
+                        className="w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 group-hover:ring-blue-400 shrink-0"
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-1">
-                          <span className="font-bold text-white text-xs truncate group-hover:text-blue-300">
+                          <span className="font-bold text-slate-900 text-xs truncate group-hover:text-blue-600">
                             {p.name}
                           </span>
                           <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
-                            isVip ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-slate-700 text-slate-300'
+                            isVip ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-600'
                           }`}>
                             {p.membership.tier}
                           </span>
                         </div>
-                        <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
+                        <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
                           <span>Mã: {p.pid}</span>
                           <span>•</span>
                           <span>{p.phone}</span>
@@ -626,79 +626,79 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
           <div className="lg:col-span-5 space-y-4">
 
             {/* Value Card 1: Features */}
-            <div className="bg-gradient-to-br from-blue-950/80 via-slate-800/90 to-slate-900/90 border border-blue-900/60 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="bg-gradient-to-br from-blue-50 via-white to-teal-50/60 border border-blue-100 rounded-3xl p-6 shadow-xl space-y-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center border border-blue-400/30">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center border border-blue-200">
                   <Sparkles className="w-4 h-4" />
                 </div>
-                <h3 className="font-bold text-white text-sm">
+                <h3 className="font-bold text-slate-900 text-sm">
                   Đặc Quyền Cổng Trực Tuyến Bệnh Nhân
                 </h3>
               </div>
 
-              <div className="space-y-3 text-xs text-slate-300">
+              <div className="space-y-3 text-xs text-slate-600">
                 <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-white block">Đặt lịch khám nhanh không cần chờ đợi</strong>
-                    <span className="text-slate-400">Chọn bác sĩ, cơ sở phòng khám và khung giờ khám ưu tiên tức thì.</span>
+                    <strong className="text-slate-900 block">Đặt lịch khám nhanh không cần chờ đợi</strong>
+                    <span className="text-slate-500">Chọn bác sĩ, cơ sở phòng khám và khung giờ khám ưu tiên tức thì.</span>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-white block">Tra cứu hồ sơ y bạ & kết quả xét nghiệm</strong>
-                    <span className="text-slate-400">Xem lịch sử chẩn đoán, toa thuốc điện tử và chỉ số sinh hiệu.</span>
+                    <strong className="text-slate-900 block">Tra cứu hồ sơ y bạ & kết quả xét nghiệm</strong>
+                    <span className="text-slate-500">Xem lịch sử chẩn đoán, toa thuốc điện tử và chỉ số sinh hiệu.</span>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-white block">Thẻ hội viên VIP & Tích điểm đổi quà</strong>
-                    <span className="text-slate-400">Đổi điểm thưởng lấy voucher giảm chi phí phẫu thuật và khám tổng quát.</span>
+                    <strong className="text-slate-900 block">Thẻ hội viên VIP & Tích điểm đổi quà</strong>
+                    <span className="text-slate-500">Đổi điểm thưởng lấy voucher giảm chi phí phẫu thuật và khám tổng quát.</span>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-white block">Live Chat 24/7 với Chuyên viên CSKH</strong>
-                    <span className="text-slate-400">Giải đáp thắc mắc phác đồ điều trị, bảo lãnh viện phí bảo hiểm.</span>
+                    <strong className="text-slate-900 block">Live Chat 24/7 với Chuyên viên CSKH</strong>
+                    <span className="text-slate-500">Giải đáp thắc mắc phác đồ điều trị, bảo lãnh viện phí bảo hiểm.</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Value Card 2: Security & Hotline */}
-            <div className="bg-slate-800/80 border border-slate-700/70 rounded-3xl p-5 shadow-lg flex items-center justify-between gap-4">
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center shrink-0">
                   <Phone className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-[11px] text-slate-400 block font-medium">Tổng đài cấp cứu & Đặt hẹn 24/7</span>
-                  <span className="text-sm font-bold text-white">1900 8888 (Miễn phí)</span>
+                  <span className="text-[11px] text-slate-500 block font-medium">Tổng đài cấp cứu & Đặt hẹn 24/7</span>
+                  <span className="text-sm font-bold text-slate-900">1900 8888 (Miễn phí)</span>
                 </div>
               </div>
 
               <div className="text-right">
-                <span className="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full font-bold">
+                <span className="text-[10px] px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-bold">
                   Sẵn Sàng 24/7
                 </span>
               </div>
             </div>
 
             {/* Quick Switch to Staff Portal Card */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-4 text-center">
-              <p className="text-xs text-slate-400 mb-2">
+            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-4 text-center">
+              <p className="text-xs text-slate-500 mb-2">
                 Dành cho Ban Giám Đốc, Bác Sĩ, Điều Dưỡng & Nhân Viên Y Tế
               </p>
               <button
                 type="button"
                 onClick={onNavigateToStaffLogin}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
               >
                 <span>Chuyển sang Cổng Đăng Nhập Cán Bộ Y Tế</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -711,7 +711,7 @@ export const CustomerLoginView: React.FC<CustomerLoginViewProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="max-w-6xl mx-auto w-full pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+      <footer className="max-w-6xl mx-auto w-full pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
         <div>
           © 2026 VitHospital Healthcare System. Hệ thống quản trị y tế & hồ sơ bệnh nhân điện tử.
         </div>
