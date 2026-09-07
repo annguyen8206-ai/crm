@@ -243,8 +243,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Server-computed KPIs (from /api/analytics/dashboard) */}
       {serverKpis?.kpis && (
-        <div data-testid="server-kpi-strip" className="bg-slate-900 text-white rounded-2xl p-4">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Chỉ số điều hành (máy chủ tính realtime)</div>
+        <div data-testid="server-kpi-strip" className="bg-white text-slate-900 rounded-2xl border border-slate-200 p-4">
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Chỉ số điều hành (máy chủ tính realtime)</div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
             {([
               ['Bệnh nhân', serverKpis.kpis.totalPatients],
@@ -260,15 +260,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               ...(serverKpis.kpis.avgCustomerLifetimeValue !== undefined ? [['CLV bình quân (đ)', Number(serverKpis.kpis.avgCustomerLifetimeValue).toLocaleString('vi-VN')]] : []),
             ] as [string, unknown][]).map(([label, val]) => (
               <div key={String(label)}>
-                <div className="text-[10px] text-slate-400">{label}</div>
+                <div className="text-[10px] text-slate-500">{label}</div>
                 <div className="font-bold">{val ?? '—'}</div>
               </div>
             ))}
           </div>
           {serverKpis && (serverKpis as any).rfmSegments && (
-            <div className="mt-3 pt-3 border-t border-slate-700 flex flex-wrap gap-2 text-[11px]">
+            <div className="mt-3 pt-3 border-t border-slate-200 flex flex-wrap gap-2 text-[11px]">
               {Object.entries((serverKpis as any).rfmSegments).map(([seg, n]) => (
-                <span key={seg} className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700">{seg}: <b>{n as number}</b></span>
+                <span key={seg} className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600">{seg}: <b>{n as number}</b></span>
               ))}
             </div>
           )}

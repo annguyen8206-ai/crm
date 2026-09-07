@@ -345,7 +345,7 @@ export const PatientJourneyOverview: React.FC<PatientJourneyOverviewProps> = ({
 
             <button
               onClick={() => onNavigate?.(activeStage.targetTab)}
-              className="mt-2 w-full py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              className="mt-2 w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
             >
               <span>Mở {activeStage.tabLabel}</span>
               <ArrowRight className="w-3.5 h-3.5" />

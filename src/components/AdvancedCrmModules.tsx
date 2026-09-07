@@ -736,32 +736,32 @@ export const AdvancedCrmModules: React.FC<AdvancedCrmModulesProps> = ({
       {/* ========================================================================= */}
       {activeCallDial && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-slate-900 text-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl p-6 text-center space-y-5 animate-in zoom-in-95 duration-200">
-            <div className="w-20 h-20 rounded-full bg-blue-600/20 border-2 border-blue-500 mx-auto flex items-center justify-center animate-pulse">
-              <PhoneCall className="w-8 h-8 text-blue-400" />
+          <div className="bg-white text-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl p-6 text-center space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="w-20 h-20 rounded-full bg-blue-50 border-2 border-blue-500 mx-auto flex items-center justify-center animate-pulse">
+              <PhoneCall className="w-8 h-8 text-blue-600" />
             </div>
 
             <div>
-              <span className="text-xs text-blue-400 font-bold uppercase tracking-wider">Đang kết nối Tổng đài VoIP CSKH</span>
-              <h3 className="text-2xl font-bold mt-1">{activeCallDial.name}</h3>
-              <p className="text-sm font-mono text-slate-400 mt-0.5">{activeCallDial.phone}</p>
+              <span className="text-xs text-blue-600 font-bold uppercase tracking-wider">Đang kết nối Tổng đài VoIP CSKH</span>
+              <h3 className="text-2xl font-bold text-slate-900 mt-1">{activeCallDial.name}</h3>
+              <p className="text-sm font-mono text-slate-500 mt-0.5">{activeCallDial.phone}</p>
             </div>
 
             {/* Screen Pop info */}
             {activeCallDial.patient && (
-              <div className="bg-slate-800/80 p-3.5 rounded-2xl text-left text-xs border border-slate-700 space-y-1.5">
-                <div className="text-[11px] text-slate-400 font-bold uppercase">Nhận Diện Hồ Sơ Khách Hàng 360° (Screen Pop)</div>
+              <div className="bg-slate-50 p-3.5 rounded-2xl text-left text-xs border border-slate-200 space-y-1.5">
+                <div className="text-[11px] text-slate-500 font-bold uppercase">Nhận Diện Hồ Sơ Khách Hàng 360° (Screen Pop)</div>
                 <div className="flex justify-between">
-                  <span className="text-slate-300">Hạng Hội Viên:</span>
-                  <span className="font-bold text-amber-400">{activeCallDial.patient.membership?.tier || 'Gold'}</span>
+                  <span className="text-slate-600">Hạng Hội Viên:</span>
+                  <span className="font-bold text-amber-600">{activeCallDial.patient.membership?.tier || 'Gold'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-300">Tổng điểm tích lũy:</span>
-                  <span className="font-bold text-emerald-400">{activeCallDial.patient.membership?.points || 1250} pts</span>
+                  <span className="text-slate-600">Tổng điểm tích lũy:</span>
+                  <span className="font-bold text-emerald-600">{activeCallDial.patient.membership?.points || 1250} pts</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-300">Ghi chú CSKH:</span>
-                  <span className="font-bold text-cyan-300">Ưu tiên phục vụ phòng chờ VIP</span>
+                  <span className="text-slate-600">Ghi chú CSKH:</span>
+                  <span className="font-bold text-cyan-700">Ưu tiên phục vụ phòng chờ VIP</span>
                 </div>
               </div>
             )}

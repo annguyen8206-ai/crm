@@ -699,7 +699,7 @@ export const PatientPortalView: React.FC<PatientPortalViewProps> = ({
         <div className="max-w-4xl mx-auto space-y-4">
           <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden flex flex-col h-[580px]">
             {/* Chat Top Header */}
-            <div className="p-4 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between">
+            <div className="p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">
@@ -714,7 +714,7 @@ export const PatientPortalView: React.FC<PatientPortalViewProps> = ({
                       Trực tuyến 24/7
                     </span>
                   </h3>
-                  <p className="text-[11px] text-slate-300">Đang trò chuyện với: <strong>{currentPatient.name}</strong> ({currentPatient.phone})</p>
+                  <p className="text-[11px] text-blue-100">Đang trò chuyện với: <strong>{currentPatient.name}</strong> ({currentPatient.phone})</p>
                 </div>
               </div>
 

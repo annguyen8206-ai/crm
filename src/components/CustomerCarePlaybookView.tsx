@@ -585,7 +585,7 @@ export const CustomerCarePlaybookView: React.FC<CustomerCarePlaybookViewProps> =
                                 {copiedScriptId === `sms-${sc.id}` ? 'Đã chép' : 'Sao chép SMS'}
                               </button>
                             </div>
-                            <div className="p-2.5 bg-slate-900 text-slate-200 rounded-xl font-mono text-[11px] leading-relaxed">
+                            <div className="p-2.5 bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-mono text-[11px] leading-relaxed">
                               {formattedSms}
                             </div>
                           </div>
