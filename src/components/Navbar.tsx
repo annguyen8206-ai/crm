@@ -514,7 +514,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           ? 'bg-blue-600'
                           : currentRole === 'Chuyên viên Tiếp đón'
                           ? 'bg-emerald-600'
-                          : 'bg-slate-800'
+                          : 'bg-cyan-600'
                       }`}
                     >
                       {getStaffInitials(activeUser.name)}
