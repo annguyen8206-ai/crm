@@ -228,10 +228,10 @@ export const ZnsPostVisitCareModal: React.FC<ZnsPostVisitCareModalProps> = ({
           <div className="md:col-span-6 flex flex-col items-center">
             <span className="text-xs font-bold text-slate-500 mb-2">Xem trước giao diện trên điện thoại bệnh nhân</span>
             
-            <div className="w-full max-w-[310px] bg-slate-900 rounded-[36px] p-3 shadow-2xl border-4 border-slate-800">
+            <div className="w-full max-w-[310px] bg-slate-100 rounded-[36px] p-3 shadow-xl border-4 border-slate-200">
               {/* Phone Notch */}
-              <div className="w-24 h-4 bg-slate-800 rounded-full mx-auto mb-2 flex items-center justify-center">
-                <div className="w-2.5 h-2.5 bg-slate-900 rounded-full"></div>
+              <div className="w-24 h-4 bg-slate-200 rounded-full mx-auto mb-2 flex items-center justify-center">
+                <div className="w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
               </div>
 
               {/* Zalo Message Card */}

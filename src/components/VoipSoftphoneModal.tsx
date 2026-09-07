@@ -139,19 +139,19 @@ export const VoipSoftphoneModal: React.FC<VoipSoftphoneModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-slate-950 text-white border border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+      <div className="bg-white text-slate-800 border border-slate-200 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
         {/* Top bar */}
-        <div className="bg-slate-900/90 px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="text-xs font-bold text-slate-300">Tổng Đài Ảo VitVoIP WebRTC</span>
-            <span className="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded font-mono">
+            <span className="text-xs font-bold text-slate-600">Tổng Đài Ảo VitVoIP WebRTC</span>
+            <span className="bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded font-mono">
               Máy nhánh: Ext {agentExtension} ({agentStaffName})
             </span>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-slate-700 p-1 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -160,32 +160,32 @@ export const VoipSoftphoneModal: React.FC<VoipSoftphoneModalProps> = ({
         <div className="p-6 space-y-6">
           {/* Caller Profile Card */}
           <div className="text-center space-y-2">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center mx-auto text-2xl font-bold border-4 border-slate-800 shadow-xl">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center mx-auto text-2xl font-bold text-white border-4 border-white shadow-lg">
               {patientName.charAt(0)}
             </div>
             <div>
-              <h3 className="text-xl font-bold text-white tracking-tight">{patientName}</h3>
-              <p className="text-sm font-mono text-blue-400 font-semibold">{patientPhone}</p>
+              <h3 className="text-xl font-bold text-slate-900 tracking-tight">{patientName}</h3>
+              <p className="text-sm font-mono text-blue-600 font-semibold">{patientPhone}</p>
             </div>
 
             {/* Status indicator */}
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-900 border border-slate-800">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-50 border border-slate-200">
               {callState === 'RINGING' && (
                 <>
                   <Radio className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-                  <span className="text-amber-400">Đang đổ chuông máy khách...</span>
+                  <span className="text-amber-600">Đang đổ chuông máy khách...</span>
                 </>
               )}
               {callState === 'CONNECTED' && (
                 <>
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                  <span className="text-emerald-400 font-mono">Đang đàm thoại: {formatTimer(seconds)}</span>
+                  <span className="text-emerald-600 font-mono">Đang đàm thoại: {formatTimer(seconds)}</span>
                 </>
               )}
               {callState === 'ENDED' && (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="text-blue-400">Đã gác máy (Thời lượng: {formatTimer(seconds)})</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                  <span className="text-blue-600">Đã gác máy (Thời lượng: {formatTimer(seconds)})</span>
                 </>
               )}
             </div>
@@ -193,18 +193,18 @@ export const VoipSoftphoneModal: React.FC<VoipSoftphoneModalProps> = ({
 
           {/* Quick Doctor's Medical Advice Reference */}
           {(diagnosis || doctorCareNotes) && (
-            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-1.5 text-xs text-left">
-              <div className="flex items-center gap-1.5 text-blue-400 font-bold">
+            <div className="bg-blue-50/60 border border-blue-100 rounded-2xl p-3.5 space-y-1.5 text-xs text-left">
+              <div className="flex items-center gap-1.5 text-blue-700 font-bold">
                 <Stethoscope className="w-4 h-4" />
                 <span>Chẩn Đoán & Lời Dặn Bác Sĩ Cần Trao Đổi:</span>
               </div>
               {diagnosis && (
-                <div className="text-slate-300">
+                <div className="text-slate-700">
                   <span className="text-slate-500">Chẩn đoán:</span> <strong>{diagnosis}</strong>
                 </div>
               )}
               {doctorCareNotes && (
-                <div className="text-slate-300 italic bg-slate-950 p-2 rounded-lg border border-slate-800 leading-relaxed">
+                <div className="text-slate-700 italic bg-white p-2 rounded-lg border border-blue-100 leading-relaxed">
                   "{doctorCareNotes}"
                 </div>
               )}
@@ -218,7 +218,7 @@ export const VoipSoftphoneModal: React.FC<VoipSoftphoneModalProps> = ({
                 type="button"
                 onClick={() => setIsMuted(!isMuted)}
                 className={`p-3.5 rounded-full border transition-all cursor-pointer ${
-                  isMuted ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'
+                  isMuted ? 'bg-amber-600 border-amber-500 text-white' : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900"
                 }`}
                 title={isMuted ? 'Bật micro' : 'Tắt tiếng (Mute)'}
               >
@@ -229,7 +229,7 @@ export const VoipSoftphoneModal: React.FC<VoipSoftphoneModalProps> = ({
                 type="button"
                 onClick={() => setIsHeld(!isHeld)}
                 className={`p-3.5 rounded-full border transition-all cursor-pointer ${
-                  isHeld ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'
+                  isHeld ? 'bg-amber-600 border-amber-500 text-white' : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900"
                 }`}
                 title={isHeld ? 'Tiếp tục cuộc gọi' : 'Giữ máy (Hold)'}
               >
@@ -248,15 +248,15 @@ export const VoipSoftphoneModal: React.FC<VoipSoftphoneModalProps> = ({
             </div>
           ) : (
             /* Post-call wrap-up form */
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 text-xs">
-              <span className="font-bold text-slate-200 block text-sm">Ghi Nhận Kết Quả Cuộc Gọi Sau Khi Gác Máy</span>
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs">
+              <span className="font-bold text-slate-900 block text-sm">Ghi Nhận Kết Quả Cuộc Gọi Sau Khi Gác Máy</span>
               
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">Đánh Giá Kết Quả Trao Đổi</label>
+                <label className="block text-slate-600 mb-1 font-semibold">Đánh Giá Kết Quả Trao Đổi</label>
                 <select
                   value={callOutcome}
                   onChange={(e) => setCallOutcome(e.target.value as any)}
-                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-bold focus:outline-none focus:border-blue-500"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold focus:outline-none focus:border-blue-500"
                 >
                   <option value="Ổn định">Bệnh nhân ổn định / Đã tiếp thu lời dặn</option>
                   <option value="Hẹn tái khám">Đồng ý đặt lịch tái khám</option>
@@ -266,13 +266,13 @@ export const VoipSoftphoneModal: React.FC<VoipSoftphoneModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">Ghi Chú Chi Tiết Của CSKH</label>
+                <label className="block text-slate-600 mb-1 font-semibold">Ghi Chú Chi Tiết Của CSKH</label>
                 <textarea
                   rows={2}
                   value={callNotes}
                   onChange={(e) => setCallNotes(e.target.value)}
                   placeholder="VD: Khách giảm đau 80%, huyết áp đo sáng 120/80. Đã nhắc uống nhiều nước..."
-                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500 placeholder-slate-600"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-blue-500 placeholder-slate-400"
                 />
               </div>
 

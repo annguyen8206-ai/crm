@@ -453,7 +453,7 @@ export const BackendApiModal: React.FC<BackendApiModalProps> = ({ onClose }) => 
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-6xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Top Header */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-900 to-blue-950 text-white flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-blue-700 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-blue-600/30 border border-blue-500/40 text-blue-400 flex items-center justify-center shadow-inner">
               <Server className="w-5 h-5" />
@@ -465,20 +465,20 @@ export const BackendApiModal: React.FC<BackendApiModalProps> = ({ onClose }) => 
                   Pure CRM Edition
                 </span>
               </div>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-blue-100">
                 Cấu hình kết nối Zalo ZNS, Tổng đài VoIP, SMS Brandname, Email Marketing & REST APIs CSKH
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700 text-xs">
+            <div className="flex items-center gap-2 bg-white/15 px-3 py-1.5 rounded-xl border border-white/20 text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="text-slate-300 font-mono text-[11px]">Server: ONLINE</span>
+              <span className="text-blue-50 font-mono text-[11px]">Server: ONLINE</span>
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -999,7 +999,7 @@ export const BackendApiModal: React.FC<BackendApiModalProps> = ({ onClose }) => 
                         rows={5}
                         value={requestBodyInput}
                         onChange={e => setRequestBodyInput(e.target.value)}
-                        className="w-full p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl focus:ring-2 focus:ring-blue-500"
+                        className="w-full p-3 bg-slate-50 text-emerald-700 font-mono text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
                   )}
@@ -1010,7 +1010,7 @@ export const BackendApiModal: React.FC<BackendApiModalProps> = ({ onClose }) => 
                         <span>Response Payload:</span>
                         {latencyMs !== null && <span className="text-emerald-700 font-mono">Độ trễ: {latencyMs}ms</span>}
                       </div>
-                      <pre className="p-3 bg-slate-900 text-cyan-300 font-mono text-xs rounded-xl overflow-x-auto max-h-60">
+                      <pre className="p-3 bg-slate-50 text-slate-800 font-mono text-xs rounded-xl border border-slate-200 overflow-x-auto max-h-60">
                         {JSON.stringify(responseOutput, null, 2)}
                       </pre>
                     </div>
@@ -1018,7 +1018,7 @@ export const BackendApiModal: React.FC<BackendApiModalProps> = ({ onClose }) => 
                 </div>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-200 rounded-3xl text-center text-slate-400">
-                  <Terminal className="w-12 h-12 mb-3 text-slate-300" />
+                  <Terminal className="w-12 h-12 mb-3 text-slate-400" />
                   <p className="text-sm font-bold text-slate-600">Chọn một API bên trái để gửi request thử nghiệm</p>
                   <p className="text-xs text-slate-400 mt-1">Hỗ trợ kiểm tra phản hồi dữ liệu khách hàng CRM thời gian thực</p>
                 </div>
@@ -1030,16 +1030,16 @@ export const BackendApiModal: React.FC<BackendApiModalProps> = ({ onClose }) => 
         {/* Tab Content 3: DOCS & SDK */}
         {activeMainTab === 'docs' && (
           <div className="flex-1 p-6 overflow-y-auto space-y-6">
-            <div className="bg-slate-900 text-white p-6 rounded-3xl space-y-4">
-              <h4 className="text-base font-bold text-white flex items-center gap-2">
+            <div className="bg-slate-50 text-slate-800 p-6 rounded-3xl border border-slate-200 space-y-4">
+              <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Code className="w-5 h-5 text-blue-400" />
                 Hướng Dẫn Tích Hợp CRM REST API (Node.js & Python SDK)
               </h4>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-blue-100">
                 Toàn bộ dữ liệu khách hàng được bảo vệ bằng chuẩn mã hóa SSL/TLS 1.3 và xác thực JWT Bearer Token.
               </p>
 
-              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 font-mono text-xs text-emerald-400">
+              <div className="bg-slate-100 p-4 rounded-2xl border border-slate-200 font-mono text-xs text-emerald-700">
                 <div># Node.js Client Example:</div>
                 <div className="text-slate-400 mt-1">
                   {`const client = axios.create({

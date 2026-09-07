@@ -364,7 +364,7 @@ export const BranchManagementModal: React.FC<BranchManagementModalProps> = ({
           <span>Dữ liệu chi nhánh được đồng bộ tức thì trên toàn bộ hệ thống lịch hẹn và hồ sơ khách hàng.</span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold cursor-pointer transition-colors"
+            className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold cursor-pointer transition-colors"
           >
             Đóng
           </button>

@@ -585,8 +585,8 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
           {activeSubTab === 'membership' && (
             <div className="space-y-5 text-xs">
               {/* Digital VIP Membership Card */}
-              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-md relative overflow-hidden">
-                <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-48 h-48 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white rounded-2xl p-6 shadow-md relative overflow-hidden">
+                <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
@@ -594,7 +594,7 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                       <span className="text-amber-400 font-bold uppercase tracking-wider text-[11px]">Thẻ Hội Viên Điện Tử Bệnh Viện</span>
                     </div>
                     <h3 className="text-xl font-bold text-white tracking-tight mt-1">{patient.name}</h3>
-                    <div className="flex items-center gap-3 text-slate-300 text-xs mt-1">
+                    <div className="flex items-center gap-3 text-blue-100 text-xs mt-1">
                       <span>Mã định danh: <strong className="font-mono text-white">{patient.pid}</strong></span>
                       <span>•</span>
                       <span>SĐT: <strong className="font-mono text-white">{patient.phone}</strong></span>
@@ -617,21 +617,21 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                         <span>Nâng/Đổi Hạng</span>
                       </button>
                     </div>
-                    <div className="text-xs text-slate-300">
+                    <div className="text-xs text-blue-100">
                       Điểm tích lũy: <strong className="text-amber-300 font-mono text-sm">{currentPoints.toLocaleString()}</strong> điểm
                     </div>
                   </div>
                 </div>
 
                 {/* Progress bar to next tier */}
-                <div className="mt-5 pt-4 border-t border-slate-700/60 relative z-10 space-y-2">
-                  <div className="flex items-center justify-between text-xs text-slate-300">
+                <div className="mt-5 pt-4 border-t border-white/20 relative z-10 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-blue-100">
                     <span>Tiến trình thăng hạng {tierInfo.nextTier ? `lên [${tierInfo.nextTier}]` : '(Đã đạt hạng cao nhất)'}</span>
                     <span className="font-mono text-amber-300 font-bold">
                       {currentPoints.toLocaleString()} / {tierInfo.nextPoints > 0 ? `${tierInfo.nextPoints.toLocaleString()} điểm` : 'Tối đa'} ({progressPercent}%)
                     </span>
                   </div>
-                  <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden ring-1 ring-slate-700">
+                  <div className="w-full bg-white/20 rounded-full h-2.5 overflow-hidden ring-1 ring-white/30">
                     <div
                       className="bg-gradient-to-r from-amber-500 to-yellow-300 h-full rounded-full transition-all duration-500"
                       style={{ width: `${progressPercent}%` }}
