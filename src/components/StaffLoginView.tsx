@@ -486,7 +486,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                           <div
                             className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-xs shrink-0 ${
                               user.role === 'Quản Trị Viên Hệ Thống (Admin)' || user.role.toLowerCase().includes('admin') || user.role.toLowerCase().includes('it')
-                                ? 'bg-slate-800 text-white ring-1 ring-slate-300'
+                                ? 'bg-cyan-600 text-white ring-1 ring-cyan-300'
                                 : user.role === 'Ban Giám Đốc'
                                 ? 'bg-purple-700 text-white'
                                 : user.role === 'Bác sĩ Trưởng Khoa'
@@ -566,7 +566,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({
                     <div
                       className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm shadow-xs shrink-0 ${
                         user.role === 'Quản Trị Viên Hệ Thống (Admin)' || user.role.toLowerCase().includes('admin') || user.role.toLowerCase().includes('it')
-                          ? 'bg-slate-800 text-white ring-1 ring-slate-300'
+                          ? 'bg-cyan-600 text-white ring-1 ring-cyan-300'
                           : user.role === 'Ban Giám Đốc'
                           ? 'bg-purple-700 text-white'
                           : user.role === 'Bác sĩ Trưởng Khoa'

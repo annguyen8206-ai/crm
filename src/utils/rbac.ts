@@ -34,7 +34,7 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
     title: 'Quản Trị Viên Hệ Thống (Admin & IT)',
     shortTitle: 'Admin Hệ Thống (IT)',
     department: 'Phòng Công Nghệ Thông Tin (IT & Chuyển Đổi Số)',
-    badgeColor: 'bg-slate-800 text-white border-slate-300',
+    badgeColor: 'bg-cyan-600 text-white border-cyan-300',
     bgLight: 'bg-slate-100',
     textColor: 'text-cyan-400',
     borderColor: 'border-cyan-500',

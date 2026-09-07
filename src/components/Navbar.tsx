@@ -478,7 +478,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div 
                   className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[11px] text-white shadow-2xs ${
                     currentRole === 'Quản Trị Viên Hệ Thống (Admin)' || currentRole.toLowerCase().includes('admin')
-                      ? 'bg-slate-800 text-white'
+                      ? 'bg-cyan-600 text-white'
                       : currentRole === 'Ban Giám Đốc'
                       ? 'bg-purple-700 text-white'
                       : currentRole === 'Bác sĩ Trưởng Khoa'

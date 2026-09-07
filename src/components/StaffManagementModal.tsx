@@ -413,7 +413,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
                             <div 
                               className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shadow-2xs shrink-0 ${
                                 staff.role === 'Quản Trị Viên Hệ Thống (Admin)' || staff.role.toLowerCase().includes('admin') || staff.role.toLowerCase().includes('it')
-                                  ? "bg-slate-800 text-white ring-1 ring-slate-300"
+                                  ? "bg-cyan-600 text-white ring-1 ring-cyan-300"
                                   : staff.role === 'Ban Giám Đốc'
                                   ? 'bg-purple-700 text-white'
                                   : staff.role === 'Bác sĩ Trưởng Khoa'
@@ -432,7 +432,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
                                 <span>{staff.name}</span>
                                 {(staff.role === 'Ban Giám Đốc' || staff.role === 'Quản Trị Viên Hệ Thống (Admin)') && (
                                   <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                                    staff.role === "Quản Trị Viên Hệ Thống (Admin)" ? "bg-slate-800 text-white border border-slate-300" : "bg-purple-100 text-purple-800"
+                                    staff.role === "Quản Trị Viên Hệ Thống (Admin)" ? "bg-cyan-600 text-white border border-cyan-300" : "bg-purple-100 text-purple-800"
                                   }`}>
                                     {staff.role === 'Quản Trị Viên Hệ Thống (Admin)' ? 'IT Admin' : 'Ban Lãnh Đạo'}
                                   </span>
@@ -455,7 +455,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
 
                         <td className="py-3.5 px-3">
                           <span className={`inline-block px-2.5 py-1 rounded-lg text-[11px] font-bold ${
-                            staff.role === "Quản Trị Viên Hệ Thống (Admin)" ? "bg-slate-800 text-white border border-slate-300" :
+                            staff.role === "Quản Trị Viên Hệ Thống (Admin)" ? "bg-cyan-600 text-white border border-cyan-300" :
                             staff.role === 'Ban Giám Đốc' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
                             staff.role === 'Bác sĩ Trưởng Khoa' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
                             staff.role === 'Chuyên viên Tiếp đón' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
