@@ -185,25 +185,53 @@ export const BackendApiModal: React.FC<BackendApiModalProps> = ({ onClose }) => 
     setTimeout(() => setCopiedText(''), 2000);
   };
 
-  const handleSaveConfig = () => {
+  // Map a UI section to the server integration provider name.
+  const providerOf = (k: keyof IntegrationConfig): string =>
+    k === 'zns' ? 'zns' : k === 'webhooks' ? 'messaging' : k;
+
+  const handleSaveConfig = async () => {
     localStorage.setItem('vitcrm_integration_config_v2', JSON.stringify(config));
-    setSaveSuccessMsg('Đã lưu cấu hình kết nối CSKH thành công vào hệ thống!');
-    setTimeout(() => setSaveSuccessMsg(''), 3000);
+    // Zalo keys are also persisted server-side (app_settings) so they take effect live.
+    if (activeIntegrationSection === 'zns') {
+      const payload: Record<string, string> = {};
+      if (config.zns.appId.trim()) payload.ZALO_APP_ID = config.zns.appId.trim();
+      const secret = config.zns.secretKey.trim();
+      if (secret && !/^[•]+$/.test(secret)) payload.ZALO_OA_ACCESS_TOKEN = secret;
+      try {
+        if (Object.keys(payload).length) {
+          const r = await apiClient.settings.save(payload);
+          const znsLive = (r.integrations || []).find((i: any) => i.name === 'zns')?.mode === 'live';
+          setConfig(prev => ({ ...prev, zns: { ...prev.zns, status: znsLive ? 'connected' : 'disconnected' } }));
+        }
+        setSaveSuccessMsg('Đã lưu cấu hình Zalo vào máy chủ. Bấm "Kiểm Tra Kết Nối" để xác nhận.');
+      } catch (e: any) {
+        setSaveSuccessMsg('Lỗi lưu lên máy chủ: ' + (e?.message || 'không rõ'));
+      }
+    } else {
+      setSaveSuccessMsg('Đã lưu tạm cục bộ. Khoá đầy đủ (App Secret, Refresh Token, template, SMTP…) cấu hình ở: Quản Trị → Cấu Hình Khóa Tích Hợp.');
+    }
+    setTimeout(() => setSaveSuccessMsg(''), 5000);
   };
 
-  const handlePingTest = (serviceKey: keyof IntegrationConfig) => {
+  const handlePingTest = async (serviceKey: keyof IntegrationConfig) => {
     setTestingConnection(serviceKey);
-    setConfig(prev => ({
-      ...prev,
-      [serviceKey]: {
-        ...prev[serviceKey],
-        status: 'disconnected',
-        lastPing: 'Chưa có adapter/provider thật để kiểm tra kết nối.'
-      }
-    }));
-    setTestingConnection(null);
-    setSaveSuccessMsg(`Chưa thể kiểm tra ${serviceKey.toUpperCase()}: nhà cung cấp chưa được cấu hình.`);
-    setTimeout(() => setSaveSuccessMsg(''), 3000);
+    try {
+      const r = await apiClient.settings.test(providerOf(serviceKey));
+      setConfig(prev => ({
+        ...prev,
+        [serviceKey]: { ...prev[serviceKey], status: r.ok ? 'connected' : 'disconnected', lastPing: r.message }
+      }));
+      setSaveSuccessMsg((r.ok ? '✓ ' : '✕ ') + r.message);
+    } catch (e: any) {
+      setConfig(prev => ({
+        ...prev,
+        [serviceKey]: { ...prev[serviceKey], status: 'disconnected', lastPing: e?.message || 'Lỗi kiểm tra' }
+      }));
+      setSaveSuccessMsg('✕ ' + (e?.message || 'Không kiểm tra được kết nối'));
+    } finally {
+      setTestingConnection(null);
+      setTimeout(() => setSaveSuccessMsg(''), 6000);
+    }
   };
 
   const categories = [
@@ -652,13 +680,18 @@ export const BackendApiModal: React.FC<BackendApiModalProps> = ({ onClose }) => 
                         />
                       </div>
                       <div className="sm:col-span-2">
-                        <label className="block font-bold text-slate-700 mb-1">Secret Key / Refresh Token</label>
+                        <label className="block font-bold text-slate-700 mb-1">OA Access Token (dán trực tiếp)</label>
                         <input
                           type="password"
                           value={config.zns.secretKey}
                           onChange={e => setConfig({ ...config, zns: { ...config.zns, secretKey: e.target.value } })}
+                          placeholder="Dán OA Access Token từ Zalo OA Open API"
                           className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-mono text-slate-900"
                         />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Cần tự làm mới token (App Secret + OA Refresh Token) và khai báo Template ID?
+                          Vào <span className="font-bold">Quản Trị → Cấu Hình Khóa Tích Hợp</span>.
+                        </p>
                       </div>
                     </div>
 

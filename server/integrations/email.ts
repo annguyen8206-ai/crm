@@ -39,6 +39,25 @@ function getTransporter(): Transporter {
   return transporter;
 }
 
+/** Drop the cached SMTP transport — call after SMTP_* settings change at runtime. */
+export function resetEmailCache(): void {
+  transporter = null;
+}
+
+/** Real SMTP connectivity/auth probe for the "Kiểm tra kết nối" button. */
+export async function testEmailConnection(): Promise<{ ok: boolean; message: string }> {
+  if (!emailConfigured()) {
+    return { ok: false, message: 'Chưa cấu hình đủ SMTP_HOST / SMTP_USER / SMTP_PASS.' };
+  }
+  resetEmailCache();
+  try {
+    await getTransporter().verify();
+    return { ok: true, message: `SMTP xác thực thành công (${process.env.SMTP_HOST}).` };
+  } catch (e: any) {
+    return { ok: false, message: 'SMTP lỗi: ' + (e?.message || String(e)) };
+  }
+}
+
 export interface EmailMessage {
   to: string;
   subject: string;

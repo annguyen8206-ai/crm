@@ -135,6 +135,12 @@ export const apiClient = {
         method: 'PUT',
         body: JSON.stringify({ values }),
       });
+    },
+    /** Live connectivity probe: provider = zns | email | ai | sms | voip | payments. */
+    async test(provider: string) {
+      return request<{ ok: boolean; provider: string; message: string }>(`/system/integrations/${encodeURIComponent(provider)}/test`, {
+        method: 'POST',
+      });
     }
   },
 

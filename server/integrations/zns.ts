@@ -45,6 +45,36 @@ export function znsStatus(): IntegrationStatus {
   };
 }
 
+/**
+ * Real connectivity probe for the "Kiểm tra kết nối" button: obtain an OA access
+ * token from the current credentials, then call OA `getoa` to confirm it works.
+ */
+export async function testZnsConnection(): Promise<{ ok: boolean; message: string }> {
+  if (!znsConfigured()) {
+    return { ok: false, message: 'Chưa nhập khoá Zalo — cần OA Access Token, hoặc bộ App ID + App Secret + OA Refresh Token.' };
+  }
+  resetZnsCache();
+  let token: string | null = null;
+  try {
+    token = await getAccessToken();
+  } catch (e: any) {
+    return { ok: false, message: 'Lỗi khi lấy access token: ' + (e?.message || String(e)) };
+  }
+  if (!token) {
+    return { ok: false, message: 'Không lấy được access token. Kiểm tra lại App ID / App Secret / OA Refresh Token (hoặc OA Access Token dán tay đã hết hạn).' };
+  }
+  try {
+    const res = await fetch('https://openapi.zalo.me/v2.0/oa/getoa?access_token=' + encodeURIComponent(token));
+    const json: any = await res.json().catch(() => ({}));
+    if (json.error === 0 && json.data) {
+      return { ok: true, message: `Kết nối Zalo OA thành công: ${json.data.name || json.data.oa_id || 'OA'}` };
+    }
+    return { ok: false, message: `Zalo trả về lỗi ${json.error ?? '?'}: ${json.message || 'không rõ nguyên nhân'}` };
+  } catch (e: any) {
+    return { ok: false, message: 'Không gọi được Zalo OpenAPI: ' + (e?.message || String(e)) };
+  }
+}
+
 export function znsTemplateId(templateType: string): string | undefined {
   const map: Record<string, string | undefined> = {
     ZNS_POST_VISIT_CARE: process.env.ZNS_TEMPLATE_POST_VISIT_CARE,

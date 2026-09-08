@@ -1,7 +1,7 @@
 import type { Express } from 'express';
 import { dbStore } from '../store';
 import { createStaff, listStaff, updateStaff } from '../auth';
-import { integrationsStatus, sendEmail, resetZnsCache } from '../integrations';
+import { integrationsStatus, sendEmail, resetZnsCache, resetEmailCache, testIntegration } from '../integrations';
 import { saveSettings, describeSettings } from '../settings';
 import { queryAudit } from '../audit';
 import { requireAdmin } from '../http-util';
@@ -65,6 +65,18 @@ export function registerSystemRoutes(app: Express): void {
     res.json({ integrations: integrationsStatus() });
   });
 
+  // Live connectivity probe for one channel (Zalo OA, SMTP, Gemini, …).
+  app.post('/api/system/integrations/:provider/test', requireAdmin, async (req, res) => {
+    try {
+      const result = await testIntegration(req.params.provider);
+      dbStore.addAuditLog(req.authUser?.id || 'system', req.authUser?.name || '', req.authUser?.role || '',
+        'TEST_INTEGRATION', 'Tích hợp', `${req.params.provider}: ${result.ok ? 'OK' : 'FAIL'} — ${result.message}`);
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ ok: false, provider: req.params.provider, message: e.message || 'Lỗi kiểm tra kết nối' });
+    }
+  });
+
   app.get('/api/system/settings', requireAdmin, (req, res) => {
     res.json({ ...describeSettings(), integrations: integrationsStatus() });
   });
@@ -77,6 +89,7 @@ export function registerSystemRoutes(app: Express): void {
       }
       const { changed } = await saveSettings(values as Record<string, unknown>);
       if (changed.some(k => k.startsWith('ZALO_') || k === 'ZNS_OTP_PARAM')) resetZnsCache();
+      if (changed.some(k => k.startsWith('SMTP_'))) resetEmailCache();
       dbStore.addAuditLog(req.authUser?.id || 'system', req.authUser?.name || '', req.authUser?.role || '',
         'UPDATE_SETTINGS', 'Tích hợp', `Cập nhật: ${changed.join(', ') || '(không có thay đổi)'}`);
       res.json({ success: true, changed, ...describeSettings(), integrations: integrationsStatus() });
