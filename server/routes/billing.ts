@@ -3,12 +3,13 @@ import { dbStore, InvoiceRecord } from '../store';
 import { vietQrBankInfo } from '../integrations';
 import { hasPerm } from '../rbac';
 import { pageOf } from '../http-util';
+import { scopeList, canAccessBranch, enforceBranchOnCreate } from '../branch-scope';
 
 /** Invoicing, VietQR payment, and the executive analytics dashboard. */
 export function registerBillingRoutes(app: Express): void {
   app.get('/api/invoices', (req, res) => {
     const { status, patientId, branchId } = req.query;
-    let filtered = [...dbStore.invoices];
+    let filtered = scopeList(req, [...dbStore.invoices], i => i.branchId);
 
     if (status && typeof status === 'string') filtered = filtered.filter(i => i.status === status);
     if (patientId && typeof patientId === 'string') filtered = filtered.filter(i => i.patientId === patientId);
@@ -40,7 +41,7 @@ export function registerBillingRoutes(app: Express): void {
       patientId: data.patientId || `pat-${Date.now()}`,
       patientName: data.patientName || 'Bệnh nhân',
       patientPhone: data.patientPhone || '09xx xxx xxx',
-      branchId: data.branchId || 'hn-central',
+      branchId: enforceBranchOnCreate(req, data.branchId) || 'hn-central',
       department: data.department || 'Khoa Khám Bệnh',
       items: data.items || [],
       subtotal,
@@ -88,6 +89,9 @@ export function registerBillingRoutes(app: Express): void {
     if (!inv) {
       return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
     }
+    if (!canAccessBranch(req, inv.branchId)) {
+      return res.status(403).json({ error: 'Hóa đơn thuộc chi nhánh khác' });
+    }
 
     inv.status = 'Đã thanh toán';
     inv.paymentMethod = paymentMethod;
@@ -102,16 +106,25 @@ export function registerBillingRoutes(app: Express): void {
   // =========================================================================
   app.get('/api/analytics/dashboard', (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
-    const paidInvoices = dbStore.invoices.filter(i => i.status === 'Đã thanh toán');
+    // Branch-locked staff only see their branch's numbers; admins/HQ see everything.
+    const patients = scopeList(req, dbStore.patients, p => p.branchId);
+    const appointments = scopeList(req, dbStore.appointments, a => a.branchId);
+    const invoices = scopeList(req, dbStore.invoices, i => i.branchId);
+    const tickets = scopeList(req, dbStore.tickets, t => t.branchId);
+    const scopedPatientIds = new Set(patients.map(p => p.id));
+    const recalls = (patients.length === dbStore.patients.length)
+      ? dbStore.recalls
+      : dbStore.recalls.filter(r => scopedPatientIds.has(r.patientId));
+    const paidInvoices = invoices.filter(i => i.status === 'Đã thanh toán');
     const totalRevenue = paidInvoices.reduce((a, c) => a + (c.patientPayable || 0), 0);
-    const totalPatients = dbStore.patients.length;
+    const totalPatients = patients.length;
 
-    const openTickets = dbStore.tickets.filter(t => t.status === 'Mới tiếp nhận' || t.status === 'Đang xử lý').length;
-    const closedTickets = dbStore.tickets.filter(t => t.status === 'Đã giải quyết' || t.status === 'Đã đóng').length;
-    const slaRate = dbStore.tickets.length ? Math.round((closedTickets / dbStore.tickets.length) * 100) : 100;
+    const openTickets = tickets.filter(t => t.status === 'Mới tiếp nhận' || t.status === 'Đang xử lý').length;
+    const closedTickets = tickets.filter(t => t.status === 'Đã giải quyết' || t.status === 'Đã đóng').length;
+    const slaRate = tickets.length ? Math.round((closedTickets / tickets.length) * 100) : 100;
 
     // Average wait = seenAt - checkedInAt across appointments that have both.
-    const waits = dbStore.appointments
+    const waits = appointments
       .filter(a => a.checkedInAt && a.seenAt)
       .map(a => (new Date(a.seenAt!).getTime() - new Date(a.checkedInAt!).getTime()) / 60000)
       .filter(m => m >= 0 && m < 600);
@@ -119,7 +132,7 @@ export function registerBillingRoutes(app: Express): void {
 
     // RFM — Recency (days since last visit), Frequency (visits), Monetary (spent).
     const now = Date.now();
-    const rfm = dbStore.patients.map(p => {
+    const rfm = patients.map(p => {
       const last = p.lastVisitDate ? new Date(p.lastVisitDate).getTime() : 0;
       const recencyDays = last ? Math.round((now - last) / 86400000) : 9999;
       return { id: p.id, name: p.name, recencyDays, frequency: p.totalVisits || 0, monetary: p.totalSpent || 0 };
@@ -134,12 +147,12 @@ export function registerBillingRoutes(app: Express): void {
     const rfmSegments: Record<string, number> = {};
     for (const r of rfm) rfmSegments[seg(r)] = (rfmSegments[seg(r)] || 0) + 1;
 
-    const spends = dbStore.patients.map(p => p.totalSpent || 0).filter(v => v > 0);
+    const spends = patients.map(p => p.totalSpent || 0).filter(v => v > 0);
     const avgClv = spends.length ? Math.round(spends.reduce((a, b) => a + b, 0) / spends.length) : 0;
 
     // Branch performance from real records.
     const byBranch = new Map<string, { patients: number; revenue: number }>();
-    for (const p of dbStore.patients) {
+    for (const p of patients) {
       const b = byBranch.get(p.branchId) || { patients: 0, revenue: 0 };
       b.patients += 1;
       byBranch.set(p.branchId, b);
@@ -155,20 +168,20 @@ export function registerBillingRoutes(app: Express): void {
     const seesFinance = hasPerm(req.authUser?.role, 'canViewFinancialBI');
     const kpis: Record<string, unknown> = {
       totalPatients,
-      totalAppointments: dbStore.appointments.length,
-      todayAppointments: dbStore.appointments.filter(a => a.date === today).length,
-      checkedInToday: dbStore.appointments.filter(a => a.date === today && a.checkedInAt).length,
+      totalAppointments: appointments.length,
+      todayAppointments: appointments.filter(a => a.date === today).length,
+      checkedInToday: appointments.filter(a => a.date === today && a.checkedInAt).length,
       openTickets,
       resolvedTickets: closedTickets,
       slaRate: `${slaRate}%`,
-      overdueRecalls: dbStore.recalls.filter(r => (r.daysOverdue || 0) > 0).length,
+      overdueRecalls: recalls.filter(r => (r.daysOverdue || 0) > 0).length,
       paidInvoices: paidInvoices.length,
       averageWaitTimeMinutes: averageWaitMinutes,
     };
     if (seesFinance) {
       kpis.totalRevenue = totalRevenue;
       kpis.revenueFormatted = `${(totalRevenue / 1_000_000).toFixed(1)} Triệu VNĐ`;
-      kpis.pendingInvoiceValue = dbStore.invoices.filter(i => i.status === 'Chờ thanh toán').reduce((a, c) => a + (c.patientPayable || 0), 0);
+      kpis.pendingInvoiceValue = invoices.filter(i => i.status === 'Chờ thanh toán').reduce((a, c) => a + (c.patientPayable || 0), 0);
       kpis.avgCustomerLifetimeValue = avgClv;
     }
 

@@ -1,13 +1,14 @@
 import type { Express } from 'express';
 import { dbStore, AppointmentRecord } from '../store';
 import { pageOf, queueLookupUrl, queueQrUrl } from '../http-util';
+import { scopeList, canAccessBranch, enforceBranchOnCreate } from '../branch-scope';
 
 /** Appointment scheduling, status, e-queue check-in. */
 export function registerAppointmentRoutes(app: Express): void {
   app.get('/api/appointments', (req, res) => {
     try {
       const { date, branchId, status, department, doctorId, patientId } = req.query;
-      let filtered = [...dbStore.appointments];
+      let filtered = scopeList(req, [...dbStore.appointments], a => a.branchId);
 
       if (date && typeof date === 'string') filtered = filtered.filter(a => a.date === date);
       if (branchId && branchId !== 'ALL' && typeof branchId === 'string') filtered = filtered.filter(a => a.branchId === branchId);
@@ -42,7 +43,7 @@ export function registerAppointmentRoutes(app: Express): void {
         doctorId: data.doctorId || 'doc-1',
         doctorName: data.doctorName || 'BS. Chuyên Khoa VitHospital',
         department: data.department,
-        branchId: data.branchId || 'hn-central',
+        branchId: enforceBranchOnCreate(req, data.branchId) || 'hn-central',
         date: data.date,
         timeSlot: data.timeSlot || '08:30 - 09:00',
         status: data.status || 'Chờ tiếp đón',
@@ -68,6 +69,9 @@ export function registerAppointmentRoutes(app: Express): void {
     if (!apt) {
       return res.status(404).json({ error: 'Không tìm thấy lịch hẹn' });
     }
+    if (!canAccessBranch(req, apt.branchId)) {
+      return res.status(403).json({ error: 'Lịch hẹn thuộc chi nhánh khác' });
+    }
 
     apt.status = status;
     if (notes) apt.notes = notes;
@@ -80,6 +84,9 @@ export function registerAppointmentRoutes(app: Express): void {
   app.post('/api/appointments/:id/checkin', (req, res) => {
     const apt = dbStore.appointments.find(a => a.id === req.params.id);
     if (!apt) return res.status(404).json({ error: 'Không tìm thấy lịch hẹn' });
+    if (!canAccessBranch(req, apt.branchId)) {
+      return res.status(403).json({ error: 'Lịch hẹn thuộc chi nhánh khác' });
+    }
 
     if (!apt.queueNumber) {
       const sameDayBranch = dbStore.appointments.filter(a => a.date === apt.date && a.branchId === apt.branchId && a.queueNumber);
@@ -110,11 +117,15 @@ export function registerAppointmentRoutes(app: Express): void {
     if (idx < 0) {
       return res.status(404).json({ error: 'Không tìm thấy lịch hẹn' });
     }
+    if (!canAccessBranch(req, dbStore.appointments[idx].branchId)) {
+      return res.status(403).json({ error: 'Lịch hẹn thuộc chi nhánh khác' });
+    }
 
     dbStore.appointments[idx] = {
       ...dbStore.appointments[idx],
       ...req.body,
-      id: dbStore.appointments[idx].id
+      id: dbStore.appointments[idx].id,
+      branchId: enforceBranchOnCreate(req, req.body?.branchId ?? dbStore.appointments[idx].branchId) as string
     };
 
     res.json({ success: true, appointment: dbStore.appointments[idx] });

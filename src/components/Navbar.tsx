@@ -271,24 +271,41 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Right Controls: Streamlined & Clean */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             
-            {/* Branch Selector */}
-            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 text-xs text-slate-700 max-w-[120px] sm:max-w-[150px]">
-              <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <select
-                id="branch-selector"
-                value={currentBranchId}
-                onChange={(e) => handleBranchSelect(e.target.value as BranchId)}
-                aria-label="Chọn cơ sở chi nhánh"
-                className="bg-transparent text-slate-800 font-bold focus:outline-none cursor-pointer text-[11px] truncate w-full"
-              >
-                <option value="ALL" className="bg-white text-slate-800">Toàn Hệ Thống</option>
-                {branches.map(b => (
-                  <option key={b.id} value={b.id} className="bg-white text-slate-800">
-                    {b.shortName || b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Branch Selector — locked to their branch for branch-scoped staff */}
+            {(() => {
+              const lockedId = activeUser.branchId && activeUser.branchId !== 'ALL' ? activeUser.branchId : null;
+              const lockedBranch = lockedId ? branches.find(b => b.id === lockedId) : null;
+              if (lockedId) {
+                return (
+                  <div
+                    className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-2 py-1.5 text-xs text-slate-600 max-w-[120px] sm:max-w-[160px]"
+                    title="Tài khoản chỉ truy cập cơ sở này"
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="font-bold text-[11px] truncate">{lockedBranch?.shortName || lockedBranch?.name || lockedId}</span>
+                  </div>
+                );
+              }
+              return (
+                <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 text-xs text-slate-700 max-w-[120px] sm:max-w-[150px]">
+                  <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <select
+                    id="branch-selector"
+                    value={currentBranchId}
+                    onChange={(e) => handleBranchSelect(e.target.value as BranchId)}
+                    aria-label="Chọn cơ sở chi nhánh"
+                    className="bg-transparent text-slate-800 font-bold focus:outline-none cursor-pointer text-[11px] truncate w-full"
+                  >
+                    <option value="ALL" className="bg-white text-slate-800">Toàn Hệ Thống</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id} className="bg-white text-slate-800">
+                        {b.shortName || b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })()}
 
             {/* Role-Specific Primary Quick Action Button */}
             <button

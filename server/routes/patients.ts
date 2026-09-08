@@ -5,6 +5,7 @@ import { emitChange } from '../events';
 import { requirePerm } from '../rbac';
 import { recordAudit } from '../audit';
 import { requireAdmin, digitsOnly } from '../http-util';
+import { scopeList, canAccessBranch, enforceBranchOnCreate } from '../branch-scope';
 
 const uniq = <T,>(a: T[]) => [...new Set(a)];
 
@@ -50,7 +51,7 @@ export function registerPatientRoutes(app: Express): void {
   app.get('/api/patients', (req, res) => {
     try {
       const { search, branchId, riskLevel, tag, limit = 50, offset = 0 } = req.query;
-      let filtered = [...dbStore.patients];
+      let filtered = scopeList(req, [...dbStore.patients], p => p.branchId);
 
       if (search && typeof search === 'string') {
         const s = search.toLowerCase().trim();
@@ -84,7 +85,7 @@ export function registerPatientRoutes(app: Express): void {
   // Likely-duplicate groups: same phone (last 9 digits) or same non-empty ID card.
   app.get('/api/patients/duplicates', (req, res) => {
     const groups = new Map<string, PatientRecord[]>();
-    for (const p of dbStore.patients) {
+    for (const p of scopeList(req, dbStore.patients, x => x.branchId)) {
       const keys: string[] = [];
       const ph = digitsOnly(p.phone).slice(-9);
       if (ph.length === 9) keys.push('ph:' + ph);
@@ -150,6 +151,9 @@ export function registerPatientRoutes(app: Express): void {
     if (!patient) {
       return res.status(404).json({ error: 'Không tìm thấy bệnh nhân' });
     }
+    if (!canAccessBranch(req, patient.branchId)) {
+      return res.status(403).json({ error: 'Hồ sơ thuộc chi nhánh khác' });
+    }
 
     // PII access trail (Nghị định 13/2023): who opened which patient record.
     recordAudit({
@@ -201,7 +205,7 @@ export function registerPatientRoutes(app: Express): void {
         insuranceCardNumber: data.insuranceCardNumber || '',
         insuranceProvider: data.insuranceProvider || '',
         insuranceExpiry: data.insuranceExpiry || '',
-        branchId: data.branchId || 'hn-central',
+        branchId: enforceBranchOnCreate(req, data.branchId) || 'hn-central',
         firstVisitDate: new Date().toISOString().slice(0, 10),
         lastVisitDate: new Date().toISOString().slice(0, 10),
         totalVisits: 1,
@@ -226,11 +230,15 @@ export function registerPatientRoutes(app: Express): void {
     if (idx < 0) {
       return res.status(404).json({ error: 'Không tìm thấy bệnh nhân' });
     }
+    if (!canAccessBranch(req, dbStore.patients[idx].branchId)) {
+      return res.status(403).json({ error: 'Hồ sơ thuộc chi nhánh khác' });
+    }
 
     dbStore.patients[idx] = {
       ...dbStore.patients[idx],
       ...req.body,
-      id: dbStore.patients[idx].id // Preserve ID
+      id: dbStore.patients[idx].id, // Preserve ID
+      branchId: enforceBranchOnCreate(req, req.body?.branchId ?? dbStore.patients[idx].branchId) as string
     };
 
     res.json({ success: true, patient: dbStore.patients[idx] });

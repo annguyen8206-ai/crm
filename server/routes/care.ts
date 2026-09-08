@@ -2,13 +2,14 @@ import type { Express } from 'express';
 import { dbStore, SupportTicketRecord, AutoRecallRecord, CsatFeedbackRecord, AppointmentRecord } from '../store';
 import { requirePerm } from '../rbac';
 import { pageOf } from '../http-util';
+import { scopeList, canAccessBranch, enforceBranchOnCreate } from '../branch-scope';
 
 /** Customer care: support tickets (SLA), D+3 follow-up calls, auto-recall, CSAT/NPS. */
 export function registerCareRoutes(app: Express): void {
   // --- Support tickets ---
   app.get('/api/tickets', (req, res) => {
     const { status, priority, department, isOverdue } = req.query;
-    let filtered = [...dbStore.tickets];
+    let filtered = scopeList(req, [...dbStore.tickets], t => t.branchId);
 
     if (status && typeof status === 'string') filtered = filtered.filter(t => t.status === status);
     if (priority && typeof priority === 'string') filtered = filtered.filter(t => t.priority === priority);
@@ -34,7 +35,7 @@ export function registerCareRoutes(app: Express): void {
         priority: data.priority || 'Trung bình (SLA 8h)',
         status: 'Mới tiếp nhận',
         department: data.department || 'Phòng CSKH & Trải Nghiệm Bệnh Nhân',
-        branchId: data.branchId || 'hn-central',
+        branchId: enforceBranchOnCreate(req, data.branchId) || 'hn-central',
         assignedStaff: data.assignedStaff || 'CSKH Nguyễn Mai Linh',
         description: data.description || '',
         slaDeadline: data.slaDeadline || '2026-08-25 12:00',
@@ -55,8 +56,11 @@ export function registerCareRoutes(app: Express): void {
     if (idx < 0) {
       return res.status(404).json({ error: 'Không tìm thấy phiếu hỗ trợ' });
     }
+    if (!canAccessBranch(req, dbStore.tickets[idx].branchId)) {
+      return res.status(403).json({ error: 'Phiếu thuộc chi nhánh khác' });
+    }
 
-    const updated = { ...dbStore.tickets[idx], ...req.body };
+    const updated = { ...dbStore.tickets[idx], ...req.body, branchId: dbStore.tickets[idx].branchId };
 
     if (req.body.status === 'Đã giải quyết' || req.body.status === 'Đã đóng') {
       updated.resolvedAt = new Date().toISOString().slice(0, 16).replace('T', ' ');

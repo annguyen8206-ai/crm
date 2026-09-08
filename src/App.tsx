@@ -801,6 +801,8 @@ export default function App() {
             setCurrentStaffUser(user);
             setCurrentRole(user.role);
             setIsStaffLoggedIn(true);
+            // Branch-scoped account → pin the view to their branch.
+            if (user.branchId && user.branchId !== 'ALL') setCurrentBranchId(user.branchId);
             const roleCfg = getRoleConfig(user.role);
             setActiveTab(roleCfg.defaultTab);
             showToast(`Chào mừng ${user.name} (${user.roleTitle}) đã đăng nhập!`);
