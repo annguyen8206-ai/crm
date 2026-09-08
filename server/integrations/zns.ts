@@ -64,7 +64,8 @@ export async function testZnsConnection(): Promise<{ ok: boolean; message: strin
     return { ok: false, message: 'Không lấy được access token. Kiểm tra lại App ID / App Secret / OA Refresh Token (hoặc OA Access Token dán tay đã hết hạn).' };
   }
   try {
-    const res = await fetch('https://openapi.zalo.me/v2.0/oa/getoa?access_token=' + encodeURIComponent(token));
+    // Zalo OpenAPI v2+ wants the token in the `access_token` header, not the query.
+    const res = await fetch('https://openapi.zalo.me/v2.0/oa/getoa', { headers: { access_token: token } });
     const json: any = await res.json().catch(() => ({}));
     if (json.error === 0 && json.data) {
       return { ok: true, message: `Kết nối Zalo OA thành công: ${json.data.name || json.data.oa_id || 'OA'}` };
