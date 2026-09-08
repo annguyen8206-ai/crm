@@ -20,7 +20,7 @@ export interface IncomingMessage {
   externalUserId: string;
   senderName?: string;
   text: string;
-  attachments: Array<{ type: string; url: string }>;
+  attachments: Array<{ type: string; url: string; name?: string }>;
   externalMessageId?: string;
   at: string;
 }
@@ -165,21 +165,52 @@ async function zaloAccessToken(): Promise<string | null> {
   return json.access_token || null;
 }
 
-export async function sendReply(channel: Channel, externalUserId: string, text: string): Promise<DispatchResult> {
+type OutAttachment = { type: string; url: string; name?: string };
+
+/** Absolute URL for a possibly-relative attachment path so a provider can fetch it. */
+function absUrl(u: string): string {
+  if (/^https?:\/\//i.test(u)) return u;
+  const base = (process.env.APP_BASE_URL || process.env.APP_URL || '').replace(/\/$/, '');
+  return base ? base + (u.startsWith('/') ? u : '/' + u) : u;
+}
+
+export async function sendReply(
+  channel: Channel,
+  externalUserId: string,
+  text: string,
+  attachments: OutAttachment[] = []
+): Promise<DispatchResult> {
+  const media = attachments.map(a => ({ ...a, url: absUrl(a.url) }));
+
   if (channel === 'facebook') {
     if (!facebookConfigured()) {
-      console.log(`[messaging:simulated] facebook → ${externalUserId}: ${text}`);
+      console.log(`[messaging:simulated] facebook → ${externalUserId}: ${text}${media.length ? ` (+${media.length} tệp)` : ''}`);
       return { ok: true, mode: 'simulated', provider: 'facebook' };
     }
-    try {
-      const res = await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${encodeURIComponent(process.env.FACEBOOK_PAGE_ACCESS_TOKEN!)}`, {
+    const url = `https://graph.facebook.com/v21.0/me/messages?access_token=${encodeURIComponent(process.env.FACEBOOK_PAGE_ACCESS_TOKEN!)}`;
+    const sendOne = async (message: any) => {
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient: { id: externalUserId }, messaging_type: 'RESPONSE', message: { text } })
+        body: JSON.stringify({ recipient: { id: externalUserId }, messaging_type: 'RESPONSE', message })
       });
       const json: any = await res.json().catch(() => ({}));
-      if (res.ok && json.message_id) return { ok: true, mode: 'live', provider: 'facebook', ref: json.message_id, raw: json };
-      return { ok: false, mode: 'live', provider: 'facebook', error: json.error?.message || `HTTP ${res.status}`, raw: json };
+      return { ok: res.ok && !!json.message_id, json };
+    };
+    try {
+      let lastRef: string | undefined;
+      if (text) {
+        const r = await sendOne({ text });
+        if (!r.ok) return { ok: false, mode: 'live', provider: 'facebook', error: r.json.error?.message || 'gửi văn bản lỗi', raw: r.json };
+        lastRef = r.json.message_id;
+      }
+      for (const a of media) {
+        const attType = a.type.startsWith('image/') || a.type === 'image' ? 'image' : 'file';
+        const r = await sendOne({ attachment: { type: attType, payload: { url: a.url, is_reusable: true } } });
+        if (!r.ok) return { ok: false, mode: 'live', provider: 'facebook', error: r.json.error?.message || 'gửi tệp lỗi', raw: r.json };
+        lastRef = r.json.message_id;
+      }
+      return { ok: true, mode: 'live', provider: 'facebook', ref: lastRef };
     } catch (e: any) {
       return { ok: false, mode: 'live', provider: 'facebook', error: e.message };
     }
@@ -187,16 +218,19 @@ export async function sendReply(channel: Channel, externalUserId: string, text: 
 
   // zalo
   if (!zaloConfigured()) {
-    console.log(`[messaging:simulated] zalo → ${externalUserId}: ${text}`);
+    console.log(`[messaging:simulated] zalo → ${externalUserId}: ${text}${media.length ? ` (+${media.length} tệp)` : ''}`);
     return { ok: true, mode: 'simulated', provider: 'zalo' };
   }
   const token = await zaloAccessToken();
   if (!token) return { ok: false, mode: 'live', provider: 'zalo', error: 'Không lấy được access token Zalo OA' };
+  // Zalo CS API needs an upload-token flow for native media; as a reliable fallback
+  // we append the file URLs to the text so the customer still receives them.
+  const zaloText = [text, ...media.map(a => `📎 ${a.name || 'Tệp đính kèm'}: ${a.url}`)].filter(Boolean).join('\n');
   try {
     const res = await fetch('https://openapi.zalo.me/v3.0/oa/message/cs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', access_token: token },
-      body: JSON.stringify({ recipient: { user_id: externalUserId }, message: { text } })
+      body: JSON.stringify({ recipient: { user_id: externalUserId }, message: { text: zaloText } })
     });
     const json: any = await res.json().catch(() => ({}));
     if (json.error === 0) return { ok: true, mode: 'live', provider: 'zalo', ref: json.data?.message_id, raw: json };

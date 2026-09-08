@@ -38,9 +38,15 @@ export function registerInboxRoutes(app: Express): void {
     const conv = dbStore.conversations.find(c => c.id === req.params.id);
     if (!conv) return res.status(404).json({ error: 'Không tìm thấy hội thoại' });
     const text = String(req.body?.text || '').trim();
-    if (!text) return res.status(400).json({ error: 'Nội dung trả lời trống' });
+    const attachments = Array.isArray(req.body?.attachments)
+      ? req.body.attachments
+          .filter((a: any) => a && typeof a.url === 'string')
+          .slice(0, 10)
+          .map((a: any) => ({ type: String(a.type || 'file'), url: String(a.url), name: a.name ? String(a.name) : undefined }))
+      : [];
+    if (!text && !attachments.length) return res.status(400).json({ error: 'Nội dung trả lời trống' });
 
-    const dispatch = await sendReply(conv.channel, conv.externalUserId, text);
+    const dispatch = await sendReply(conv.channel, conv.externalUserId, text, attachments);
     const record: MessageRecord = {
       id: `msg-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       conversationId: conv.id,
@@ -50,13 +56,13 @@ export function registerInboxRoutes(app: Express): void {
       senderId: req.authUser?.id || 'staff',
       senderName: req.authUser?.name || 'Nhân viên CSKH',
       text,
-      attachments: [],
+      attachments,
       status: dispatch.ok ? (dispatch.mode === 'live' ? 'sent' : 'simulated') : 'failed',
       at: new Date().toISOString()
     };
     dbStore.messages.push(record);
     conv.lastMessageAt = record.at;
-    conv.lastMessagePreview = text.slice(0, 140);
+    conv.lastMessagePreview = (text || (attachments.length ? '[đã gửi tệp đính kèm]' : '')).slice(0, 140);
     conv.assignedStaff = req.authUser?.name || conv.assignedStaff;
     emitChange({ type: 'message', conversationId: conv.id, message: record });
     emitChange({ type: 'conversation', conversation: conv });
@@ -78,14 +84,17 @@ export function registerInboxRoutes(app: Express): void {
   app.post('/api/webhooks/:channel/simulate', async (req, res) => {
     const channel = req.params.channel as Channel;
     if (channel !== 'zalo' && channel !== 'facebook') return res.status(400).json({ error: 'channel phải là zalo hoặc facebook' });
-    const { externalUserId, senderName, text } = req.body || {};
-    if (!externalUserId || !text) return res.status(400).json({ error: 'Cần externalUserId và text' });
+    const { externalUserId, senderName, text, attachments } = req.body || {};
+    if (!externalUserId || (!text && !Array.isArray(attachments))) return res.status(400).json({ error: 'Cần externalUserId và text' });
+    const atts = Array.isArray(attachments)
+      ? attachments.filter((a: any) => a && typeof a.url === 'string').map((a: any) => ({ type: String(a.type || 'file'), url: String(a.url), name: a.name ? String(a.name) : undefined }))
+      : [];
     const result = await ingestIncoming({
       channel,
       externalUserId: String(externalUserId),
       senderName,
-      text: String(text),
-      attachments: [],
+      text: String(text || ''),
+      attachments: atts,
       externalMessageId: `sim-${Date.now()}`,
       at: new Date().toISOString()
     });

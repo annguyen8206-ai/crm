@@ -344,11 +344,11 @@ export default function App() {
     }
   };
 
-  const sendInboxReply = async (text: string) => {
+  const sendInboxReply = async (text: string, attachments: Array<{ type: string; url: string; name?: string }> = []) => {
     if (!selectedConversationId) return;
     try {
-      const r = await apiClient.conversations.reply(selectedConversationId, text);
-      if (r.message) setInboxMessages(prev => [...prev, r.message]);
+      const r = await apiClient.conversations.reply(selectedConversationId, text, attachments);
+      if (r.message) setInboxMessages(prev => (prev.some(m => m.id === r.message.id) ? prev : [...prev, r.message]));
       if (!r.success) showToast(`Gửi thất bại: ${r.error || 'lỗi provider'}`);
       else if (r.mode === 'simulated') showToast('Đã gửi (giả lập — chưa nối provider thật)');
     } catch (e: any) {
@@ -1104,6 +1104,10 @@ export default function App() {
                 loadingMessages={loadingInboxMessages}
                 onSelectConversation={openConversation}
                 onSendReply={sendInboxReply}
+                onUploadAttachment={(file) => {
+                  if (!selectedConversationId) return Promise.reject(new Error('Chưa chọn hội thoại'));
+                  return apiClient.conversations.uploadAttachment(selectedConversationId, file);
+                }}
                 onSimulateInbound={simulateInbound}
                 onRefresh={async () => {
                   try {

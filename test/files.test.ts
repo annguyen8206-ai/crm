@@ -41,8 +41,8 @@ describe('file routes without a database', () => {
     expect([200, 401, 403, 503]).toContain(r.status);
     if (r.status === 200) expect(r.body.files).toEqual([]);
   });
-  it('public download rejects a missing/invalid token with 401', async () => {
+  it('public download without a token does not serve a file (401/404/410)', async () => {
     const r = await request(app).get('/api/files/some-id');
-    expect(r.status).toBe(401);
+    expect([401, 404, 410]).toContain(r.status);
   });
 });

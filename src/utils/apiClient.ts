@@ -150,11 +150,16 @@ export const apiClient = {
     async messages(id: string) {
       return request<{ conversation: any; messages: any[] }>(`/conversations/${id}/messages`);
     },
-    async reply(id: string, text: string) {
+    async reply(id: string, text: string, attachments?: Array<{ type: string; url: string; name?: string }>) {
       return request<{ success: boolean; mode: string; message: any; error?: string }>(`/conversations/${id}/reply`, {
         method: 'POST',
-        body: JSON.stringify({ text })
+        body: JSON.stringify(attachments && attachments.length ? { text, attachments } : { text })
       });
+    },
+    /** Upload a file to attach to a conversation; returns {type,url,name} for reply(). */
+    async uploadAttachment(conversationId: string, file: File) {
+      const up = await apiClient.files.upload('conversation', conversationId, file);
+      return { type: up.mime || file.type || 'file', url: `/api/files/${up.id}`, name: up.filename || file.name };
     },
     async update(id: string, data: { status?: string; assignedStaff?: string; patientId?: string }) {
       return request<{ success: boolean; conversation: any }>(`/conversations/${id}`, {

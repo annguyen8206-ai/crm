@@ -1,5 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, RefreshCw, Facebook, Circle, User } from 'lucide-react';
+import { MessageSquare, Send, RefreshCw, Facebook, Circle, User, Paperclip, X, FileText, Loader2 } from 'lucide-react';
+
+export interface MsgAttachment {
+  type: string;
+  url: string;
+  name?: string;
+}
+
+const isImageAttachment = (a: MsgAttachment) =>
+  /^image\//.test(a.type) || a.type === 'image' || /\.(png|jpe?g|gif|webp|heic)(\?|$)/i.test(a.url);
 
 export interface InboxConversation {
   id: string;
@@ -21,6 +30,7 @@ export interface InboxMessage {
   direction: 'in' | 'out';
   senderName: string;
   text: string;
+  attachments?: MsgAttachment[];
   status: string;
   at: string;
 }
@@ -31,7 +41,8 @@ interface Props {
   selectedId: string | null;
   loadingMessages: boolean;
   onSelectConversation: (id: string) => void;
-  onSendReply: (text: string) => Promise<void> | void;
+  onSendReply: (text: string, attachments: MsgAttachment[]) => Promise<void> | void;
+  onUploadAttachment: (file: File) => Promise<MsgAttachment>;
   onSimulateInbound: (channel: 'zalo' | 'facebook', name: string, text: string) => Promise<void> | void;
   onRefresh: () => void;
 }
@@ -59,10 +70,14 @@ const ChannelBadge: React.FC<{ channel: 'zalo' | 'facebook' }> = ({ channel }) =
 
 export const OmnichannelInboxView: React.FC<Props> = ({
   conversations, messages, selectedId, loadingMessages,
-  onSelectConversation, onSendReply, onSimulateInbound, onRefresh
+  onSelectConversation, onSendReply, onUploadAttachment, onSimulateInbound, onRefresh
 }) => {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [pending, setPending] = useState<MsgAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [showSim, setShowSim] = useState(false);
   const [simName, setSimName] = useState('Khách Zalo Demo');
   const [simText, setSimText] = useState('Chào phòng khám, cho em hỏi lịch khám ạ');
@@ -78,13 +93,31 @@ export const OmnichannelInboxView: React.FC<Props> = ({
 
   const send = async () => {
     const text = draft.trim();
-    if (!text || !selected) return;
+    if ((!text && pending.length === 0) || !selected || uploading) return;
     setSending(true);
     try {
-      await onSendReply(text);
+      await onSendReply(text, pending);
       setDraft('');
+      setPending([]);
     } finally {
       setSending(false);
+    }
+  };
+
+  const pickFiles = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+    setAttachError(null);
+    setUploading(true);
+    try {
+      for (const file of Array.from(files).slice(0, 10 - pending.length)) {
+        const att = await onUploadAttachment(file);
+        setPending(prev => [...prev, att]);
+      }
+    } catch (e: any) {
+      setAttachError(e?.message || 'Tải tệp lên thất bại');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
@@ -174,7 +207,25 @@ export const OmnichannelInboxView: React.FC<Props> = ({
                 {messages.map(m => (
                   <div key={m.id} className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${m.direction === 'out' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-800'}`}>
-                      <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                      {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
+                      {(m.attachments || []).map((a, i) => (
+                        isImageAttachment(a) ? (
+                          <a key={i} href={a.url} target="_blank" rel="noreferrer" className="block mt-1">
+                            <img src={a.url} alt={a.name || 'hình ảnh'} className="rounded-lg max-h-60 max-w-full object-cover" />
+                          </a>
+                        ) : (
+                          <a
+                            key={i}
+                            href={a.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`mt-1 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold underline ${m.direction === 'out' ? 'bg-blue-500/40 text-white' : 'bg-slate-100 text-slate-700'}`}
+                          >
+                            <FileText className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{a.name || 'Tệp đính kèm'}</span>
+                          </a>
+                        )
+                      ))}
                       <div className={`text-[10px] mt-1 ${m.direction === 'out' ? 'text-blue-100' : 'text-slate-400'}`}>
                         {m.direction === 'out' ? (m.senderName + ' · ') : ''}{fmtTime(m.at)}
                         {m.status === 'simulated' && ' · (giả lập)'}
@@ -186,22 +237,66 @@ export const OmnichannelInboxView: React.FC<Props> = ({
                 <div ref={endRef} />
               </div>
 
-              <div className="p-3 border-t border-slate-200 flex items-end gap-2">
-                <textarea
-                  value={draft}
-                  onChange={e => setDraft(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
-                  rows={2}
-                  placeholder="Nhập câu trả lời… (Enter để gửi)"
-                  className="flex-1 resize-none border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={() => void send()}
-                  disabled={sending || !draft.trim()}
-                  className="px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Send className="w-4 h-4" /> {sending ? 'Đang gửi' : 'Gửi'}
-                </button>
+              <div className="p-3 border-t border-slate-200 space-y-2">
+                {(pending.length > 0 || uploading || attachError) && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {pending.map((a, i) => (
+                      <span key={i} className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-lg pl-1.5 pr-1 py-1 text-[11px] max-w-[220px]">
+                        {isImageAttachment(a)
+                          ? <img src={a.url} alt="" className="w-6 h-6 rounded object-cover shrink-0" />
+                          : <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />}
+                        <span className="truncate">{a.name || 'tệp'}</span>
+                        <button
+                          type="button"
+                          onClick={() => setPending(prev => prev.filter((_, j) => j !== i))}
+                          className="p-0.5 text-slate-400 hover:text-rose-600 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {uploading && (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang tải lên…
+                      </span>
+                    )}
+                    {attachError && <span className="text-[11px] text-rose-600">{attachError}</span>}
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                    onChange={e => void pickFiles(e.target.files)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading || pending.length >= 10}
+                    title="Đính kèm ảnh / tệp"
+                    className="p-2.5 rounded-xl border border-slate-300 text-slate-500 hover:text-blue-600 hover:border-blue-400 disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <textarea
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
+                    rows={2}
+                    placeholder="Nhập câu trả lời… (Enter để gửi)"
+                    className="flex-1 resize-none border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => void send()}
+                    disabled={sending || uploading || (!draft.trim() && pending.length === 0)}
+                    className="px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Send className="w-4 h-4" /> {sending ? 'Đang gửi' : 'Gửi'}
+                  </button>
+                </div>
               </div>
             </>
           )}

@@ -267,7 +267,7 @@ export interface MessageRecord {
   senderId: string;
   senderName: string;
   text: string;
-  attachments: Array<{ type: string; url: string }>;
+  attachments: Array<{ type: string; url: string; name?: string }>;
   status: 'received' | 'sent' | 'failed' | 'simulated';
   at: string;
 }

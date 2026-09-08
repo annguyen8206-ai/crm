@@ -22,7 +22,7 @@ import { log } from '../logger';
 
 const UPLOAD_DIR = resolve(process.env.UPLOAD_DIR || join(process.cwd(), 'uploads'));
 const MAX_BYTES = Math.max(1, Number(process.env.MAX_UPLOAD_MB || 15)) * 1024 * 1024;
-const ENTITIES = new Set(['patient', 'ticket', 'invoice', 'referral', 'partnerPayout']);
+const ENTITIES = new Set(['patient', 'ticket', 'invoice', 'referral', 'partnerPayout', 'conversation']);
 
 const EXT: Record<string, string> = {
   'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
@@ -43,15 +43,19 @@ export const safeName = (s: string) =>
     .slice(0, 120) || 'file';
 
 /** GET /api/files/:id — served BEFORE requireAuth so `<a href>` downloads can
- *  authenticate via `?token=` (like /api/stream). */
+ *  authenticate via `?token=` (like /api/stream). Chat media (entity_type
+ *  'conversation') skips the token check: the random UUID is the capability,
+ *  and the URL must stay reachable in message history + fetchable by Zalo/FB. */
 export function registerPublicFileDownload(app: Express): void {
   app.get('/api/files/:id', async (req, res) => {
-    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.token || '');
-    if (!verifySessionToken(token)) return res.sendStatus(401);
     if (!pool) return res.sendStatus(404);
-    const r = await pool.query('SELECT filename, mime, storage_path FROM file_attachments WHERE id = $1', [req.params.id]);
+    const r = await pool.query('SELECT filename, mime, storage_path, entity_type FROM file_attachments WHERE id = $1', [req.params.id]);
     if (!r.rowCount) return res.status(404).json({ error: 'Không tìm thấy tệp' });
-    const { filename, mime, storage_path } = r.rows[0];
+    const { filename, mime, storage_path, entity_type } = r.rows[0];
+    if (entity_type !== 'conversation') {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.token || '');
+      if (!verifySessionToken(token)) return res.sendStatus(401);
+    }
     try { await stat(storage_path); } catch { return res.status(410).json({ error: 'Tệp không còn trên máy chủ' }); }
     const disposition = /^image\/|^application\/pdf$/.test(mime) ? 'inline' : 'attachment';
     res.setHeader('Content-Type', mime);
