@@ -1226,6 +1226,8 @@ export default function App() {
         interactions={interactions}
         branches={branches}
         appointments={appointments}
+        packages={medicalPackages}
+        invoices={invoices}
         onAddInteraction={(newInter) => {
           const createdInter: InteractionLog = {
             ...newInter,

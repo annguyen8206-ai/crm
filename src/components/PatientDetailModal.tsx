@@ -39,7 +39,8 @@ import {
   Branch,
   UserRole,
   Appointment,
-  MembershipTier
+  MembershipTier,
+  MedicalPackage
 } from '../types';
 import { formatDateVN, formatDateTimeVN } from '../utils/dateUtils';
 import { PatientAvatar } from './PatientAvatar';
@@ -60,6 +61,8 @@ interface PatientDetailModalProps {
   interactions?: InteractionLog[];
   branches?: Branch[];
   appointments?: Appointment[];
+  packages?: MedicalPackage[];
+  invoices?: any[];
   onClose: () => void;
   isOpen?: boolean;
   onAddInteraction?: (interaction: Omit<InteractionLog, 'id'>) => void;
@@ -73,6 +76,8 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
   interactions = [],
   branches = [],
   appointments = [],
+  packages = [],
+  invoices = [],
   onClose,
   onAddInteraction,
   onBookAppointment,
@@ -90,10 +95,22 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
   const [pointsChange, setPointsChange] = useState<number>(100);
   const [tierChangeReason, setTierChangeReason] = useState('Khách hàng ký hợp đồng dịch vụ lớn / Ưu đãi đặc cách Sale');
   
-  // Quick Quotation Calculator for Sales
-  const [quoteService, setQuoteService] = useState('Gói Tầm Soát Ung Thư Toàn Diện');
-  const [quoteBasePrice, setQuoteBasePrice] = useState<number>(15000000);
+  // Quick Quotation Calculator for Sales — options come from the real catalog
+  // (medicalPackages collection, edited in the "Gói khám, Dịch vụ & Bác sĩ" tab).
+  const activePackages = (packages || []).filter(p => p && p.name && p.status !== 'Tạm dừng');
+  const firstPkg = activePackages[0];
+  const [quoteService, setQuoteService] = useState(firstPkg?.name || '');
+  const [quoteBasePrice, setQuoteBasePrice] = useState<number>(Number(firstPkg?.discountPrice || firstPkg?.price || 0));
   const [isCopiedQuote, setIsCopiedQuote] = useState(false);
+
+  // Catalog may hydrate after mount — seed the quote once it does.
+  useEffect(() => {
+    if (!quoteService && activePackages.length) {
+      setQuoteService(activePackages[0].name);
+      setQuoteBasePrice(Number(activePackages[0].discountPrice || activePackages[0].price || 0));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePackages.length]);
 
   // New Note / Interaction State
   const [newNote, setNewNote] = useState('');
@@ -103,6 +120,10 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
 
   const patientInteractions = (interactions || []).filter(r => r && r.patientId === patient.id);
   const patientApts = (appointments || []).filter(a => a && (a.patientId === patient.id || a.patientPhone === patient.phone));
+  const patientInvoices = (invoices || []).filter(i => i && (i.patientId === patient.id || i.patientPhone === patient.phone));
+  const usedServices = [...new Set(
+    patientInvoices.flatMap(i => (i.items || []).map((it: any) => it && it.name).filter(Boolean))
+  )].slice(0, 12) as string[];
 
   const primaryBranch = (branches || []).find(b => b && b.id === patient.primaryBranchId);
 
@@ -712,24 +733,47 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                   <div className="space-y-2">
                     <div>
                       <label className="block text-slate-700 font-bold mb-1">Gói dịch vụ tư vấn cho khách:</label>
-                      <select
-                        value={quoteService}
-                        onChange={(e) => {
-                          setQuoteService(e.target.value);
-                          if (e.target.value.includes('Ung Thư')) setQuoteBasePrice(15000000);
-                          else if (e.target.value.includes('Đột Quỵ')) setQuoteBasePrice(12500000);
-                          else if (e.target.value.includes('Tổng Quát')) setQuoteBasePrice(4500000);
-                          else if (e.target.value.includes('Sinh Mổ')) setQuoteBasePrice(35000000);
-                          else setQuoteBasePrice(8000000);
-                        }}
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:bg-white"
-                      >
-                        <option value="Gói Tầm Soát Ung Thư Toàn Diện">Gói Tầm Soát Ung Thư Toàn Diện (15,000,000 đ)</option>
-                        <option value="Gói Tầm Soát Đột Quỵ & Tim Mạch Chuyên Sâu">Gói Tầm Soát Đột Quỵ & Tim Mạch Chuyên Sâu (12,500,000 đ)</option>
-                        <option value="Gói Khám Sức Khỏe Tổng Quát VIP Executive">Gói Khám Sức Khỏe Tổng Quát VIP Executive (4,500,000 đ)</option>
-                        <option value="Gói Sinh Mổ Trọn Gói Phòng Tổng Thống VIP">Gói Sinh Mổ Trọn Gói Phòng Tổng Thống VIP (35,000,000 đ)</option>
-                        <option value="Liệu trình Trẻ Hóa Da Công Nghệ Cao Ultherapy">Liệu trình Trẻ Hóa Da Công Nghệ Cao Ultherapy (8,000,000 đ)</option>
-                      </select>
+                      {activePackages.length > 0 ? (
+                        <select
+                          value={quoteService}
+                          onChange={(e) => {
+                            const pkg = activePackages.find(p => p.name === e.target.value);
+                            setQuoteService(e.target.value);
+                            if (pkg) setQuoteBasePrice(Number(pkg.discountPrice || pkg.price || 0));
+                          }}
+                          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:bg-white"
+                        >
+                          {activePackages.map(p => (
+                            <option key={p.id} value={p.name}>
+                              {p.name} ({Number(p.discountPrice || p.price || 0).toLocaleString()} đ)
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <>
+                          <input
+                            type="text"
+                            value={quoteService}
+                            onChange={(e) => setQuoteService(e.target.value)}
+                            placeholder="Nhập tên gói / dịch vụ cần báo giá"
+                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:bg-white"
+                          />
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            Chưa có gói dịch vụ nào — thêm ở tab <span className="font-bold">Gói khám, Dịch vụ &amp; Bác sĩ</span>, hoặc nhập tên và giá thủ công.
+                          </p>
+                        </>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Giá gốc niêm yết (đ):</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={quoteBasePrice}
+                        onChange={(e) => setQuoteBasePrice(Number(e.target.value) || 0)}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-semibold text-slate-800 focus:bg-white"
+                      />
                     </div>
 
                     <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-xl space-y-1 text-slate-800">
@@ -819,20 +863,20 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Service Interests */}
+                  {/* Service Interests — real services this patient has been billed for */}
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2.5">
-                    <span className="font-bold text-slate-900 block text-xs">Gói Dịch Vụ Quan Tâm / Đã Sử Dụng</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="px-2.5 py-1 bg-white border border-blue-200 text-blue-700 rounded-lg font-bold">
-                        Gói Tầm Soát Ung Thư Toàn Diện
-                      </span>
-                      <span className="px-2.5 py-1 bg-white border border-emerald-200 text-emerald-700 rounded-lg font-bold">
-                        Khám Sức Khỏe Tổng Quát VIP
-                      </span>
-                      <span className="px-2.5 py-1 bg-white border border-purple-200 text-purple-700 rounded-lg font-bold">
-                        Dịch Vụ Bác Sĩ Gia Đình
-                      </span>
-                    </div>
+                    <span className="font-bold text-slate-900 block text-xs">Dịch Vụ / Gói Khám Đã Sử Dụng</span>
+                    {usedServices.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {usedServices.map((s, i) => (
+                          <span key={i} className="px-2.5 py-1 bg-white border border-blue-200 text-blue-700 rounded-lg font-bold">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-500">Chưa có hóa đơn dịch vụ nào cho khách hàng này.</p>
+                    )}
                   </div>
                 </div>
 
