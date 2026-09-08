@@ -1298,6 +1298,7 @@ export default function App() {
         isOpen={isStaffManagementOpen}
         onClose={() => setIsStaffManagementOpen(false)}
         staffList={staffUsers}
+        branches={branches}
         onAddStaff={handleAddStaff}
         onUpdateStaff={handleUpdateStaff}
       />
