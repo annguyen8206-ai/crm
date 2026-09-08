@@ -77,7 +77,15 @@ export const OmnichannelInboxView: React.FC<Props> = ({
   const [pending, setPending] = useState<MsgAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; name?: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox]);
   const [showSim, setShowSim] = useState(false);
   const [simName, setSimName] = useState('Khách Zalo Demo');
   const [simText, setSimText] = useState('Chào phòng khám, cho em hỏi lịch khám ạ');
@@ -210,9 +218,14 @@ export const OmnichannelInboxView: React.FC<Props> = ({
                       {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
                       {(m.attachments || []).map((a, i) => (
                         isImageAttachment(a) ? (
-                          <a key={i} href={a.url} target="_blank" rel="noreferrer" className="block mt-1">
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setLightbox({ url: a.url, name: a.name })}
+                            className="block mt-1 cursor-zoom-in"
+                          >
                             <img src={a.url} alt={a.name || 'hình ảnh'} className="rounded-lg max-h-60 max-w-full object-cover" />
-                          </a>
+                          </button>
                         ) : (
                           <a
                             key={i}
@@ -302,6 +315,34 @@ export const OmnichannelInboxView: React.FC<Props> = ({
           )}
         </div>
       </div>
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[80] bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="max-w-4xl max-h-[90vh] flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
+            <img src={lightbox.url} alt={lightbox.name || 'hình ảnh'} className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl bg-white" />
+            <div className="flex items-center gap-3">
+              <a
+                href={lightbox.url}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 bg-white/90 text-slate-800 rounded-lg text-xs font-bold hover:bg-white cursor-pointer"
+              >
+                Mở/Tải ảnh gốc
+              </a>
+              <button
+                type="button"
+                onClick={() => setLightbox(null)}
+                className="px-3 py-1.5 bg-white/20 text-white rounded-lg text-xs font-bold hover:bg-white/30 cursor-pointer"
+              >
+                Đóng (Esc)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
