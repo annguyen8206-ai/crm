@@ -37,6 +37,27 @@ describe('public integration callbacks', () => {
     const res = await request(app).get('/api/webhooks/facebook');
     expect(res.status).toBe(403);
   });
+
+  it('accepts the unsigned Zalo webhook registration probe (200) but rejects an unsigned real event (401)', async () => {
+    const savedSecret = process.env.ZALO_APP_SECRET;
+    const savedAppId = process.env.ZALO_APP_ID;
+    process.env.ZALO_APP_SECRET = 'test-secret';
+    process.env.ZALO_APP_ID = 'test-app';
+    try {
+      // Console "Kiểm tra webhook url" probe — no signature, no event_name
+      const probe = await request(app).post('/api/webhooks/zalo').send({ challenge: 'ping' });
+      expect(probe.status).toBe(200);
+
+      // A real event with no valid signature must still be rejected
+      const spoof = await request(app)
+        .post('/api/webhooks/zalo')
+        .send({ event_name: 'user_send_text', sender: { id: 'u1' }, message: { text: 'hi' }, timestamp: '1' });
+      expect(spoof.status).toBe(401);
+    } finally {
+      if (savedSecret === undefined) delete process.env.ZALO_APP_SECRET; else process.env.ZALO_APP_SECRET = savedSecret;
+      if (savedAppId === undefined) delete process.env.ZALO_APP_ID; else process.env.ZALO_APP_ID = savedAppId;
+    }
+  });
 });
 
 describe('integration settings endpoint', () => {

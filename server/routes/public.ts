@@ -167,7 +167,17 @@ export function registerPublicRoutes(app: Express): void {
   });
 
   app.post('/api/webhooks/zalo', async (req, res) => {
-    if (!verifyZaloSignature((req as any).rawBody || JSON.stringify(req.body), req.headers['x-zevent-signature'] as string | undefined, String(req.body?.timestamp || ''))) {
+    const isEvent = Boolean(req.body?.event_name);
+    const sigOk = verifyZaloSignature(
+      (req as any).rawBody || JSON.stringify(req.body),
+      req.headers['x-zevent-signature'] as string | undefined,
+      String(req.body?.timestamp || '')
+    );
+    if (!sigOk) {
+      // The Zalo console "Kiểm tra / Cập nhật webhook url" probe is an unsigned POST
+      // that carries no event — answer 200 so the URL registers, but ingest nothing.
+      if (!isEvent) return res.sendStatus(200);
+      console.warn('[messaging] zalo webhook: chữ ký không khớp trên sự kiện thật — kiểm tra ZALO_APP_SECRET / ZALO_APP_ID');
       return res.sendStatus(401);
     }
     res.sendStatus(200);
