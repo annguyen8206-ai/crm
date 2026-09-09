@@ -78,14 +78,22 @@ export function verifyZaloSignature(rawBody: Buffer | string, header: string | u
     console.warn('[messaging] ZALO_APP_ID/SECRET not set — skipping Zalo webhook signature check.');
     return true;
   }
-  if (!header || !timestamp) return false;
+  if (!header) return false;
   const body = typeof rawBody === 'string' ? rawBody : rawBody.toString('utf8');
-  const expected = 'mac=' + crypto.createHash('sha256').update(appId + body + timestamp + secret).digest('hex');
-  try {
-    return crypto.timingSafeEqual(Buffer.from(header), Buffer.from(expected));
-  } catch {
-    return false;
+  const ts = String(timestamp || '');
+  const received = header.replace(/^mac=/i, '').trim().toLowerCase();
+  const expected = crypto.createHash('sha256').update(appId + body + ts + secret).digest('hex');
+  const ok = received.length === expected.length
+    && crypto.timingSafeEqual(Buffer.from(received), Buffer.from(expected));
+  if (!ok && process.env.ZALO_WEBHOOK_DEBUG === 'true') {
+    console.warn('[messaging] zalo sig debug ' + JSON.stringify({
+      appIdUsed: appId, appIdLen: appId.length, secretLen: secret.length,
+      tsUsed: ts, bodyLen: body.length,
+      macReceived: received.slice(0, 16), macExpected: expected.slice(0, 16),
+      headerRaw: header.slice(0, 24),
+    }));
   }
+  return ok;
 }
 
 export function facebookVerifyChallenge(query: Record<string, unknown>): string | null {
