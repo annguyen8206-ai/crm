@@ -240,7 +240,7 @@ export interface AuditLogRecord {
   ipAddress: string;
 }
 
-export type MessageChannel = 'zalo' | 'facebook';
+export type MessageChannel = 'zalo' | 'facebook' | 'portal';
 
 export interface ConversationRecord {
   id: string;

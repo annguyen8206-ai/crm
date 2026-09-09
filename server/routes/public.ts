@@ -307,6 +307,53 @@ export function registerPublicRoutes(app: Express): void {
     res.status(201).json({ success: true, ticket });
   });
 
+  // --- Patient Portal live chat → omnichannel inbox (channel 'portal') ---
+  // The patient sends here; staff see it in the inbox and reply via
+  // POST /api/conversations/:id/reply; the patient polls GET /api/portal/chat.
+  app.post('/api/portal/chat', requirePortalAuth, async (req, res) => {
+    const pid = (req as any).portalPatientId as string;
+    const patient = dbStore.patients.find(p => p.id === pid);
+    if (!patient) return res.status(404).json({ error: 'Không tìm thấy hồ sơ' });
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'Nội dung tin nhắn trống' });
+    if (text.length > 4000) return res.status(400).json({ error: 'Tin nhắn quá dài' });
+    try {
+      const { conversation, message } = await ingestIncoming({
+        channel: 'portal',
+        externalUserId: pid,
+        senderName: patient.name,
+        text,
+        attachments: [],
+        at: new Date().toISOString(),
+      });
+      if (conversation.patientId !== pid) {
+        conversation.patientId = pid;
+        void persistStore();
+      }
+      res.status(201).json({ success: true, conversationId: conversation.id, message });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || 'Không gửi được tin nhắn' });
+    }
+  });
+
+  app.get('/api/portal/chat', requirePortalAuth, (req, res) => {
+    const pid = (req as any).portalPatientId as string;
+    const conv = dbStore.conversations.find(c => c.channel === 'portal' && c.externalUserId === pid);
+    if (!conv) return res.json({ conversationId: null, messages: [] });
+    const messages = dbStore.messages
+      .filter(m => m.conversationId === conv.id)
+      .sort((a, b) => (a.at < b.at ? -1 : 1))
+      .map(m => ({
+        id: m.id,
+        direction: m.direction,
+        text: m.text,
+        senderName: m.senderName,
+        attachments: m.attachments,
+        at: m.at,
+      }));
+    res.json({ conversationId: conv.id, messages });
+  });
+
   // --- Inbound VoIP webhook → screen-pop (public, shared secret) ---
   const voipWebhookOk = (req: Request) => {
     const secret = process.env.VOIP_WEBHOOK_SECRET;

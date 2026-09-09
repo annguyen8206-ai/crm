@@ -533,6 +533,18 @@ export const apiClient = {
       return request<{ success: boolean; ticket: any }>('/portal/tickets', {
         method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: JSON.stringify(data)
       });
+    },
+    async chatHistory() {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('vitcrm_portal_token') : null;
+      return request<{ conversationId: string | null; messages: Array<{ id: string; direction: 'in' | 'out'; text: string; senderName: string; attachments: Array<{ type: string; url: string; name?: string }>; at: string }> }>('/portal/chat', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+    },
+    async chatSend(text: string) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('vitcrm_portal_token') : null;
+      return request<{ success: boolean; conversationId: string; message: any }>('/portal/chat', {
+        method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: JSON.stringify({ text })
+      });
     }
   },
 

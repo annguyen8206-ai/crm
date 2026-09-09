@@ -13,7 +13,7 @@ import type { DispatchResult, IntegrationStatus } from './types';
  * (signature check is skipped with a warning) so the flow is testable.
  */
 
-export type Channel = 'zalo' | 'facebook';
+export type Channel = 'zalo' | 'facebook' | 'portal';
 
 export interface IncomingMessage {
   channel: Channel;
@@ -181,6 +181,13 @@ export async function sendReply(
   attachments: OutAttachment[] = []
 ): Promise<DispatchResult> {
   const media = attachments.map(a => ({ ...a, url: absUrl(a.url) }));
+
+  // In-app patient portal chat: nothing to dispatch to a third party — the patient
+  // reads staff replies by polling GET /api/portal/chat. Just report success so the
+  // reply is stored as a normal outbound message.
+  if (channel === 'portal') {
+    return { ok: true, mode: 'live', provider: 'portal' };
+  }
 
   if (channel === 'facebook') {
     if (!facebookConfigured()) {

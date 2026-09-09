@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, RefreshCw, Facebook, Circle, User, Paperclip, X, FileText, Loader2 } from 'lucide-react';
+import { MessageSquare, Send, RefreshCw, Facebook, Circle, User, Paperclip, X, FileText, Loader2, Building2 } from 'lucide-react';
+
+export type InboxChannel = 'zalo' | 'facebook' | 'portal';
 
 export interface MsgAttachment {
   type: string;
@@ -12,7 +14,7 @@ const isImageAttachment = (a: MsgAttachment) =>
 
 export interface InboxConversation {
   id: string;
-  channel: 'zalo' | 'facebook';
+  channel: InboxChannel;
   displayName: string;
   avatarUrl?: string;
   lastMessagePreview: string;
@@ -26,7 +28,7 @@ export interface InboxConversation {
 export interface InboxMessage {
   id: string;
   conversationId: string;
-  channel: 'zalo' | 'facebook';
+  channel: InboxChannel;
   direction: 'in' | 'out';
   senderName: string;
   text: string;
@@ -57,16 +59,23 @@ const fmtTime = (iso: string) => {
     : d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 };
 
-const ChannelBadge: React.FC<{ channel: 'zalo' | 'facebook' }> = ({ channel }) =>
-  channel === 'facebook' ? (
+const ChannelBadge: React.FC<{ channel: InboxChannel }> = ({ channel }) => {
+  if (channel === 'facebook') return (
     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
       <Facebook className="w-3 h-3" /> Messenger
     </span>
-  ) : (
+  );
+  if (channel === 'portal') return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+      <Building2 className="w-3 h-3" /> Cổng KH
+    </span>
+  );
+  return (
     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">
       <MessageSquare className="w-3 h-3" /> Zalo OA
     </span>
   );
+};
 
 export const OmnichannelInboxView: React.FC<Props> = ({
   conversations, messages, selectedId, loadingMessages,

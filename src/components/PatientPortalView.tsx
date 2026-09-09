@@ -32,6 +32,20 @@ import {
 import { Patient, Doctor, Branch, SupportTicket, Appointment } from '../types';
 import { formatDateVN } from '../utils/dateUtils';
 import { PatientAvatar } from './PatientAvatar';
+import { apiClient } from '../utils/apiClient';
+
+const CHAT_WELCOME: ChatMessage = {
+  id: 'msg-welcome',
+  sender: 'cskh',
+  senderName: 'Tư vấn viên CSKH 24/7',
+  text: 'Kính chào Quý khách! Bộ phận CSKH có thể hỗ trợ thông tin gì về đặt lịch khám, bảng giá dịch vụ hay kết quả xét nghiệm ạ?',
+  timestamp: ''
+};
+
+const fmtChatTime = (iso: string) => {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+};
 
 interface PatientPortalViewProps {
   patients: Patient[];
@@ -111,15 +125,9 @@ export const PatientPortalView: React.FC<PatientPortalViewProps> = ({
   const [isCskhTyping, setIsCskhTyping] = useState<boolean>(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: 'msg-1',
-      sender: 'cskh',
-      senderName: 'Tư vấn viên CSKH 24/7',
-      text: 'Kính chào Quý khách! Bệnh viện Đa khoa Quốc tế có thể hỗ trợ Quý khách thông tin gì về đặt lịch khám, bảng giá dịch vụ hay kết quả xét nghiệm hôm nay ạ?',
-      timestamp: '08:30'
-    }
-  ]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([CHAT_WELCOME]);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const chatSendingRef = useRef(false);
 
   // Feedback & Complaint Form State
   const [ticketCategory, setTicketCategory] = useState<SupportTicket['category']>('Góp ý dịch vụ');
@@ -148,6 +156,37 @@ export const PatientPortalView: React.FC<PatientPortalViewProps> = ({
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [chatMessages, isCskhTyping, activeTab]);
+
+  // Live chat: load history + poll for CSKH replies while the tab is open.
+  useEffect(() => {
+    if (activeTab !== 'live_chat') return;
+    let stop = false;
+    const pull = async () => {
+      if (chatSendingRef.current) return; // don't clobber an in-flight send
+      try {
+        const r = await apiClient.portal.chatHistory();
+        if (stop || chatSendingRef.current) return;
+        setChatError(null);
+        const mapped: ChatMessage[] = (r.messages || []).map(m => ({
+          id: m.id,
+          sender: m.direction === 'in' ? 'customer' : 'cskh',
+          senderName: m.direction === 'in' ? currentPatient.name : (m.senderName || 'Tư vấn viên CSKH'),
+          text: m.text,
+          timestamp: fmtChatTime(m.at),
+        }));
+        setChatMessages(prev => {
+          // keep any optimistic 'tmp-' bubble that the server hasn't echoed yet
+          const pendingTmp = prev.filter(m => m.id.startsWith('tmp-'));
+          return mapped.length || pendingTmp.length ? [...mapped, ...pendingTmp] : [CHAT_WELCOME];
+        });
+      } catch (e: any) {
+        if (!stop) setChatError(e?.message || 'Không kết nối được kênh CSKH. Vui lòng đăng nhập lại.');
+      }
+    };
+    pull();
+    const iv = setInterval(pull, 4000);
+    return () => { stop = true; clearInterval(iv); };
+  }, [activeTab, currentPatient.name]);
 
   // Handle Login with OTP
   const handleSendOtp = (e: React.FormEvent) => {
@@ -227,57 +266,42 @@ export const PatientPortalView: React.FC<PatientPortalViewProps> = ({
     setBookReason('');
   };
 
-  // Handle Live Chat Send
-  const handleSendMessage = (textToSend?: string) => {
+  // Handle Live Chat Send — posts to the real CSKH inbox (channel 'portal').
+  const mapChatHistory = (msgs: Array<{ id: string; direction: 'in' | 'out'; text: string; senderName: string; at: string }>): ChatMessage[] =>
+    msgs.map(m => ({
+      id: m.id,
+      sender: m.direction === 'in' ? 'customer' : 'cskh',
+      senderName: m.direction === 'in' ? currentPatient.name : (m.senderName || 'Tư vấn viên CSKH'),
+      text: m.text,
+      timestamp: fmtChatTime(m.at),
+    }));
+
+  const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || chatInput).trim();
-    if (!text) return;
-
-    const newMsgId = `msg-${Date.now()}`;
-    const timeNow = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-
-    // Append customer message
-    setChatMessages(prev => [
-      ...prev,
-      {
-        id: newMsgId,
-        sender: 'customer',
-        senderName: currentPatient.name,
-        text: text,
-        timestamp: timeNow
-      }
-    ]);
+    if (!text || chatSendingRef.current) return;
+    chatSendingRef.current = true;
     setChatInput('');
+    setChatError(null);
+
+    const tmpId = `tmp-${Date.now()}`;
+    setChatMessages(prev => [
+      ...prev.filter(m => m.id !== CHAT_WELCOME.id),
+      { id: tmpId, sender: 'customer', senderName: currentPatient.name, text, timestamp: fmtChatTime(new Date().toISOString()) },
+    ]);
     setIsCskhTyping(true);
 
-    // Simulate CSKH response after 1.2s
-    setTimeout(() => {
+    try {
+      await apiClient.portal.chatSend(text);
+      const r = await apiClient.portal.chatHistory();
+      const mapped = mapChatHistory(r.messages || []);
+      setChatMessages(mapped.length ? mapped : [CHAT_WELCOME]);
+    } catch (e: any) {
+      setChatError(e?.message || 'Không gửi được tin nhắn. Vui lòng đăng nhập lại và thử lại.');
+      setChatMessages(prev => prev.filter(m => m.id !== tmpId));
+    } finally {
       setIsCskhTyping(false);
-      let replyText = '';
-      const lower = text.toLowerCase();
-
-      if (lower.includes('đặt lịch') || lower.includes('hẹn khám') || lower.includes('bác sĩ')) {
-        replyText = `Dạ chào Quý khách ${currentPatient.name}! Em đã tiếp nhận yêu cầu đặt lịch khám. Quý khách có thể chuyển sang tab "[Đặt Lịch Khám]" bên cạnh để chọn Bác sĩ và khung giờ ưng ý, hoặc em hỗ trợ đăng ký trực tiếp luôn cho mình ạ!`;
-      } else if (lower.includes('giá') || lower.includes('chi phí') || lower.includes('gói')) {
-        replyText = `Dạ hiện tại Quý khách đang là Hội viên Hạng [${currentPatient.membership.tier}], được áp dụng chiết khấu trực tiếp lên đến 15% tất cả các dịch vụ khám chuyên sâu và xét nghiệm. Bảng giá khám ban đầu niêm yết từ 350.000đ - 450.000đ Quý khách nhé!`;
-      } else if (lower.includes('đổi lịch') || lower.includes('hủy')) {
-        replyText = `Dạ Quý khách có thể xem danh sách lịch hẹn tại tab "[Lịch Hẹn Của Tôi]" để quản lý hoặc báo lại khung giờ mới để tổng đài CSKH hỗ trợ điều chỉnh ngay ạ!`;
-      } else if (lower.includes('nhịn ăn') || lower.includes('chuẩn bị')) {
-        replyText = `Dạ đối với các gói xét nghiệm máu tổng quát hoặc siêu âm ổ bụng, Quý khách nên nhịn ăn sáng từ 6 - 8 tiếng và uống một chút nước lọc để kết quả xét nghiệm đạt độ chính xác cao nhất ạ.`;
-      } else {
-        replyText = `Dạ em xin ghi nhận câu hỏi của Quý khách "${text}". Chuyên viên CSKH đang kiểm tra hồ sơ và sẽ hỗ trợ giải đáp chi tiết ngay cho Quý khách ạ!`;
-      }
-
-      setChatMessages(prev => [
-        ...prev,
-        {
-          id: `msg-reply-${Date.now()}`,
-          sender: 'cskh',
-          senderName: 'Tư vấn viên CSKH 24/7',
-          text: replyText,
-          timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
-    }, 1200);
+      chatSendingRef.current = false;
+    }
   };
 
   // Handle Ticket / Feedback submission
@@ -752,6 +776,12 @@ export const PatientPortalView: React.FC<PatientPortalViewProps> = ({
 
             {/* Message Stream Body */}
             <div className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-slate-50/50 text-xs">
+              {chatError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-[11px] flex items-center gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{chatError}</span>
+                </div>
+              )}
               {chatMessages.map((msg) => (
                 <div
                   key={msg.id}
@@ -796,7 +826,7 @@ export const PatientPortalView: React.FC<PatientPortalViewProps> = ({
                     <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.2s]" />
                     <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.4s]" />
                   </div>
-                  <span>Tư vấn viên đang soạn câu trả lời...</span>
+                  <span>Đang gửi tin nhắn tới CSKH...</span>
                 </div>
               )}
 
