@@ -85,12 +85,28 @@ export function verifyZaloSignature(rawBody: Buffer | string, header: string | u
   const expected = crypto.createHash('sha256').update(appId + body + ts + secret).digest('hex');
   const ok = received.length === expected.length
     && crypto.timingSafeEqual(Buffer.from(received), Buffer.from(expected));
+
   if (!ok && process.env.ZALO_WEBHOOK_DEBUG === 'true') {
+    const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
+    const hmac = (key: string, s: string) => crypto.createHmac('sha256', key).update(s).digest('hex');
+    const candidates: Record<string, string> = {
+      'sha256(appId+data+ts+secret)': sha(appId + body + ts + secret),
+      'sha256(appId+data+secret)': sha(appId + body + secret),
+      'sha256(data+ts+secret)': sha(body + ts + secret),
+      'sha256(appId+ts+data+secret)': sha(appId + ts + body + secret),
+      'sha256(secret+appId+data+ts)': sha(secret + appId + body + ts),
+      'hmac(secret, appId+data+ts)': hmac(secret, appId + body + ts),
+      'hmac(secret, data)': hmac(secret, body),
+      'hmac(secret, appId+data+ts+secret)': hmac(secret, appId + body + ts + secret),
+    };
+    const match = Object.entries(candidates).find(([, v]) => v === received)?.[0] || 'NONE';
     console.warn('[messaging] zalo sig debug ' + JSON.stringify({
       appIdUsed: appId, appIdLen: appId.length, secretLen: secret.length,
       tsUsed: ts, bodyLen: body.length,
-      macReceived: received.slice(0, 16), macExpected: expected.slice(0, 16),
-      headerRaw: header.slice(0, 24),
+      macReceivedFull: received,
+      macExpectedFull: expected,
+      formulaMatch: match,
+      bodyFull: body.length <= 600 ? body : body.slice(0, 600) + '…',
     }));
   }
   return ok;
