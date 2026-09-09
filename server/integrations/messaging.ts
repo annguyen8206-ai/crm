@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { DispatchResult, IntegrationStatus } from './types';
+import { getZaloAccessToken } from './zns';
 
 /**
  * Omnichannel inbound/outbound messaging: Zalo OA + Facebook Messenger.
@@ -150,21 +151,6 @@ export function normalizeZaloPayload(body: any): IncomingMessage[] {
 // Outbound replies + profile lookup
 // --------------------------------------------------------------------------
 
-async function zaloAccessToken(): Promise<string | null> {
-  if (process.env.ZALO_OA_ACCESS_TOKEN) return process.env.ZALO_OA_ACCESS_TOKEN;
-  const appId = process.env.ZALO_APP_ID;
-  const secret = process.env.ZALO_APP_SECRET;
-  const refresh = process.env.ZALO_OA_REFRESH_TOKEN;
-  if (!appId || !secret || !refresh) return null;
-  const res = await fetch('https://oauth.zaloapp.com/v4/oa/access_token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', secret_key: secret },
-    body: new URLSearchParams({ app_id: appId, grant_type: 'refresh_token', refresh_token: refresh })
-  });
-  const json: any = await res.json().catch(() => ({}));
-  return json.access_token || null;
-}
-
 type OutAttachment = { type: string; url: string; name?: string };
 
 /** Absolute URL for a possibly-relative attachment path so a provider can fetch it. */
@@ -228,7 +214,7 @@ export async function sendReply(
     console.log(`[messaging:simulated] zalo → ${externalUserId}: ${text}${media.length ? ` (+${media.length} tệp)` : ''}`);
     return { ok: true, mode: 'simulated', provider: 'zalo' };
   }
-  const token = await zaloAccessToken();
+  const token = await getZaloAccessToken();
   if (!token) return { ok: false, mode: 'live', provider: 'zalo', error: 'Không lấy được access token Zalo OA' };
   // Zalo CS API needs an upload-token flow for native media; as a reliable fallback
   // we append the file URLs to the text so the customer still receives them.
@@ -255,7 +241,7 @@ export async function fetchProfile(channel: Channel, externalUserId: string): Pr
       return { name: json.name, avatarUrl: json.profile_pic };
     }
     if (channel === 'zalo' && zaloConfigured()) {
-      const token = await zaloAccessToken();
+      const token = await getZaloAccessToken();
       if (!token) return {};
       const res = await fetch(`https://openapi.zalo.me/v3.0/oa/user/detail?data=${encodeURIComponent(JSON.stringify({ user_id: externalUserId }))}`, {
         headers: { access_token: token }

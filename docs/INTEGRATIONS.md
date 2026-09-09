@@ -33,9 +33,13 @@ Test: `POST /api/email/send` (admin) `{ "to","subject","html" | "text" }`.
 ## 3. Zalo ZNS
 | Env | |
 |---|---|
-| `ZALO_OA_ACCESS_TOKEN` | cách 1: token tĩnh |
-| `ZALO_APP_ID` + `ZALO_APP_SECRET` + `ZALO_OA_REFRESH_TOKEN` | cách 2: tự làm mới token (khuyến nghị) |
+| `ZALO_APP_ID` + `ZALO_APP_SECRET` + `ZALO_OA_REFRESH_TOKEN` | **khuyến nghị** — tự làm mới token; khi đủ 3 khóa này thì **được ưu tiên**, `ZALO_OA_ACCESS_TOKEN` bị bỏ qua |
+| `ZALO_OA_ACCESS_TOKEN` | dự phòng — token dán tay, hết hạn ~25h, không tự làm mới. Chỉ dùng khi không có bộ 3 ở trên |
 | `ZNS_TEMPLATE_POST_VISIT_CARE`, `ZNS_TEMPLATE_AUTO_RECALL`, `ZNS_TEMPLATE_APPOINTMENT_CONFIRMED`, `ZNS_TEMPLATE_HEALTH_FOLLOWUP` | id template đã được Zalo duyệt |
+
+> Token dán tay hết hạn nằm cạnh bộ 3 hợp lệ từng khiến Zalo trả `-124 "Access token
+> invalid"` và OTP/tin nhắn âm thầm rơi về chế độ giả lập. Nay bộ 3 luôn thắng; token
+> Zalo dùng chung cho ZNS, OTP và Hộp thư đa kênh (trả lời + lấy hồ sơ).
 
 Dùng qua `POST /api/zns/send-post-visit-care`. Có thể truyền `templateData` (object) khớp
 tham số template; nếu không, hệ thống tự tạo `{patient_name, diagnosis, care_notes}`.

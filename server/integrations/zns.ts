@@ -3,10 +3,13 @@ import type { DispatchResult, IntegrationStatus } from './types';
 /**
  * Zalo ZNS (Zalo Notification Service) via Zalo OA Open API.
  *
- * Simple mode (token you paste, refresh yourself):
- *   ZALO_OA_ACCESS_TOKEN
- * Auto-refresh mode (recommended):
+ * Auto-refresh mode (recommended, takes priority when all three are set):
  *   ZALO_APP_ID, ZALO_APP_SECRET, ZALO_OA_REFRESH_TOKEN
+ * Fallback — a token you paste and renew yourself (expires in ~25h, no auto-renew):
+ *   ZALO_OA_ACCESS_TOKEN
+ * The refresh trio wins over a pasted token on purpose: a stale pasted token that
+ * sits alongside a valid trio used to make Zalo return -124 "Access token invalid"
+ * and OTP/messaging then silently fell back to simulated mode.
  *
  * Map your approved template ids:
  *   ZNS_TEMPLATE_POST_VISIT_CARE, ZNS_TEMPLATE_AUTO_RECALL,
@@ -56,7 +59,7 @@ export async function testZnsConnection(): Promise<{ ok: boolean; message: strin
   resetZnsCache();
   let token: string | null = null;
   try {
-    token = await getAccessToken();
+    token = await getZaloAccessToken();
   } catch (e: any) {
     return { ok: false, message: 'Lỗi khi lấy access token: ' + (e?.message || String(e)) };
   }
@@ -107,14 +110,19 @@ export async function sendZaloOtp(phone: string, code: string, extra?: Record<st
   });
 }
 
-async function getAccessToken(): Promise<string | null> {
-  if (process.env.ZALO_OA_ACCESS_TOKEN) return process.env.ZALO_OA_ACCESS_TOKEN;
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.value;
-
+/**
+ * A valid Zalo OA access token. Shared by ZNS, OTP and the omnichannel inbox
+ * (reply + profile lookup). Auto-refresh trio wins over a pasted token; the
+ * minted token is cached until ~1min before it expires. `resetZnsCache()` drops it.
+ */
+export async function getZaloAccessToken(): Promise<string | null> {
   const appId = process.env.ZALO_APP_ID;
   const appSecret = process.env.ZALO_APP_SECRET;
   const refreshToken = process.env.ZALO_OA_REFRESH_TOKEN;
-  if (!appId || !appSecret || !refreshToken) return null;
+  const staticToken = process.env.ZALO_OA_ACCESS_TOKEN || null;
+
+  if (!appId || !appSecret || !refreshToken) return staticToken;
+  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.value;
 
   const body = new URLSearchParams({
     app_id: appId,
@@ -129,7 +137,7 @@ async function getAccessToken(): Promise<string | null> {
   const json: any = await res.json().catch(() => ({}));
   if (!json.access_token) {
     console.error('[zns] token refresh failed:', JSON.stringify(json));
-    return null;
+    return staticToken; // last resort
   }
   cachedToken = { value: json.access_token, expiresAt: Date.now() + Number(json.expires_in || 3600) * 1000 };
   return cachedToken.value;
@@ -158,7 +166,7 @@ export async function sendZns(msg: ZnsMessage): Promise<DispatchResult> {
   if (!templateId) {
     return { ok: false, mode: 'live', provider: 'zalo-oa', error: `Chưa cấu hình template id cho ${msg.templateType}` };
   }
-  const token = await getAccessToken();
+  const token = await getZaloAccessToken();
   if (!token) return { ok: false, mode: 'live', provider: 'zalo-oa', error: 'Không lấy được access token Zalo OA' };
 
   try {
