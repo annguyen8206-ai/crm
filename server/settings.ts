@@ -31,6 +31,7 @@ export const SETTING_GROUPS: SettingGroup[] = [
       { key: 'ZNS_TEMPLATE_POST_VISIT_CARE', label: 'Template ID — Dặn dò sau khám' },
       { key: 'ZNS_TEMPLATE_AUTO_RECALL', label: 'Template ID — Nhắc tái khám' },
       { key: 'ZNS_TEMPLATE_HEALTH_FOLLOWUP', label: 'Template ID — Khảo sát sức khỏe' },
+      { key: 'ZALO_WEBHOOK_DEBUG', label: 'Log gỡ lỗi chữ ký webhook Zalo (true/false)', placeholder: 'false' },
     ],
   },
   {
