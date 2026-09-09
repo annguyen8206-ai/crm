@@ -48,7 +48,12 @@ Gọi `https://business.openapi.zalo.me/message/template`.
 | twilio | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` |
 | esms (esms.vn) | `ESMS_API_KEY`, `ESMS_SECRET_KEY`, `ESMS_BRANDNAME` (tùy chọn) |
 | generic | `SMS_WEBHOOK_URL` (POST `{to,message}`), `SMS_WEBHOOK_TOKEN` |
-| OTP | `OTP_TTL_SECONDS` (300), `OTP_LENGTH` (6), `OTP_DEV_ECHO` (`true` chỉ khi dev) |
+| OTP | `OTP_TTL_SECONDS` (300), `OTP_LENGTH` (6), `OTP_DEV_ECHO` (`true` chỉ khi dev), `OTP_LOG_CODES` (`true` → ghi mã vào log server) |
+
+**Đọc mã OTP từ log khi Zalo/SMS gửi lỗi:** đặt `OTP_LOG_CODES=true` (env hoặc nhóm *OTP*
+trong "Cấu Hình Khóa Tích Hợp"). Mỗi lần phát mã, server ghi một dòng log level `warn`:
+`otp issued { identifier, target, purpose, code, channel, mode, sent }`. Trên VPS xem bằng
+`pm2 logs vitcrm --lines 50 | grep "otp issued"`. Mã vẫn là bí mật còn hiệu lực — tắt lại khi debug xong.
 
 OTP endpoints (không cần token, dùng cho luồng đăng nhập 2FA):
 ```

@@ -2,6 +2,7 @@ import { sendSms } from './sms';
 import { sendEmail } from './email';
 import { sendZaloOtp, znsOtpConfigured } from './zns';
 import type { IntegrationStatus } from './types';
+import { log } from '../logger';
 
 /**
  * One-time passcodes for login 2FA / verification.
@@ -19,6 +20,11 @@ import type { IntegrationStatus } from './types';
  *   OTP_TTL_SECONDS   default 300
  *   OTP_LENGTH        default 6
  *   OTP_DEV_ECHO      "true" → return the code in the API response (dev only)
+ *   OTP_LOG_CODES     "true" → write every generated code to the server log
+ *                     (msg "otp issued", level warn so it survives LOG_LEVEL=info).
+ *                     Lets an admin read the code from `pm2 logs vitcrm` when Zalo
+ *                     delivery is failing — logs are private to the server, but the
+ *                     code is still a live secret, so keep this OFF unless debugging.
  */
 interface Challenge {
   codeHash: string;
@@ -62,7 +68,7 @@ export function otpStatus(): IntegrationStatus {
     configured: true,
     mode: 'live',
     provider: 'in-memory',
-    detail: `TTL ${Number(process.env.OTP_TTL_SECONDS || 300)}s · kênh: ${channelOrder().join('→')}${znsOtpConfigured() ? '' : primary === 'zalo' ? ' (zalo chưa cấu hình)' : ''} · ${store.size} challenge đang chờ`
+    detail: `TTL ${Number(process.env.OTP_TTL_SECONDS || 300)}s · kênh: ${channelOrder().join('→')}${znsOtpConfigured() ? '' : primary === 'zalo' ? ' (zalo chưa cấu hình)' : ''} · ${store.size} challenge đang chờ${process.env.OTP_LOG_CODES === 'true' ? ' · LOG MÃ: BẬT' : ''}`
   };
 }
 
@@ -81,6 +87,25 @@ export async function requestOtp(identifier: string, opts: { phone?: string; ema
   const code = genCode();
   store.set(identifier, { codeHash: hash(code), expiresAt: Date.now() + ttlMs(), attempts: 0, target: opts.phone || opts.email || '' });
 
+  const result = await deliverOtp(code, opts);
+
+  if (process.env.OTP_LOG_CODES === 'true') {
+    log.warn('otp issued', {
+      identifier,
+      target: opts.phone || opts.email || '',
+      purpose: opts.purpose || '',
+      code,
+      channel: result.channel,
+      mode: result.mode,
+      sent: result.sent,
+      ...(result.error ? { error: result.error } : {}),
+    });
+  }
+
+  return result;
+}
+
+async function deliverOtp(code: string, opts: { phone?: string; email?: string; purpose?: string }): Promise<OtpRequestResult> {
   const minutes = String(Math.round(ttlMs() / 60000));
   const message = `${code} la ma xac thuc VitCRM cua ban${opts.purpose ? ` (${opts.purpose})` : ''}. Ma het han sau ${minutes} phut.`;
   const devEcho = process.env.OTP_DEV_ECHO === 'true' ? { devCode: code } : {};

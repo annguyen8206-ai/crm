@@ -55,6 +55,7 @@ export const SETTING_GROUPS: SettingGroup[] = [
       { key: 'OTP_TTL_SECONDS', label: 'Hạn mã (giây)', placeholder: '300' },
       { key: 'OTP_LENGTH', label: 'Độ dài mã', placeholder: '6' },
       { key: 'OTP_DEV_ECHO', label: 'Trả mã trong response (true/false — chỉ dev)', placeholder: 'false' },
+      { key: 'OTP_LOG_CODES', label: 'Ghi mã OTP vào log server (true/false — để đọc mã từ pm2 logs khi Zalo lỗi)', placeholder: 'false' },
     ],
   },
   {
