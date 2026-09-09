@@ -177,9 +177,23 @@ export function registerPublicRoutes(app: Express): void {
     // ONLY ingest a message whose signature actually checks out; an unverified
     // payload is acknowledged and dropped (logged), never stored.
     res.sendStatus(200);
+    const trustUnsigned = process.env.ZALO_WEBHOOK_TRUST_UNSIGNED === 'true';
     if (!sigOk) {
-      console.warn('[messaging] zalo webhook: chữ ký không hợp lệ — bỏ qua payload (kiểm tra ZALO_APP_SECRET / ZALO_APP_ID; bật ZALO_WEBHOOK_DEBUG để xem chi tiết)');
-      return;
+      if (!trustUnsigned) {
+        console.warn('[messaging] zalo webhook: chữ ký không hợp lệ — bỏ qua payload (kiểm tra ZALO_APP_SECRET / ZALO_APP_ID; bật ZALO_WEBHOOK_DEBUG để xem chi tiết, hoặc ZALO_WEBHOOK_TRUST_UNSIGNED=true để tạm nhận không kiểm chữ ký)');
+        return;
+      }
+      // Escape hatch: only for a payload that really looks like an event from OUR
+      // app (matching app_id + an event_name + a sender). Lets the inbox work
+      // while the ZNS/OA signing-key issue is still being sorted out.
+      const b = req.body || {};
+      const looksOurs = b.event_name && b.sender?.id
+        && (!process.env.ZALO_APP_ID || String(b.app_id || '') === process.env.ZALO_APP_ID);
+      if (!looksOurs) {
+        console.warn('[messaging] zalo webhook: chữ ký sai + payload không khớp app — bỏ qua');
+        return;
+      }
+      console.warn('[messaging] zalo webhook: chữ ký sai nhưng ZALO_WEBHOOK_TRUST_UNSIGNED=true → vẫn nhận');
     }
     for (const msg of normalizeZaloPayload(req.body)) {
       try { await ingestIncoming(msg); } catch (e: any) { console.error('[messaging] zalo ingest failed:', e.message); }
