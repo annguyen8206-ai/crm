@@ -117,7 +117,10 @@ async function deliverOtp(code: string, opts: { phone?: string; email?: string; 
       const r = await sendZaloOtp(opts.phone, code, { minutes });
       if (r.ok && r.mode === 'live') return { sent: true, channel: 'zalo', mode: 'live', ...devEcho };
       lastError = r.error || lastError;
-      // ZNS failed (e.g. recipient has no Zalo) → try the next channel.
+      // ZNS failed (e.g. recipient has no Zalo, template/param mismatch) → try the
+      // next channel. Log it: a simulated-SMS success downstream would otherwise
+      // hide why Zalo didn't deliver.
+      log.warn('otp zalo send failed', { target: opts.phone, error: r.error || 'unknown', raw: (r as any).raw });
     } else if (ch === 'sms') {
       if (!opts.phone) continue;
       const r = await sendSms({ to: opts.phone, message });
