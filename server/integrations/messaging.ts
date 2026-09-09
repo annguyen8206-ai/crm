@@ -93,11 +93,17 @@ export function verifyZaloSignature(rawBody: Buffer | string, header: string | u
       'sha256(appId+data+ts+secret)': sha(appId + body + ts + secret),
       'sha256(appId+data+secret)': sha(appId + body + secret),
       'sha256(data+ts+secret)': sha(body + ts + secret),
+      'sha256(data+secret)': sha(body + secret),
+      'sha256(secret+data)': sha(secret + body),
       'sha256(appId+ts+data+secret)': sha(appId + ts + body + secret),
       'sha256(secret+appId+data+ts)': sha(secret + appId + body + ts),
+      'sha256(appId+secret+data+ts)': sha(appId + secret + body + ts),
       'hmac(secret, appId+data+ts)': hmac(secret, appId + body + ts),
       'hmac(secret, data)': hmac(secret, body),
+      'hmac(secret, data+ts)': hmac(secret, body + ts),
+      'hmac(secret, ts+data)': hmac(secret, ts + body),
       'hmac(secret, appId+data+ts+secret)': hmac(secret, appId + body + ts + secret),
+      'hmac(appId+secret, data)': hmac(appId + secret, body),
     };
     const match = Object.entries(candidates).find(([, v]) => v === received)?.[0] || 'NONE';
     console.warn('[messaging] zalo sig debug ' + JSON.stringify({

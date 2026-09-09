@@ -167,20 +167,20 @@ export function registerPublicRoutes(app: Express): void {
   });
 
   app.post('/api/webhooks/zalo', async (req, res) => {
-    const isEvent = Boolean(req.body?.event_name);
     const sigOk = verifyZaloSignature(
       (req as any).rawBody || JSON.stringify(req.body),
       req.headers['x-zevent-signature'] as string | undefined,
       String(req.body?.timestamp || '')
     );
-    if (!sigOk) {
-      // The Zalo console "Kiểm tra / Cập nhật webhook url" probe is an unsigned POST
-      // that carries no event — answer 200 so the URL registers, but ingest nothing.
-      if (!isEvent) return res.sendStatus(200);
-      console.warn('[messaging] zalo webhook: chữ ký không khớp trên sự kiện thật — kiểm tra ZALO_APP_SECRET / ZALO_APP_ID');
-      return res.sendStatus(401);
-    }
+    // Always ACK 200 — the Zalo console only registers a webhook that returns 200,
+    // and its "Kiểm tra" probe sends a fake signed payload we can't verify. But we
+    // ONLY ingest a message whose signature actually checks out; an unverified
+    // payload is acknowledged and dropped (logged), never stored.
     res.sendStatus(200);
+    if (!sigOk) {
+      console.warn('[messaging] zalo webhook: chữ ký không hợp lệ — bỏ qua payload (kiểm tra ZALO_APP_SECRET / ZALO_APP_ID; bật ZALO_WEBHOOK_DEBUG để xem chi tiết)');
+      return;
+    }
     for (const msg of normalizeZaloPayload(req.body)) {
       try { await ingestIncoming(msg); } catch (e: any) { console.error('[messaging] zalo ingest failed:', e.message); }
     }

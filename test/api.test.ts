@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 import { createApp } from '../server';
+import { dbStore } from '../server/store';
 
 let app: Express;
 
@@ -38,21 +39,23 @@ describe('public integration callbacks', () => {
     expect(res.status).toBe(403);
   });
 
-  it('accepts the unsigned Zalo webhook registration probe (200) but rejects an unsigned real event (401)', async () => {
+  it('always ACKs the Zalo webhook 200 (registration + probe), even on a bad signature', async () => {
     const savedSecret = process.env.ZALO_APP_SECRET;
     const savedAppId = process.env.ZALO_APP_ID;
     process.env.ZALO_APP_SECRET = 'test-secret';
     process.env.ZALO_APP_ID = 'test-app';
     try {
-      // Console "Kiểm tra webhook url" probe — no signature, no event_name
       const probe = await request(app).post('/api/webhooks/zalo').send({ challenge: 'ping' });
       expect(probe.status).toBe(200);
 
-      // A real event with no valid signature must still be rejected
+      // An event with an invalid signature is still ACKed 200 (so the URL registers
+      // / Zalo stops retrying) — it just isn't ingested.
+      const before = dbStore.messages.length;
       const spoof = await request(app)
         .post('/api/webhooks/zalo')
         .send({ event_name: 'user_send_text', sender: { id: 'u1' }, message: { text: 'hi' }, timestamp: '1' });
-      expect(spoof.status).toBe(401);
+      expect(spoof.status).toBe(200);
+      expect(dbStore.messages.length).toBe(before); // not stored
     } finally {
       if (savedSecret === undefined) delete process.env.ZALO_APP_SECRET; else process.env.ZALO_APP_SECRET = savedSecret;
       if (savedAppId === undefined) delete process.env.ZALO_APP_ID; else process.env.ZALO_APP_ID = savedAppId;
