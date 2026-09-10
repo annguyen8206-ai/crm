@@ -128,22 +128,10 @@ export function registerSystemRoutes(app: Express): void {
       },
     };
 
-    // 1. Raw refresh_token grant
-    try {
-      const r = await fetch('https://oauth.zaloapp.com/v4/oa/access_token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', secret_key: appSecret },
-        body: new URLSearchParams({ app_id: appId, grant_type: 'refresh_token', refresh_token: refreshToken }),
-      });
-      const j: any = await r.json().catch(() => ({}));
-      out.refreshGrant = j.access_token
-        ? { ok: true, access_token: mask(j.access_token), refresh_token: mask(j.refresh_token), expires_in: j.expires_in }
-        : { ok: false, raw: j };
-    } catch (e: any) {
-      out.refreshGrant = { ok: false, error: e?.message || String(e) };
-    }
-
-    // 2. What getZaloAccessToken() actually resolves to + a getoa probe with proof
+    // Non-destructive: go through the real cached/single-flight path. This DOES
+    // consume + persist one refresh-token rotation if the cache is cold — that is
+    // normal operation, not a leak.
+    void refreshToken; void appSecret;
     try {
       const tok = await getZaloAccessToken();
       out.resolvedToken = mask(tok);
