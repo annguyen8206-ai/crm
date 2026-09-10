@@ -188,6 +188,14 @@ export function normalizeZaloPayload(body: any): IncomingMessage[] {
 
 type OutAttachment = { type: string; url: string; name?: string };
 
+/** Zalo security parameter for OA Open APIs: HMAC-SHA256(access_token) keyed by the
+ *  app secret. Required by user/detail (and increasingly others) or Zalo returns -242. */
+function zaloAppSecretProof(accessToken: string): string | null {
+  const appSecret = process.env.ZALO_APP_SECRET;
+  if (!appSecret) return null;
+  return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');
+}
+
 /** Absolute URL for a possibly-relative attachment path so a provider can fetch it. */
 function absUrl(u: string): string {
   if (/^https?:\/\//i.test(u)) return u;
@@ -255,7 +263,8 @@ export async function sendReply(
   // we append the file URLs to the text so the customer still receives them.
   const zaloText = [text, ...media.map(a => `📎 ${a.name || 'Tệp đính kèm'}: ${a.url}`)].filter(Boolean).join('\n');
   try {
-    const res = await fetch('https://openapi.zalo.me/v3.0/oa/message/cs', {
+    const proof = zaloAppSecretProof(token);
+    const res = await fetch(`https://openapi.zalo.me/v3.0/oa/message/cs${proof ? `?appsecret_proof=${proof}` : ''}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', access_token: token },
       body: JSON.stringify({ recipient: { user_id: externalUserId }, message: { text: zaloText } })
@@ -278,7 +287,10 @@ export async function fetchProfile(channel: Channel, externalUserId: string): Pr
     if (channel === 'zalo' && zaloConfigured()) {
       const token = await getZaloAccessToken();
       if (!token) { console.warn('[messaging] fetchProfile zalo: chưa lấy được access token OA'); return {}; }
-      const res = await fetch(`https://openapi.zalo.me/v3.0/oa/user/detail?data=${encodeURIComponent(JSON.stringify({ user_id: externalUserId }))}`, {
+      const proof = zaloAppSecretProof(token);
+      const qs = `data=${encodeURIComponent(JSON.stringify({ user_id: externalUserId }))}`
+        + (proof ? `&appsecret_proof=${proof}` : '');
+      const res = await fetch(`https://openapi.zalo.me/v3.0/oa/user/detail?${qs}`, {
         headers: { access_token: token }
       });
       const json: any = await res.json().catch(() => ({}));
