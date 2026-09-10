@@ -262,8 +262,10 @@ export async function sendReply(
     });
     const json: any = await res.json().catch(() => ({}));
     if (json.error === 0) return { ok: true, mode: 'live', provider: 'zalo', ref: json.data?.message_id, raw: json };
+    console.warn(`[messaging] zalo reply lỗi ${json.error}: ${json.message || 'không rõ'} (user_id=${externalUserId})`);
     return { ok: false, mode: 'live', provider: 'zalo', error: json.message || `Zalo error ${json.error}`, raw: json };
   } catch (e: any) {
+    console.error('[messaging] zalo reply exception:', e.message);
     return { ok: false, mode: 'live', provider: 'zalo', error: e.message };
   }
 }

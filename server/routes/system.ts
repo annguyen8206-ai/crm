@@ -134,10 +134,28 @@ export function registerSystemRoutes(app: Express): void {
       out.resolvedToken = mask(tok);
       if (tok) {
         out.appsecretProof = zaloAppSecretProof(tok).slice(0, 16) + '…';
-        // Real call path: getoa with appsecret_proof in the HEADER.
         const g = await fetch('https://openapi.zalo.me/v2.0/oa/getoa', { headers: zaloAuthHeaders(tok) });
         const j: any = await g.json().catch(() => ({}));
         out.getoa = { error: j.error, message: j.message, oa: j.data?.name || j.data?.oa_id };
+
+        // Optional: ?user_id=<zalo user id> to probe profile lookup + CS reply.
+        const uid = String(_req.query.user_id || '').trim();
+        if (uid) {
+          const p = await fetch(
+            `https://openapi.zalo.me/v3.0/oa/user/detail?data=${encodeURIComponent(JSON.stringify({ user_id: uid }))}`,
+            { headers: zaloAuthHeaders(tok) },
+          );
+          const pj: any = await p.json().catch(() => ({}));
+          out.userDetail = { error: pj.error, message: pj.message, name: pj.data?.display_name };
+
+          const c = await fetch('https://openapi.zalo.me/v3.0/oa/message/cs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...zaloAuthHeaders(tok) },
+            body: JSON.stringify({ recipient: { user_id: uid }, message: { text: '(diag test — bỏ qua)' } }),
+          });
+          const cj: any = await c.json().catch(() => ({}));
+          out.replyTest = { error: cj.error, message: cj.message };
+        }
       }
     } catch (e: any) {
       out.resolvedToken = { error: e?.message || String(e) };
