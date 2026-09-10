@@ -6,6 +6,7 @@ import { saveSettings, describeSettings } from '../settings';
 import { queryAudit } from '../audit';
 import { requireAdmin, APP_BASE_URL } from '../http-util';
 import { createZaloAuthUrl } from '../zalo-oauth';
+import { getZaloAccessToken, zaloAppSecretProof, withAppSecretProof } from '../integrations';
 
 /** System / admin routes: audit log, staff accounts, integration status + settings. */
 export function registerSystemRoutes(app: Express): void {
@@ -107,6 +108,55 @@ export function registerSystemRoutes(app: Express): void {
     const r = createZaloAuthUrl(redirectUri);
     if ('error' in r) return res.status(400).json({ error: r.error, redirectUri });
     res.json({ url: r.url, redirectUri });
+  });
+
+  // One-shot Zalo OA diagnostic — runs the real refresh + getoa with the app's
+  // live config and returns Zalo's raw responses (secrets masked).
+  app.get('/api/system/zalo/diag', requireAdmin, async (_req, res) => {
+    const mask = (v?: string | null) => !v ? '(trống)' : v.length <= 8 ? '••••' : v.slice(0, 4) + '…' + v.slice(-4) + ` (${v.length})`;
+    const appId = process.env.ZALO_APP_ID || '';
+    const appSecret = process.env.ZALO_APP_SECRET || '';
+    const refreshToken = process.env.ZALO_OA_REFRESH_TOKEN || '';
+    const out: any = {
+      config: {
+        ZALO_APP_ID: mask(appId),
+        ZALO_APP_SECRET: mask(appSecret),
+        ZALO_OA_REFRESH_TOKEN: mask(refreshToken),
+        ZALO_OA_ACCESS_TOKEN: mask(process.env.ZALO_OA_ACCESS_TOKEN),
+        ZALO_OA_SECRET_KEY: mask(process.env.ZALO_OA_SECRET_KEY),
+        ZNS_TEMPLATE_OTP: process.env.ZNS_TEMPLATE_OTP || '(trống)',
+      },
+    };
+
+    // 1. Raw refresh_token grant
+    try {
+      const r = await fetch('https://oauth.zaloapp.com/v4/oa/access_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', secret_key: appSecret },
+        body: new URLSearchParams({ app_id: appId, grant_type: 'refresh_token', refresh_token: refreshToken }),
+      });
+      const j: any = await r.json().catch(() => ({}));
+      out.refreshGrant = j.access_token
+        ? { ok: true, access_token: mask(j.access_token), refresh_token: mask(j.refresh_token), expires_in: j.expires_in }
+        : { ok: false, raw: j };
+    } catch (e: any) {
+      out.refreshGrant = { ok: false, error: e?.message || String(e) };
+    }
+
+    // 2. What getZaloAccessToken() actually resolves to + a getoa probe with proof
+    try {
+      const tok = await getZaloAccessToken();
+      out.resolvedToken = mask(tok);
+      if (tok) {
+        out.appsecretProof = zaloAppSecretProof(tok).slice(0, 16) + '…';
+        const g = await fetch(withAppSecretProof('https://openapi.zalo.me/v2.0/oa/getoa', tok), { headers: { access_token: tok } });
+        out.getoa = await g.json().catch(() => ({}));
+      }
+    } catch (e: any) {
+      out.resolvedToken = { error: e?.message || String(e) };
+    }
+
+    res.json(out);
   });
 
   app.post('/api/email/send', requireAdmin, async (req, res) => {
