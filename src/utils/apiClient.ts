@@ -141,7 +141,11 @@ export const apiClient = {
       return request<{ ok: boolean; provider: string; message: string }>(`/system/integrations/${encodeURIComponent(provider)}/test`, {
         method: 'POST',
       });
-    }
+    },
+    /** Begin the Zalo OA OAuth flow — returns the consent URL + the redirect URI to whitelist. */
+    async zaloOauthStart() {
+      return request<{ url?: string; redirectUri: string; error?: string }>('/system/zalo/oauth/start');
+    },
   },
 
   // 1c. Omnichannel inbox (Zalo OA + Facebook Messenger)

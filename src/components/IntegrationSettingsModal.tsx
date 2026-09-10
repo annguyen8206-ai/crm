@@ -27,6 +27,8 @@ export const IntegrationSettingsModal: React.FC<Props> = ({ isOpen, onClose }) =
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [zaloOauth, setZaloOauth] = useState<{ redirectUri: string; note: string } | null>(null);
+  const [zaloOauthBusy, setZaloOauthBusy] = useState(false);
 
   const load = async () => {
     setLoading(true); setErr(null);
@@ -44,6 +46,26 @@ export const IntegrationSettingsModal: React.FC<Props> = ({ isOpen, onClose }) =
   };
 
   useEffect(() => { if (isOpen) load(); }, [isOpen]);
+
+  const startZaloOauth = async () => {
+    setZaloOauthBusy(true); setErr(null); setZaloOauth(null);
+    try {
+      const r = await apiClient.settings.zaloOauthStart();
+      if (!r.url) {
+        setErr(r.error || 'Không tạo được liên kết cấp quyền Zalo.');
+      } else {
+        setZaloOauth({
+          redirectUri: r.redirectUri,
+          note: 'Đã mở tab cấp quyền Zalo. Sau khi admin OA đồng ý, quay lại đây bấm "Tải lại" — ô OA Refresh Token sẽ có giá trị.',
+        });
+        window.open(r.url, '_blank', 'noopener');
+      }
+    } catch (e: any) {
+      setErr(e?.message || 'Không bắt đầu được luồng kết nối Zalo.');
+    } finally {
+      setZaloOauthBusy(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -152,6 +174,29 @@ export const IntegrationSettingsModal: React.FC<Props> = ({ isOpen, onClose }) =
                     );
                   })}
                 </div>
+
+                {g.id === 'zalo' && (
+                  <div className="px-4 pb-4 -mt-1 space-y-2">
+                    <button
+                      type="button"
+                      onClick={startZaloOauth}
+                      disabled={zaloOauthBusy}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold cursor-pointer"
+                    >
+                      {zaloOauthBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plug className="w-3.5 h-3.5" />}
+                      <span>Kết nối Zalo OA (lấy OA Refresh Token tự động)</span>
+                    </button>
+                    {zaloOauth && (
+                      <div className="text-[11px] text-slate-600 bg-sky-50 border border-sky-200 rounded-lg p-2.5 space-y-1">
+                        <p>{zaloOauth.note}</p>
+                        <p>
+                          Redirect URI cần khai báo trong Zalo (mục callback của app):{' '}
+                          <code className="font-mono bg-white px-1 rounded border border-sky-200 break-all">{zaloOauth.redirectUri}</code>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

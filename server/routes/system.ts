@@ -4,7 +4,8 @@ import { createStaff, listStaff, updateStaff } from '../auth';
 import { integrationsStatus, sendEmail, resetZnsCache, resetEmailCache, testIntegration } from '../integrations';
 import { saveSettings, describeSettings } from '../settings';
 import { queryAudit } from '../audit';
-import { requireAdmin } from '../http-util';
+import { requireAdmin, APP_BASE_URL } from '../http-util';
+import { createZaloAuthUrl } from '../zalo-oauth';
 
 /** System / admin routes: audit log, staff accounts, integration status + settings. */
 export function registerSystemRoutes(app: Express): void {
@@ -96,6 +97,16 @@ export function registerSystemRoutes(app: Express): void {
     } catch (e: any) {
       res.status(500).json({ error: e.message || 'Không lưu được cấu hình' });
     }
+  });
+
+  // Kick off the Zalo OA OAuth flow — returns the consent URL + the redirect URI
+  // the admin must whitelist in the Zalo app's callback list.
+  app.get('/api/system/zalo/oauth/start', requireAdmin, (req, res) => {
+    const base = APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const redirectUri = `${base}/api/system/zalo/oauth/callback`;
+    const r = createZaloAuthUrl(redirectUri);
+    if ('error' in r) return res.status(400).json({ error: r.error, redirectUri });
+    res.json({ url: r.url, redirectUri });
   });
 
   app.post('/api/email/send', requireAdmin, async (req, res) => {

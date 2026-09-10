@@ -158,6 +158,15 @@ Email (SMTP) · Facebook Messenger · Thanh toán/VietQR · VoIP · AI (Gemini) 
 `OA Refresh Token` + `Template ID — OTP` + `Tên tham số mã` (mặc định `otp`) → **Lưu**.
 Nhóm *OTP* có thể đặt `Thứ tự kênh` = `zalo,sms,email` (thử Zalo trước, rớt xuống SMS).
 
+**Lấy `OA Refresh Token` tự động (khuyến nghị):** nhóm *Zalo OA & ZNS* có nút
+**"Kết nối Zalo OA"**. Điều kiện: đã điền đúng `App ID` + `App Secret`, và `APP_URL`
+(env) trỏ đúng tên miền production. Bấm nút → mở tab cấp quyền Zalo → admin OA đồng ý →
+Zalo redirect về `GET /api/system/zalo/oauth/callback` (public, chống CSRF bằng `state`)
+→ server đổi `code` lấy `refresh_token` (~150 ký tự) và lưu vào `app_settings`. Từ đó
+`getZaloAccessToken()` tự gia hạn access token (~25h/lần) — hết cảnh "hôm qua chạy, hôm
+nay lỗi -124". **Redirect URI** (nút hiển thị) phải được khai báo trong callback list của
+app trên developers.zalo.me.
+
 ### B. "Tài Liệu API Backend"
 
 Danh mục tra cứu các endpoint `/api/*` (đường dẫn, method, mô tả, ví dụ payload) — **chỉ để

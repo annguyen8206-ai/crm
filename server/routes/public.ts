@@ -13,6 +13,7 @@ import {
   normalizeFacebookPayload, normalizeZaloPayload,
 } from '../integrations';
 import { ingestIncoming, ingestInboundCall } from '../messaging-core';
+import { completeZaloOAuth, zaloOAuthResultPage } from '../zalo-oauth';
 import { registerPublicOptOut } from './messaging-bulk';
 import { registerPublicFileDownload } from './files';
 import { digitsOnly, phoneMatches } from '../http-util';
@@ -198,6 +199,30 @@ export function registerPublicRoutes(app: Express): void {
     for (const msg of normalizeZaloPayload(req.body)) {
       try { await ingestIncoming(msg); } catch (e: any) { console.error('[messaging] zalo ingest failed:', e.message); }
     }
+  });
+
+  // Zalo OA OAuth redirect target — the admin's browser lands here after consent.
+  // Public (no bearer on a top-level redirect); CSRF-guarded by the `state` nonce.
+  app.get('/api/system/zalo/oauth/callback', async (req, res) => {
+    const code = String(req.query.code || '');
+    const state = String(req.query.state || '');
+    const oauthError = String(req.query.error || req.query.error_description || '');
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    if (oauthError) {
+      return res.status(400).send(zaloOAuthResultPage('Zalo từ chối cấp quyền', oauthError, false));
+    }
+    if (!code || !state) {
+      return res.status(400).send(zaloOAuthResultPage('Thiếu tham số', 'Không nhận được code/state từ Zalo.', false));
+    }
+    const r = await completeZaloOAuth(code, state);
+    if (!r.ok) {
+      return res.status(400).send(zaloOAuthResultPage('Kết nối Zalo OA thất bại', r.error || 'Lỗi không xác định.', false));
+    }
+    res.send(zaloOAuthResultPage(
+      'Đã kết nối Zalo OA',
+      'Refresh token đã được lưu — hệ thống sẽ tự gia hạn access token. Đóng tab này và quay lại VitCRM.',
+      true,
+    ));
   });
 
   // Real-time stream for the CRM UI (SSE). Auth via ?token= because EventSource
