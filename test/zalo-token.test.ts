@@ -42,6 +42,19 @@ describe('getZaloAccessToken priority', () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain('oauth.zaloapp.com');
   });
 
+  it('persists a rotated refresh_token so the next refresh does not fail', async () => {
+    process.env.ZALO_APP_ID = 'app1';
+    process.env.ZALO_APP_SECRET = 'secret1';
+    process.env.ZALO_OA_REFRESH_TOKEN = 'old-refresh';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: async () => ({ access_token: 'at', expires_in: 3600, refresh_token: 'new-refresh' }),
+    }));
+    resetZnsCache();
+
+    await getZaloAccessToken();
+    expect(process.env.ZALO_OA_REFRESH_TOKEN).toBe('new-refresh');
+  });
+
   it('falls back to the pasted token when the refresh call fails', async () => {
     process.env.ZALO_OA_ACCESS_TOKEN = 'pasted-fallback';
     process.env.ZALO_APP_ID = 'app1';

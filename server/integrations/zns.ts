@@ -140,7 +140,24 @@ export async function getZaloAccessToken(): Promise<string | null> {
     return staticToken; // last resort
   }
   cachedToken = { value: json.access_token, expiresAt: Date.now() + Number(json.expires_in || 3600) * 1000 };
+
+  // Zalo OA rotates the refresh token on every use — the one we just sent is now
+  // dead. Persist the new one or the next refresh (after restart / cache expiry)
+  // fails. Fire-and-forget so the token path never blocks on a DB write.
+  if (json.refresh_token && json.refresh_token !== refreshToken) {
+    void persistRotatedRefreshToken(json.refresh_token);
+  }
   return cachedToken.value;
+}
+
+async function persistRotatedRefreshToken(next: string): Promise<void> {
+  try {
+    process.env.ZALO_OA_REFRESH_TOKEN = next; // effective immediately
+    const { saveSettings } = await import('../settings');
+    await saveSettings({ ZALO_OA_REFRESH_TOKEN: next });
+  } catch (e: any) {
+    console.error('[zns] could not persist rotated refresh token:', e?.message || String(e));
+  }
 }
 
 function normalisePhone(phone: string): string {
