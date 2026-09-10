@@ -24,10 +24,19 @@ const SEND_URL = 'https://business.openapi.zalo.me/message/template';
 const REFRESH_URL = 'https://oauth.zaloapp.com/v4/oa/access_token';
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
+let refreshInFlight: Promise<string | null> | null = null;
 
 /** Drop the cached OA access token — call after Zalo credentials change at runtime. */
 export function resetZnsCache(): void {
   cachedToken = null;
+  refreshInFlight = null;
+}
+
+/** Seed the cache with a freshly-minted access token (e.g. straight from the OAuth
+ *  code exchange) so the next call serves it instead of burning a rotating refresh token. */
+export function primeZaloToken(accessToken: string, expiresInSeconds?: number): void {
+  if (!accessToken) return;
+  cachedToken = { value: accessToken, expiresAt: Date.now() + Number(expiresInSeconds || 3600) * 1000 };
 }
 
 /**
@@ -143,26 +152,35 @@ export async function getZaloAccessToken(): Promise<string | null> {
   if (!appId || !appSecret || !refreshToken) return staticToken;
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.value;
 
-  const body = new URLSearchParams({
-    app_id: appId,
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken
-  });
-  const res = await fetch(REFRESH_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', secret_key: appSecret },
-    body
-  });
-  const json: any = await res.json().catch(() => ({}));
+  // Single-flight: Zalo rotates (invalidates) the refresh token on every use, so N
+  // concurrent callers must NOT each fire their own refresh — they share one.
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh(appId, appSecret, refreshToken)
+      .finally(() => { refreshInFlight = null; });
+  }
+  const minted = await refreshInFlight;
+  return minted ?? staticToken;
+}
+
+async function doRefresh(appId: string, appSecret: string, refreshToken: string): Promise<string | null> {
+  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.value;
+  let json: any;
+  try {
+    const res = await fetch(REFRESH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', secret_key: appSecret },
+      body: new URLSearchParams({ app_id: appId, grant_type: 'refresh_token', refresh_token: refreshToken }),
+    });
+    json = await res.json().catch(() => ({}));
+  } catch (e: any) {
+    console.error('[zns] token refresh error:', e?.message || String(e));
+    return null;
+  }
   if (!json.access_token) {
     console.error('[zns] token refresh failed:', JSON.stringify(json));
-    return staticToken; // last resort
+    return null;
   }
   cachedToken = { value: json.access_token, expiresAt: Date.now() + Number(json.expires_in || 3600) * 1000 };
-
-  // Zalo OA rotates the refresh token on every use — the one we just sent is now
-  // dead. Persist the new one or the next refresh (after restart / cache expiry)
-  // fails. Fire-and-forget so the token path never blocks on a DB write.
   if (json.refresh_token && json.refresh_token !== refreshToken) {
     void persistRotatedRefreshToken(json.refresh_token);
   }

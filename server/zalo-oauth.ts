@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { saveSettings } from './settings';
-import { resetZnsCache } from './integrations';
+import { resetZnsCache, primeZaloToken } from './integrations';
 
 /**
  * Zalo OA OAuth v4 — obtain a long-lived refresh token so getZaloAccessToken()
@@ -63,7 +63,12 @@ export async function completeZaloOAuth(code: string, state: string): Promise<{ 
   }
 
   await saveSettings({ ZALO_OA_REFRESH_TOKEN: json.refresh_token });
+  // Also drop any stale pasted access token so it can't shadow the fresh flow.
+  await saveSettings({ ZALO_OA_ACCESS_TOKEN: '' });
   resetZnsCache();
+  // Serve the token we just got instead of immediately burning the fresh
+  // (single-use, rotating) refresh token on the very next call.
+  if (json.access_token) primeZaloToken(json.access_token, json.expires_in);
   return { ok: true };
 }
 
