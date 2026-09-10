@@ -205,6 +205,16 @@ export async function sendZns(msg: ZnsMessage): Promise<DispatchResult> {
   const token = await getZaloAccessToken();
   if (!token) return { ok: false, mode: 'live', provider: 'zalo-oa', error: 'Không lấy được access token Zalo OA' };
 
+  if (process.env.ZALO_WEBHOOK_DEBUG === 'true') {
+    const s = process.env.ZALO_APP_SECRET || '';
+    console.warn('[zns] send debug ' + JSON.stringify({
+      tokenLen: token.length, tokenHint: token.slice(0, 6) + '…' + token.slice(-4),
+      appSecretLen: s.length, appSecretHint: s ? s.slice(0, 3) + '…' + s.slice(-3) : '(trống)',
+      proofHint: zaloAppSecretProof(token).slice(0, 12),
+      usingStaticToken: Boolean(process.env.ZALO_OA_ACCESS_TOKEN) && !(process.env.ZALO_APP_ID && process.env.ZALO_APP_SECRET && process.env.ZALO_OA_REFRESH_TOKEN),
+    }));
+  }
+
   try {
     const res = await fetch(withAppSecretProof(SEND_URL, token), {
       method: 'POST',
