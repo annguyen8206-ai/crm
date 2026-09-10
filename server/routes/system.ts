@@ -149,6 +149,7 @@ export function registerSystemRoutes(app: Express): void {
           'sha256(appSecret+token).hex': crypto.createHash('sha256').update(appSecret + tok).digest('hex'),
           ...(oaSecret ? { 'hmac(key=oaSecret,msg=token).hex': crypto.createHmac('sha256', oaSecret).update(tok).digest('hex') } : {}),
         };
+        const proofHex = crypto.createHmac('sha256', appSecret).update(tok).digest('hex');
         out.probes = {};
         for (const [name, proof] of Object.entries(recipes)) {
           const url = 'https://openapi.zalo.me/v2.0/oa/getoa' + (proof ? `?appsecret_proof=${proof}` : '');
@@ -158,6 +159,22 @@ export function registerSystemRoutes(app: Express): void {
             out.probes[name] = { error: j.error, message: j.message, oa: j.data?.name || j.data?.oa_id };
           } catch (e: any) {
             out.probes[name] = { error: 'fetch_failed', message: e?.message };
+          }
+        }
+        const targets: Array<{ name: string; url: string; headers: Record<string, string> }> = [
+          { name: 'v2 getoa, proof header', url: 'https://openapi.zalo.me/v2.0/oa/getoa', headers: { access_token: tok, appsecret_proof: proofHex } },
+          { name: 'v3 getoa, no proof', url: 'https://openapi.zalo.me/v3.0/oa/getoa', headers: { access_token: tok } },
+          { name: 'v3 getoa, proof header', url: 'https://openapi.zalo.me/v3.0/oa/getoa', headers: { access_token: tok, appsecret_proof: proofHex } },
+          { name: 'v3 getoa, proof query', url: `https://openapi.zalo.me/v3.0/oa/getoa?appsecret_proof=${proofHex}`, headers: { access_token: tok } },
+        ];
+        out.endpointProbes = {};
+        for (const t of targets) {
+          try {
+            const g = await fetch(t.url, { headers: t.headers });
+            const j: any = await g.json().catch(() => ({}));
+            out.endpointProbes[t.name] = { error: j.error, message: j.message, oa: j.data?.name || j.data?.oa_id };
+          } catch (e: any) {
+            out.endpointProbes[t.name] = { error: 'fetch_failed', message: e?.message };
           }
         }
       }
