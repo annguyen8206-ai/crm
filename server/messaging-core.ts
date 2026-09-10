@@ -4,17 +4,23 @@ import { emitChange } from './events';
 import { fetchProfile, type IncomingMessage } from './integrations';
 import { phoneMatches } from './http-util';
 
+const placeholderName = (msg: IncomingMessage) =>
+  `${msg.channel === 'zalo' ? 'Zalo' : msg.channel === 'facebook' ? 'Facebook' : 'Khách'} user ${msg.externalUserId.slice(-6)}`;
+
 /** Ingest an inbound omnichannel message (Zalo OA / Facebook). Shared by the
  *  public webhook routes and the authenticated simulate endpoint. */
 export async function ingestIncoming(msg: IncomingMessage): Promise<{ conversation: ConversationRecord; message: MessageRecord }> {
   let conv = dbStore.conversations.find(c => c.channel === msg.channel && c.externalUserId === msg.externalUserId);
   if (!conv) {
     const profile = await fetchProfile(msg.channel, msg.externalUserId).catch(() => ({} as { name?: string; avatarUrl?: string }));
+    if (!msg.senderName && !profile.name) {
+      console.warn(`[messaging] không lấy được tên hồ sơ ${msg.channel} cho ${msg.externalUserId} — kiểm tra token OA + quyền "lấy thông tin người dùng"`);
+    }
     conv = {
       id: `conv-${msg.channel}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       channel: msg.channel,
       externalUserId: msg.externalUserId,
-      displayName: msg.senderName || profile.name || `${msg.channel === 'zalo' ? 'Zalo' : 'Facebook'} user ${msg.externalUserId.slice(-6)}`,
+      displayName: msg.senderName || profile.name || placeholderName(msg),
       avatarUrl: profile.avatarUrl,
       lastMessageAt: msg.at,
       lastMessagePreview: msg.text.slice(0, 140),
@@ -26,6 +32,11 @@ export async function ingestIncoming(msg: IncomingMessage): Promise<{ conversati
     const patient = dbStore.patients.find(p => p.phone && msg.text && msg.text.replace(/\D/g, '').includes(p.phone.replace(/\D/g, '')));
     if (patient) conv.patientId = patient.id;
     dbStore.conversations.unshift(conv);
+  } else if (!conv.displayName || conv.displayName === placeholderName(msg)) {
+    // Conversation was created before a valid OA token was available — retry now.
+    const profile = await fetchProfile(msg.channel, msg.externalUserId).catch(() => ({} as { name?: string; avatarUrl?: string }));
+    if (profile.name) conv.displayName = profile.name;
+    if (profile.avatarUrl && !conv.avatarUrl) conv.avatarUrl = profile.avatarUrl;
   }
   const record: MessageRecord = {
     id: `msg-${Date.now()}-${Math.floor(Math.random() * 10000)}`,

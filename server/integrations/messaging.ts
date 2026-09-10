@@ -277,11 +277,14 @@ export async function fetchProfile(channel: Channel, externalUserId: string): Pr
     }
     if (channel === 'zalo' && zaloConfigured()) {
       const token = await getZaloAccessToken();
-      if (!token) return {};
+      if (!token) { console.warn('[messaging] fetchProfile zalo: chưa lấy được access token OA'); return {}; }
       const res = await fetch(`https://openapi.zalo.me/v3.0/oa/user/detail?data=${encodeURIComponent(JSON.stringify({ user_id: externalUserId }))}`, {
         headers: { access_token: token }
       });
       const json: any = await res.json().catch(() => ({}));
+      if (json.error && json.error !== 0) {
+        console.warn(`[messaging] fetchProfile zalo lỗi ${json.error}: ${json.message || 'không rõ'} (cần quyền lấy thông tin người dùng + token còn hạn)`);
+      }
       return { name: json.data?.display_name, avatarUrl: json.data?.avatar };
     }
   } catch {
