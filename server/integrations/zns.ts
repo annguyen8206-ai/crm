@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { DispatchResult, IntegrationStatus } from './types';
 
 /**
@@ -27,6 +28,24 @@ let cachedToken: { value: string; expiresAt: number } | null = null;
 /** Drop the cached OA access token — call after Zalo credentials change at runtime. */
 export function resetZnsCache(): void {
   cachedToken = null;
+}
+
+/**
+ * Zalo's required security parameter for OA Open APIs — HMAC-SHA256 of the access
+ * token keyed by the app's Secret Key, hex. Without it Zalo now rejects calls with
+ * -242 / -1241 "Invalid appsecret_proof". Returns '' when no app secret is set.
+ */
+export function zaloAppSecretProof(accessToken: string): string {
+  const appSecret = process.env.ZALO_APP_SECRET;
+  if (!appSecret || !accessToken) return '';
+  return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');
+}
+
+/** Append `appsecret_proof` to a Zalo OA API URL. */
+export function withAppSecretProof(url: string, accessToken: string): string {
+  const proof = zaloAppSecretProof(accessToken);
+  if (!proof) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'appsecret_proof=' + proof;
 }
 
 export function znsConfigured(): boolean {
@@ -68,7 +87,7 @@ export async function testZnsConnection(): Promise<{ ok: boolean; message: strin
   }
   try {
     // Zalo OpenAPI v2+ wants the token in the `access_token` header, not the query.
-    const res = await fetch('https://openapi.zalo.me/v2.0/oa/getoa', { headers: { access_token: token } });
+    const res = await fetch(withAppSecretProof('https://openapi.zalo.me/v2.0/oa/getoa', token), { headers: { access_token: token } });
     const json: any = await res.json().catch(() => ({}));
     if (json.error === 0 && json.data) {
       return { ok: true, message: `Kết nối Zalo OA thành công: ${json.data.name || json.data.oa_id || 'OA'}` };
@@ -187,7 +206,7 @@ export async function sendZns(msg: ZnsMessage): Promise<DispatchResult> {
   if (!token) return { ok: false, mode: 'live', provider: 'zalo-oa', error: 'Không lấy được access token Zalo OA' };
 
   try {
-    const res = await fetch(SEND_URL, {
+    const res = await fetch(withAppSecretProof(SEND_URL, token), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', access_token: token },
       body: JSON.stringify({
