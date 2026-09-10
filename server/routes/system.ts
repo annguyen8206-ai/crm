@@ -1,5 +1,4 @@
 import type { Express } from 'express';
-import crypto from 'node:crypto';
 import { dbStore } from '../store';
 import { createStaff, listStaff, updateStaff } from '../auth';
 import { integrationsStatus, sendEmail, resetZnsCache, resetEmailCache, testIntegration } from '../integrations';
@@ -7,7 +6,7 @@ import { saveSettings, describeSettings } from '../settings';
 import { queryAudit } from '../audit';
 import { requireAdmin, APP_BASE_URL } from '../http-util';
 import { createZaloAuthUrl } from '../zalo-oauth';
-import { getZaloAccessToken, zaloAppSecretProof, withAppSecretProof } from '../integrations';
+import { getZaloAccessToken, zaloAppSecretProof, zaloAuthHeaders } from '../integrations';
 
 /** System / admin routes: audit log, staff accounts, integration status + settings. */
 export function registerSystemRoutes(app: Express): void {
@@ -129,54 +128,16 @@ export function registerSystemRoutes(app: Express): void {
       },
     };
 
-    // Non-destructive: go through the real cached/single-flight path. This DOES
-    // consume + persist one refresh-token rotation if the cache is cold — that is
-    // normal operation, not a leak.
-    void refreshToken;
+    void refreshToken; void appSecret;
     try {
       const tok = await getZaloAccessToken();
       out.resolvedToken = mask(tok);
       if (tok) {
-        out.currentProof = zaloAppSecretProof(tok).slice(0, 16) + '…';
-        // Probe getoa with several appsecret_proof recipes; report which returns error:0.
-        const oaSecret = process.env.ZALO_OA_SECRET_KEY || '';
-        const recipes: Record<string, string | null> = {
-          none: null,
-          'hmac(key=appSecret,msg=token).hex': crypto.createHmac('sha256', appSecret).update(tok).digest('hex'),
-          'hmac(key=token,msg=appSecret).hex': crypto.createHmac('sha256', tok).update(appSecret).digest('hex'),
-          'hmac(key=appSecret,msg=token).base64': crypto.createHmac('sha256', appSecret).update(tok).digest('base64'),
-          'sha256(token+appSecret).hex': crypto.createHash('sha256').update(tok + appSecret).digest('hex'),
-          'sha256(appSecret+token).hex': crypto.createHash('sha256').update(appSecret + tok).digest('hex'),
-          ...(oaSecret ? { 'hmac(key=oaSecret,msg=token).hex': crypto.createHmac('sha256', oaSecret).update(tok).digest('hex') } : {}),
-        };
-        const proofHex = crypto.createHmac('sha256', appSecret).update(tok).digest('hex');
-        out.probes = {};
-        for (const [name, proof] of Object.entries(recipes)) {
-          const url = 'https://openapi.zalo.me/v2.0/oa/getoa' + (proof ? `?appsecret_proof=${proof}` : '');
-          try {
-            const g = await fetch(url, { headers: { access_token: tok } });
-            const j: any = await g.json().catch(() => ({}));
-            out.probes[name] = { error: j.error, message: j.message, oa: j.data?.name || j.data?.oa_id };
-          } catch (e: any) {
-            out.probes[name] = { error: 'fetch_failed', message: e?.message };
-          }
-        }
-        const targets: Array<{ name: string; url: string; headers: Record<string, string> }> = [
-          { name: 'v2 getoa, proof header', url: 'https://openapi.zalo.me/v2.0/oa/getoa', headers: { access_token: tok, appsecret_proof: proofHex } },
-          { name: 'v3 getoa, no proof', url: 'https://openapi.zalo.me/v3.0/oa/getoa', headers: { access_token: tok } },
-          { name: 'v3 getoa, proof header', url: 'https://openapi.zalo.me/v3.0/oa/getoa', headers: { access_token: tok, appsecret_proof: proofHex } },
-          { name: 'v3 getoa, proof query', url: `https://openapi.zalo.me/v3.0/oa/getoa?appsecret_proof=${proofHex}`, headers: { access_token: tok } },
-        ];
-        out.endpointProbes = {};
-        for (const t of targets) {
-          try {
-            const g = await fetch(t.url, { headers: t.headers });
-            const j: any = await g.json().catch(() => ({}));
-            out.endpointProbes[t.name] = { error: j.error, message: j.message, oa: j.data?.name || j.data?.oa_id };
-          } catch (e: any) {
-            out.endpointProbes[t.name] = { error: 'fetch_failed', message: e?.message };
-          }
-        }
+        out.appsecretProof = zaloAppSecretProof(tok).slice(0, 16) + '…';
+        // Real call path: getoa with appsecret_proof in the HEADER.
+        const g = await fetch('https://openapi.zalo.me/v2.0/oa/getoa', { headers: zaloAuthHeaders(tok) });
+        const j: any = await g.json().catch(() => ({}));
+        out.getoa = { error: j.error, message: j.message, oa: j.data?.name || j.data?.oa_id };
       }
     } catch (e: any) {
       out.resolvedToken = { error: e?.message || String(e) };

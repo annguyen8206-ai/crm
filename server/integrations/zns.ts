@@ -41,8 +41,9 @@ export function primeZaloToken(accessToken: string, expiresInSeconds?: number): 
 
 /**
  * Zalo's required security parameter for OA Open APIs — HMAC-SHA256 of the access
- * token keyed by the app's Secret Key, hex. Without it Zalo now rejects calls with
- * -242 / -1241 "Invalid appsecret_proof". Returns '' when no app secret is set.
+ * token keyed by the app's Secret Key, hex. MUST be sent as the `appsecret_proof`
+ * HTTP header (not a query param). Without it Zalo rejects calls with -242 / -1241
+ * "Invalid appsecret_proof". Returns '' when no app secret is set.
  */
 export function zaloAppSecretProof(accessToken: string): string {
   const appSecret = process.env.ZALO_APP_SECRET;
@@ -50,11 +51,12 @@ export function zaloAppSecretProof(accessToken: string): string {
   return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');
 }
 
-/** Append `appsecret_proof` to a Zalo OA API URL. */
-export function withAppSecretProof(url: string, accessToken: string): string {
+/** Standard auth headers for a Zalo OA Open API request. */
+export function zaloAuthHeaders(accessToken: string): Record<string, string> {
+  const h: Record<string, string> = { access_token: accessToken };
   const proof = zaloAppSecretProof(accessToken);
-  if (!proof) return url;
-  return url + (url.includes('?') ? '&' : '?') + 'appsecret_proof=' + proof;
+  if (proof) h.appsecret_proof = proof;
+  return h;
 }
 
 export function znsConfigured(): boolean {
@@ -96,7 +98,7 @@ export async function testZnsConnection(): Promise<{ ok: boolean; message: strin
   }
   try {
     // Zalo OpenAPI v2+ wants the token in the `access_token` header, not the query.
-    const res = await fetch(withAppSecretProof('https://openapi.zalo.me/v2.0/oa/getoa', token), { headers: { access_token: token } });
+    const res = await fetch('https://openapi.zalo.me/v2.0/oa/getoa', { headers: zaloAuthHeaders(token) });
     const json: any = await res.json().catch(() => ({}));
     if (json.error === 0 && json.data) {
       return { ok: true, message: `Kết nối Zalo OA thành công: ${json.data.name || json.data.oa_id || 'OA'}` };
@@ -234,9 +236,9 @@ export async function sendZns(msg: ZnsMessage): Promise<DispatchResult> {
   }
 
   try {
-    const res = await fetch(withAppSecretProof(SEND_URL, token), {
+    const res = await fetch(SEND_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', access_token: token },
+      headers: { 'Content-Type': 'application/json', ...zaloAuthHeaders(token) },
       body: JSON.stringify({
         phone: normalisePhone(msg.phone),
         template_id: templateId,

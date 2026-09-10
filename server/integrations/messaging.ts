@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { DispatchResult, IntegrationStatus } from './types';
-import { getZaloAccessToken, withAppSecretProof } from './zns';
+import { getZaloAccessToken, zaloAuthHeaders } from './zns';
 
 /**
  * Omnichannel inbound/outbound messaging: Zalo OA + Facebook Messenger.
@@ -255,9 +255,9 @@ export async function sendReply(
   // we append the file URLs to the text so the customer still receives them.
   const zaloText = [text, ...media.map(a => `📎 ${a.name || 'Tệp đính kèm'}: ${a.url}`)].filter(Boolean).join('\n');
   try {
-    const res = await fetch(withAppSecretProof('https://openapi.zalo.me/v3.0/oa/message/cs', token), {
+    const res = await fetch('https://openapi.zalo.me/v3.0/oa/message/cs', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', access_token: token },
+      headers: { 'Content-Type': 'application/json', ...zaloAuthHeaders(token) },
       body: JSON.stringify({ recipient: { user_id: externalUserId }, message: { text: zaloText } })
     });
     const json: any = await res.json().catch(() => ({}));
@@ -278,11 +278,8 @@ export async function fetchProfile(channel: Channel, externalUserId: string): Pr
     if (channel === 'zalo' && zaloConfigured()) {
       const token = await getZaloAccessToken();
       if (!token) { console.warn('[messaging] fetchProfile zalo: chưa lấy được access token OA'); return {}; }
-      const url = withAppSecretProof(
-        `https://openapi.zalo.me/v3.0/oa/user/detail?data=${encodeURIComponent(JSON.stringify({ user_id: externalUserId }))}`,
-        token,
-      );
-      const res = await fetch(url, { headers: { access_token: token } });
+      const url = `https://openapi.zalo.me/v3.0/oa/user/detail?data=${encodeURIComponent(JSON.stringify({ user_id: externalUserId }))}`;
+      const res = await fetch(url, { headers: zaloAuthHeaders(token) });
       const json: any = await res.json().catch(() => ({}));
       if (json.error && json.error !== 0) {
         console.warn(`[messaging] fetchProfile zalo lỗi ${json.error}: ${json.message || 'không rõ'} (cần quyền lấy thông tin người dùng + token còn hạn)`);
