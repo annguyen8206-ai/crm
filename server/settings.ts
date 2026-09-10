@@ -23,7 +23,8 @@ export const SETTING_GROUPS: SettingGroup[] = [
     fields: [
       { key: 'ZALO_OA_ACCESS_TOKEN', label: 'OA Access Token', secret: true },
       { key: 'ZALO_APP_ID', label: 'App ID', secret: true },
-      { key: 'ZALO_APP_SECRET', label: 'App Secret', secret: true },
+      { key: 'ZALO_APP_SECRET', label: 'App Secret (đổi token)', secret: true },
+      { key: 'ZALO_OA_SECRET_KEY', label: 'OA Secret Key (ký webhook — lấy ở trang Webhook)', secret: true },
       { key: 'ZALO_OA_REFRESH_TOKEN', label: 'OA Refresh Token', secret: true },
       { key: 'ZNS_TEMPLATE_OTP', label: 'Template ID — OTP' },
       { key: 'ZNS_OTP_PARAM', label: 'Tên tham số mã trong template', placeholder: 'otp' },

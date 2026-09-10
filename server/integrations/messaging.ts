@@ -70,12 +70,15 @@ export function verifyFacebookSignature(rawBody: Buffer | string, header: string
   }
 }
 
-/** Zalo OA: header `X-ZEvent-Signature: mac=<sha256(appId + rawBody + timestamp + appSecret)>` */
+/** Zalo OA: header `X-ZEvent-Signature: mac=<sha256(appId + rawBody + timestamp + OASecretKey)>`.
+ *  The webhook signing key is the OA Secret Key (shown on the console Webhook page),
+ *  which is DIFFERENT from the app's Secret Key used for token exchange. Use
+ *  ZALO_OA_SECRET_KEY when set, else fall back to ZALO_APP_SECRET. */
 export function verifyZaloSignature(rawBody: Buffer | string, header: string | undefined, timestamp: string | undefined): boolean {
-  const secret = process.env.ZALO_APP_SECRET;
+  const secret = process.env.ZALO_OA_SECRET_KEY || process.env.ZALO_APP_SECRET;
   const appId = process.env.ZALO_APP_ID;
   if (!secret || !appId) {
-    console.warn('[messaging] ZALO_APP_ID/SECRET not set — skipping Zalo webhook signature check.');
+    console.warn('[messaging] ZALO_APP_ID / OA-secret not set — skipping Zalo webhook signature check.');
     return true;
   }
   if (!header) return false;
@@ -107,7 +110,9 @@ export function verifyZaloSignature(rawBody: Buffer | string, header: string | u
     };
     const match = Object.entries(candidates).find(([, v]) => v === received)?.[0] || 'NONE';
     console.warn('[messaging] zalo sig debug ' + JSON.stringify({
-      appIdUsed: appId, appIdLen: appId.length, secretLen: secret.length,
+      appIdUsed: appId, appIdLen: appId.length,
+      secretLen: secret.length,
+      secretSource: process.env.ZALO_OA_SECRET_KEY ? 'ZALO_OA_SECRET_KEY' : 'ZALO_APP_SECRET',
       tsUsed: ts, bodyLen: body.length,
       macReceivedFull: received,
       macExpectedFull: expected,
