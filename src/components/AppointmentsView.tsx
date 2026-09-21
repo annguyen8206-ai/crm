@@ -18,7 +18,9 @@ import {
   ChevronLeft,
   ChevronRight,
   UserCheck,
-  UserX
+  UserX,
+  ScanHeart,
+  ExternalLink
 } from 'lucide-react';
 import { Appointment, Branch, Doctor, Patient, AppointmentStatus, BranchId } from '../types';
 import { formatDateVN } from '../utils/dateUtils';
@@ -337,6 +339,31 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({
                       {/* Status */}
                       <td className="py-3.5 px-4">
                         {getStatusBadge(apt.status)}
+                        {apt.accessionNumber && (
+                          <div className="mt-1.5">
+                            {apt.dicomStatus === 'completed' && apt.dicomViewerUrl ? (
+                              <a
+                                href={apt.dicomViewerUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold"
+                                title={`Mã chỉ định: ${apt.accessionNumber}`}
+                              >
+                                <ScanHeart className="w-3 h-3" />
+                                Xem ảnh siêu âm
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            ) : (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-semibold"
+                                title={`Mã chỉ định: ${apt.accessionNumber}`}
+                              >
+                                <ScanHeart className="w-3 h-3" />
+                                {apt.dicomStatus === 'worklist_sent' ? 'Chờ chụp siêu âm' : 'Đang tạo phiếu chỉ định'}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Reminder Automation Status */}

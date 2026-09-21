@@ -73,6 +73,13 @@ export interface AppointmentRecord {
   seenAt?: string;
   reminder24hSentAt?: string;
   reminder2hSentAt?: string;
+  // DICOM modality worklist (ultrasound etc.) — see server/dicom.ts
+  accessionNumber?: string;
+  dicomStatus?: 'pending' | 'worklist_sent' | 'completed';
+  dicomStudyUid?: string;
+  orthancStudyId?: string;
+  dicomInstanceCount?: number;
+  dicomStoredAt?: string;
 }
 
 export interface SupportTicketRecord {

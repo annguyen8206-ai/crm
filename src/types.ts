@@ -147,6 +147,12 @@ export interface Appointment {
     callConfirmed: boolean;
   };
   fee: number;
+  // DICOM modality worklist (ultrasound etc.) — present only for departments
+  // configured in DICOM_DEPARTMENTS. See server/dicom.ts.
+  accessionNumber?: string;
+  dicomStatus?: 'pending' | 'worklist_sent' | 'completed';
+  dicomStudyUid?: string;
+  dicomViewerUrl?: string;
 }
 
 export interface B2BContract {

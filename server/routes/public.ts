@@ -14,6 +14,8 @@ import {
 } from '../integrations';
 import { ingestIncoming, ingestInboundCall } from '../messaging-core';
 import { completeZaloOAuth, zaloOAuthResultPage } from '../zalo-oauth';
+import { maybeCreateWorklistItem } from '../dicom';
+import { registerDicomRoutes } from './dicom';
 import { registerPublicOptOut } from './messaging-bulk';
 import { registerPublicFileDownload } from './files';
 import { digitsOnly, phoneMatches } from '../http-util';
@@ -322,6 +324,7 @@ export function registerPublicRoutes(app: Express): void {
       symptoms: d.symptoms || '',
       createdAt: new Date().toISOString().slice(0, 16).replace('T', ' ')
     };
+    maybeCreateWorklistItem(apt);
     dbStore.appointments.unshift(apt);
     void persistStore();
     emitChange({ type: 'store', path: '/api/portal/appointments', method: 'POST' });
@@ -415,6 +418,8 @@ export function registerPublicRoutes(app: Express): void {
   registerPublicOptOut(app);
   // File download — authenticates via ?token= so <a href> works.
   registerPublicFileDownload(app);
+  // DICOM modality worklist bridge (shared-secret, no staff bearer).
+  registerDicomRoutes(app);
 
   app.post('/api/webhooks/voip', (req, res) => {
     if (!voipWebhookOk(req)) return res.sendStatus(401);

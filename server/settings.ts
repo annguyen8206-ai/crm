@@ -119,6 +119,15 @@ export const SETTING_GROUPS: SettingGroup[] = [
       { key: 'DAILY_REPORT_HOUR', label: 'Giờ gửi báo cáo (0-23)', placeholder: '18' },
     ],
   },
+  {
+    id: 'dicom', title: 'DICOM / Máy siêu âm',
+    hint: 'Kết nối máy siêu âm qua Orthanc chạy tại phòng khám. Xem dicom-bridge/README.md.',
+    fields: [
+      { key: 'DICOM_DEPARTMENTS', label: 'Chuyên khoa sinh Worklist (phân tách bằng dấu phẩy)', placeholder: 'Siêu âm tim thai,Siêu âm tim nhi' },
+      { key: 'DICOM_BRIDGE_SECRET', label: 'Khóa bí mật cho bridge tại phòng khám', secret: true },
+      { key: 'ORTHANC_VIEWER_URL', label: 'URL xem ảnh (OHIF/Orthanc, cho bác sĩ)' },
+    ],
+  },
 ];
 
 const EDITABLE_KEYS = new Set(SETTING_GROUPS.flatMap(g => g.fields.map(f => f.key)));

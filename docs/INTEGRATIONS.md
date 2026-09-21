@@ -91,6 +91,27 @@ Dùng qua `POST /api/calls/click-to-call`. Stringee: ký JWT REST và gọi `cal
   Hệ thống dò mã hóa đơn (`HD-YYYY-NNNN`) trong nội dung chuyển khoản, khớp số tiền
   (≥ `patientPayable`) và tự set hóa đơn = "Đã thanh toán" + lưu mã giao dịch.
 
+## 6b. DICOM modality worklist (máy siêu âm)
+
+VitCRM không nói giao thức DICOM trực tiếp — kết nối qua **Orthanc chạy tại phòng khám**
+(cùng mạng LAN với máy siêu âm), đồng bộ với VitCRM qua REST/webhook HTTPS. Cài đặt Orthanc
++ script bridge: xem **`dicom-bridge/README.md`** ở gốc repo (không nằm trong `server/` vì
+chạy trên máy khác).
+
+| Env (VitCRM) | |
+|---|---|
+| `DICOM_DEPARTMENTS` | các giá trị `department` sinh Accession Number + Worklist Item khi đặt lịch (mặc định `Siêu âm tim thai,Siêu âm tim nhi`) |
+| `DICOM_BRIDGE_SECRET` | khóa dùng chung với bridge tại phòng khám |
+| `ORTHANC_VIEWER_URL` | URL viewer (OHIF/Orthanc) cho nút "Xem ảnh siêu âm" trên lịch hẹn |
+
+Endpoint dành cho bridge (không dùng bearer nhân viên, xác thực bằng `DICOM_BRIDGE_SECRET`):
+```
+GET  /api/dicom/worklist/pending            # lịch hẹn chờ ghi vào worklist máy
+POST /api/dicom/worklist/:appointmentId/ack # đánh dấu đã ghi
+POST /api/dicom/webhook                     # Orthanc báo có kết quả (accessionNumber, studyInstanceUid, ...)
+```
+Cấu hình 3 biến trên trong "Cấu Hình Tích Hợp" → nhóm **DICOM / Máy siêu âm**.
+
 ## 7. Tin nhắn đa kênh (Zalo OA + Facebook Messenger)
 
 Toàn bộ tin khách gửi tới OA Zalo / Fanpage đổ về **tab "Tin nhắn đa kênh"** trong CRM,

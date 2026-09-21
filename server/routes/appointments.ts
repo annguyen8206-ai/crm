@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import { dbStore, AppointmentRecord } from '../store';
 import { pageOf, queueLookupUrl, queueQrUrl } from '../http-util';
 import { scopeList, canAccessBranch, enforceBranchOnCreate } from '../branch-scope';
+import { maybeCreateWorklistItem, orthancViewerUrl } from '../dicom';
 
 /** Appointment scheduling, status, e-queue check-in. */
 export function registerAppointmentRoutes(app: Express): void {
@@ -18,7 +19,10 @@ export function registerAppointmentRoutes(app: Express): void {
       if (patientId && typeof patientId === 'string') filtered = filtered.filter(a => a.patientId === patientId);
 
       const p = pageOf(filtered, req.query);
-      res.json({ appointments: p.page, total: p.total, limit: p.limit, offset: p.offset });
+      const appointments = p.page.map(a => a.dicomStudyUid
+        ? { ...a, dicomViewerUrl: orthancViewerUrl(a.dicomStudyUid) }
+        : a);
+      res.json({ appointments, total: p.total, limit: p.limit, offset: p.offset });
     } catch (e: any) {
       res.status(500).json({ error: 'Lỗi tải danh sách lịch hẹn', details: e.message });
     }
@@ -56,6 +60,7 @@ export function registerAppointmentRoutes(app: Express): void {
         createdAt: new Date().toISOString().slice(0, 16).replace('T', ' ')
       };
 
+      maybeCreateWorklistItem(newApt);
       dbStore.appointments.unshift(newApt);
       res.status(201).json({ success: true, appointment: newApt });
     } catch (e: any) {

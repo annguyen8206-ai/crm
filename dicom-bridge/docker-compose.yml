@@ -1,0 +1,47 @@
+version: "3.8"
+
+# Orthanc (DICOM server: Worklist SCP + Storage SCP + DICOMweb) + the polling
+# bridge script, both running at the clinic. See README.md.
+services:
+  orthanc:
+    image: orthancteam/orthanc:24.6.1
+    restart: unless-stopped
+    environment:
+      ORTHANC__NAME: "VitCRM Orthanc"
+      ORTHANC__DICOM_AET: ${ORTHANC_AET:-VITCRM_ORTHANC}
+      ORTHANC__DICOM_PORT: 4242
+      ORTHANC__HTTP_PORT: 8042
+      ORTHANC__REGISTERED_USERS: |
+        {"${ORTHANC_HTTP_USER:-admin}": "${ORTHANC_HTTP_PASSWORD}"}
+      # Worklist plugin reads .wl files from this folder (bridge.py writes them).
+      ORTHANC__WORKLISTS__ENABLE: "true"
+      ORTHANC__WORKLISTS__DATABASE: "/var/lib/orthanc/worklists"
+      # DICOMweb (for OHIF / remote viewing later).
+      ORTHANC__DICOM_WEB__ENABLE: "true"
+      # Whitelist the ultrasound so Orthanc accepts its connection.
+      ORTHANC__DICOM_MODALITIES: |
+        {"ultrasound": ["${MODALITY_AET:-ULTRASOUND1}", "${MODALITY_IP:-192.168.1.50}", ${MODALITY_PORT:-104}]}
+      # Fired on every stored instance -> tells VitCRM a study is ready.
+      ORTHANC__PYTHON_SCRIPT: "/scripts/on_stored.py"
+      VITCRM_BASE_URL: ${VITCRM_BASE_URL}
+      DICOM_BRIDGE_SECRET: ${DICOM_BRIDGE_SECRET}
+    ports:
+      - "${ORTHANC_DICOM_PORT:-4242}:4242"
+      - "${ORTHANC_HTTP_PORT:-8042}:8042"
+    volumes:
+      - orthanc-db:/var/lib/orthanc/db
+      - ./worklists:/var/lib/orthanc/worklists
+      - ./on_stored.py:/scripts/on_stored.py:ro
+
+  bridge:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./worklists:/app/worklists
+    command: ["python3", "bridge.py", "--loop"]
+    depends_on:
+      - orthanc
+
+volumes:
+  orthanc-db:
