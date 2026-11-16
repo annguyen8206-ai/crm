@@ -1,4 +1,6 @@
-// In-Memory Database Store & Seed Data for VitHospital / VitCRM Backend
+// In-Memory Database Store & Seed Data for the VitCRM backend
+import type { CustomerRecord, ProductRecord, OrderRecord, VisitRecord } from './commerce-types';
+export type { CustomerRecord, ProductRecord, OrderRecord, VisitRecord } from './commerce-types';
 
 export interface PatientRecord {
   id: string;
@@ -875,6 +877,12 @@ class HospitalBackendStore {
   conversations: ConversationRecord[] = [];
   messages: MessageRecord[] = [];
 
+  // Consumer-goods CRM (see server/commerce-types.ts)
+  customers: CustomerRecord[] = [];
+  products: ProductRecord[] = [];
+  orders: OrderRecord[] = [];
+  visits: VisitRecord[] = [];
+
   /** Wipes every business collection — used to clear demo/seed data. Keeps nothing. */
   clearAll(): void {
     this.patients = [];
@@ -891,6 +899,10 @@ class HospitalBackendStore {
     this.conversations = [];
     this.messages = [];
     this.collections = {};
+    this.customers = [];
+    this.products = [];
+    this.orders = [];
+    this.visits = [];
   }
 
   // Helper logging

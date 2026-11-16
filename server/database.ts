@@ -21,6 +21,10 @@ export type DbSnapshot = {
   csatFeedbacks: unknown[];
   conversations: unknown[];
   messages: unknown[];
+  customers: unknown[];
+  products: unknown[];
+  orders: unknown[];
+  visits: unknown[];
   collections: Record<string, unknown[]>;
 };
 
@@ -225,6 +229,10 @@ function createSnapshot(): DbSnapshot {
     // auditLogs is NOT snapshotted — it lives in the append-only audit_log table.
     conversations: dbStore.conversations,
     messages: dbStore.messages,
+    customers: dbStore.customers,
+    products: dbStore.products,
+    orders: dbStore.orders,
+    visits: dbStore.visits,
     collections: dbStore.collections
   };
 }

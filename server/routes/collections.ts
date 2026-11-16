@@ -5,7 +5,8 @@ import { hasPerm, isAdmin, COLLECTION_WRITE_PERM } from '../rbac';
 const COLLECTION_NAMES = new Set([
   'branches', 'b2bContracts', 'b2cDeals', 'campaigns', 'automationRules',
   'referrals', 'partners', 'partnerPayouts', 'interactions', 'segments',
-  'medicalServices', 'medicalPackages', 'doctors'
+  'medicalServices', 'medicalPackages', 'doctors',
+  'salesTargets', 'promotions', 'loyaltyRewards', 'productCategories'
   // NB: `messagingOptOut` is intentionally NOT here — it is written only via the
   // dedicated /api/messaging/opt-out route, never the generic collections PUT.
 ]);
