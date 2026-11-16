@@ -35,7 +35,7 @@ export const IntegrationSettingsModal: React.FC<Props> = ({ isOpen, onClose }) =
     try {
       const r = await apiClient.settings.get();
       setGroups(r.groups || []);
-      setValues(r.values || {});
+      setValues((r.values || {}) as Record<string, ValueMeta>);
       setIntegrations(r.integrations || []);
       setDraft({});
     } catch (e: any) {
@@ -79,7 +79,7 @@ export const IntegrationSettingsModal: React.FC<Props> = ({ isOpen, onClose }) =
     setSaving(true); setErr(null); setMsg(null);
     try {
       const r = await apiClient.settings.save(draft);
-      setValues(r.values || {});
+      setValues((r.values || {}) as Record<string, ValueMeta>);
       setIntegrations(r.integrations || []);
       setDraft({});
       setMsg(r.changed?.length ? `Đã lưu: ${r.changed.join(', ')}` : 'Không có thay đổi để lưu.');

@@ -57,7 +57,7 @@ async function runJob(job: Job, recipients: Array<{ phone: string; name?: string
           } as ZnsLogRecord);
         } else { job.failed++; job.errors.push({ phone: r.phone, error: d.error || 'zns failed' }); }
       } else {
-        const d = await sendSms({ to: r.phone, message: opts.message || '' });
+        const d = await sendSms({ to: r.phone, message: (opts.message || '').replace(/\{ten\}/g, r.name || 'Quý khách') });
         if (d.ok) job.sent++;
         else { job.failed++; job.errors.push({ phone: r.phone, error: d.error || 'sms failed' }); }
       }

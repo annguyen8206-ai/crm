@@ -149,7 +149,7 @@ export function buildFmcgDemo(now = new Date()) {
   });
 
   // Today's visit plan.
-  customers.filter(c => c.type === 'B2B' && c.visitFrequency === 'Hàng tuần').forEach((c, i) => {
+  customers.filter(c => c.type === 'B2B' && c.visitFrequency === 'Hàng tuần' && !visits.some(v => v.customerId === c.id && v.plannedDate === today)).forEach((c, i) => {
     visits.push({
       id: `vis-today-${i}`, customerId: c.id, customerName: c.name, customerAddress: c.address, salesRep: c.assignedRep!,
       branchId: c.branchId, plannedDate: today, purpose: i % 3 === 0 ? 'Thu nợ' : 'Lấy đơn', status: 'Kế hoạch', createdAt: `${today}T00:00:00.000Z`,

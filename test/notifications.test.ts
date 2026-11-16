@@ -2,16 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { computeNotifications } from '../server/routes/notifications';
 
 const NOW = Date.parse('2026-09-04T10:00:00');
-const today = '2026-09-04';
 
 function store(over: Partial<Record<string, any[]>> = {}): any {
-  return {
-    tickets: [], appointments: [], recalls: [], csatFeedbacks: [],
-    patients: [], invoices: [], followUps: [], leads: [],
-    znsLogs: [], voipCalls: [], conversations: [], messages: [],
-    ...over,
-  };
+  return { tickets: [], orders: [], products: [], customers: [], ...over };
 }
+
+const order = (o: Record<string, unknown>) => ({
+  id: 'o', code: 'DH-1', customerId: 'c', customerName: 'NPP A', customerType: 'B2B', status: 'Đã giao',
+  total: 1000, paidAmount: 0, items: [], createdAt: '2026-07-01T00:00:00Z', ...o,
+});
 
 describe('computeNotifications', () => {
   it('returns nothing for an empty store', () => {
@@ -32,26 +31,26 @@ describe('computeNotifications', () => {
     expect(n.find(x => x.id === 'tickets-new')?.count).toBe(1);
   });
 
-  it('flags today\'s unconfirmed appointments only', () => {
+  it('flags orders awaiting approval and debt overdue > 30 days', () => {
     const n = computeNotifications(store({
-      appointments: [
-        { patientName: 'A', date: today, status: 'Chờ tiếp đón', timeSlot: '09:00 - 09:30' },
-        { patientName: 'B', date: today, status: 'Đã tiếp đón', checkedInAt: '2026-09-04T08:00:00' },
-        { patientName: 'C', date: '2026-09-05', status: 'Chờ xác nhận' },
-        { patientName: 'D', date: today, status: 'Đã hủy' },
+      orders: [
+        order({ id: 'a', status: 'Chờ duyệt' }),
+        order({ id: 'b', dueDate: '2026-07-15' }),                       // 51 days overdue
+        order({ id: 'c', customerName: 'Đại lý B', dueDate: '2026-08-30' }), // 5 days → not yet
+        order({ id: 'd', dueDate: '2026-06-01', paidAmount: 1000 }),      // paid
       ],
     }), NOW);
-    expect(n.find(x => x.id === 'appts-today-pending')?.count).toBe(1);
+    expect(n.find(x => x.id === 'orders-pending')?.count).toBe(1);
+    expect(n.find(x => x.id === 'debt-overdue')?.count).toBe(1);
+    expect(n[0].severity).toBe('high');
   });
 
-  it('flags overdue recalls and low-CSAT follow-ups, sorted high-severity first', () => {
+  it('flags low stock and quiet outlets with lower severity', () => {
     const n = computeNotifications(store({
-      recalls: [{ patientName: 'R1', daysOverdue: 3, status: 'Đến hạn - Chờ liên hệ' },
-                { patientName: 'R2', daysOverdue: 0, status: 'Đến hạn - Chờ liên hệ' }],
-      csatFeedbacks: [{ patientName: 'C1', rating: 2, followUpRequired: true }],
+      products: [{ sku: 'A', status: 'Đang bán', stock: 3 }, { sku: 'B', status: 'Ngừng bán', stock: 0 }, { sku: 'C', status: 'Đang bán' }],
+      customers: [{ id: 'x', name: 'Tạp hoá', type: 'B2B', status: 'Đang hoạt động', visitFrequency: 'Hàng tuần', lastOrderDate: '2026-08-01' }],
     }), NOW);
-    expect(n[0].severity).toBe('high');
-    expect(n.find(x => x.id === 'recalls-overdue')?.count).toBe(1);
-    expect(n.find(x => x.id === 'csat-followup')?.count).toBe(1);
+    expect(n.find(x => x.id === 'stock-low')?.count).toBe(1);
+    expect(n.find(x => x.id === 'outlets-inactive')?.severity).toBe('low');
   });
 });

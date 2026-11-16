@@ -1,5 +1,6 @@
 import type { Express } from 'express';
 import { dbStore } from '../store';
+import { receivables, inactiveAccounts } from '../commerce';
 
 export type Notification = {
   id: string;
@@ -12,10 +13,12 @@ export type Notification = {
 
 const RESOLVED = new Set(['Đã giải quyết', 'Đã đóng']);
 
+type NotifStore = Pick<typeof dbStore, 'tickets' | 'orders' | 'products' | 'customers'>;
+
 /** Derive actionable alerts from the current store. Pure — exported for tests. */
-export function computeNotifications(store: typeof dbStore, now = Date.now()): Notification[] {
-  const today = new Date(now).toISOString().slice(0, 10);
+export function computeNotifications(store: NotifStore, now = Date.now()): Notification[] {
   const out: Notification[] = [];
+  const nowDate = new Date(now);
 
   const parseWhen = (s?: string) => {
     if (!s) return NaN;
@@ -23,8 +26,29 @@ export function computeNotifications(store: typeof dbStore, now = Date.now()): N
     return Number.isFinite(t) ? t : NaN;
   };
 
-  // 1. Tickets past SLA and still open
-  const overdueTix = store.tickets.filter(t => {
+  // 1. Orders waiting for a manager (credit limit / discount)
+  const pending = (store.orders || []).filter(o => o.status === 'Chờ duyệt');
+  if (pending.length) {
+    out.push({
+      id: 'orders-pending', severity: 'high', tab: 'orders', count: pending.length,
+      title: `${pending.length} đơn hàng chờ duyệt`,
+      detail: pending.slice(0, 3).map(o => `${o.code} · ${o.customerName}`).join('; '),
+    });
+  }
+
+  // 2. Receivables more than 30 days overdue
+  const overdue = receivables(store.orders || [], nowDate).filter(r => r.daysOverdue > 30);
+  if (overdue.length) {
+    const customers = [...new Set(overdue.map(r => r.customerName))];
+    out.push({
+      id: 'debt-overdue', severity: 'high', tab: 'orders', count: customers.length,
+      title: `${customers.length} khách nợ quá hạn trên 30 ngày`,
+      detail: customers.slice(0, 3).join(', '),
+    });
+  }
+
+  // 3. Tickets past SLA and still open
+  const overdueTix = (store.tickets || []).filter(t => {
     if (RESOLVED.has(t.status)) return false;
     const due = parseWhen(t.slaDeadline);
     return t.isOverdue === true || (Number.isFinite(due) && due < now);
@@ -37,8 +61,8 @@ export function computeNotifications(store: typeof dbStore, now = Date.now()): N
     });
   }
 
-  // 2. New tickets awaiting triage
-  const newTix = store.tickets.filter(t => t.status === 'Mới tiếp nhận' && !RESOLVED.has(t.status));
+  // 4. New tickets awaiting triage
+  const newTix = (store.tickets || []).filter(t => t.status === 'Mới tiếp nhận');
   if (newTix.length) {
     out.push({
       id: 'tickets-new', severity: 'med', tab: 'care', count: newTix.length,
@@ -47,36 +71,23 @@ export function computeNotifications(store: typeof dbStore, now = Date.now()): N
     });
   }
 
-  // 3. Today's appointments not yet checked in / confirmed
-  const pendingToday = store.appointments.filter(a =>
-    a.date === today && !a.checkedInAt &&
-    /chờ tiếp đón|chờ xác nhận/i.test(a.status || '') && a.status !== 'Đã hủy'
-  );
-  if (pendingToday.length) {
+  // 5. Low stock on active SKUs
+  const low = (store.products || []).filter(p => p.status === 'Đang bán' && typeof p.stock === 'number' && p.stock <= 10);
+  if (low.length) {
     out.push({
-      id: 'appts-today-pending', severity: 'med', tab: 'appointments', count: pendingToday.length,
-      title: `${pendingToday.length} lịch khám hôm nay chưa xác nhận`,
-      detail: pendingToday.slice(0, 3).map(a => `${a.patientName} ${a.timeSlot || ''}`.trim()).join('; '),
+      id: 'stock-low', severity: 'med', tab: 'products', count: low.length,
+      title: `${low.length} sản phẩm sắp hết hàng`,
+      detail: low.slice(0, 3).map(p => `${p.sku} (${p.stock})`).join(', '),
     });
   }
 
-  // 4. Recalls past due
-  const overdueRecalls = store.recalls.filter(r => (r.daysOverdue || 0) > 0 && !/hoàn tất|từ chối/i.test(r.status || ''));
-  if (overdueRecalls.length) {
+  // 6. B2B outlets that stopped ordering
+  const quiet = inactiveAccounts(store.customers || [], nowDate);
+  if (quiet.length) {
     out.push({
-      id: 'recalls-overdue', severity: 'med', tab: 'care', count: overdueRecalls.length,
-      title: `${overdueRecalls.length} lịch tái khám quá hạn`,
-      detail: overdueRecalls.slice(0, 3).map(r => r.patientName).join(', '),
-    });
-  }
-
-  // 5. Low-score CSAT feedback needing a follow-up call
-  const csatFollow = store.csatFeedbacks.filter(c => c.followUpRequired && !c.followUpStatus);
-  if (csatFollow.length) {
-    out.push({
-      id: 'csat-followup', severity: 'high', tab: 'care', count: csatFollow.length,
-      title: `${csatFollow.length} đánh giá thấp cần liên hệ`,
-      detail: csatFollow.slice(0, 3).map(c => `${c.patientName} (${c.rating}★)`).join(', '),
+      id: 'outlets-inactive', severity: 'low', tab: 'sales', count: quiet.length,
+      title: `${quiet.length} điểm bán lâu không đặt hàng`,
+      detail: quiet.slice(0, 3).map(q => q.customer.name).join(', '),
     });
   }
 

@@ -1,298 +1,102 @@
-import { ActiveTab, UserRole } from '../types';
+// Front-end RBAC. Role → permission mapping is shared with the server
+// (server/rbac.ts) so the UI never offers an action the API would reject.
+import { roleKeyOf, hasPerm, type Permission, type RoleKey } from '../../server/rbac';
+import type { ActiveTab } from '../types';
+
+export { roleKeyOf, hasPerm };
+export type { Permission, RoleKey };
 
 export interface RoleConfig {
-  id: string;
-  roleKey: string;
+  roleKey: RoleKey;
   title: string;
-  shortTitle: string;
-  department: string;
-  badgeColor: string;
-  bgLight: string;
-  textColor: string;
-  borderColor: string;
   description: string;
   defaultTab: ActiveTab;
   allowedTabs: ActiveTab[];
-  permissions: {
-    canViewClinicalEMR: boolean; // Xem lịch sử hồ sơ khách hàng 360°, ghi chú CSKH
-    canEditClinicalEMR: boolean; // Cập nhật hồ sơ, ghi chú tư vấn
-    canManageAppointments: boolean; // Đặt lịch, check-in, đổi giờ
-    canManageB2BContracts: boolean; // Tạo, sửa hợp đồng KSK Doanh nghiệp
-    canManageMarketing: boolean; // Tạo campaign ZNS, automation rules
-    canManageTickets: boolean; // Xử lý ticket khiếu nại CSKH
-    canManageInsurance: boolean; // Quản lý quyền lợi & bảo hiểm khách hàng
-    canManageLoyalty: boolean; // Duyệt hoa hồng referral, voucher
-    canViewFinancialBI: boolean; // Xem doanh thu, giá trị vòng đời khách hàng
-    canUseAiTriage: boolean; // Dùng trợ lý AI CSKH
-  };
+  badge: string;
 }
 
-export const ROLE_CONFIGS: Record<string, RoleConfig> = {
-  'Quản Trị Viên Hệ Thống (Admin)': {
-    id: 'role-sysadmin',
+export const ROLE_CONFIGS: Record<RoleKey, RoleConfig> = {
+  admin: {
     roleKey: 'admin',
-    title: 'Quản Trị Viên Hệ Thống (Admin & IT)',
-    shortTitle: 'Admin Hệ Thống (IT)',
-    department: 'Phòng Công Nghệ Thông Tin (IT & Chuyển Đổi Số)',
-    badgeColor: 'bg-cyan-600 text-white border-cyan-300',
-    bgLight: 'bg-slate-100',
-    textColor: 'text-cyan-400',
-    borderColor: 'border-cyan-500',
-    description: 'Toàn quyền cấu hình hệ thống, quản trị phân quyền nhân viên, cơ sở dữ liệu và tích hợp các kênh truyền thông CSKH (Zalo ZNS, VoIP, SMS).',
+    title: 'Ban Giám đốc / Quản trị hệ thống',
+    description: 'Toàn quyền: báo cáo, khách hàng, đơn hàng, sản phẩm & bảng giá, kinh doanh, marketing, loyalty, cấu hình hệ thống.',
     defaultTab: 'dashboard',
-    allowedTabs: [
-      'dashboard',
-      'patients',
-      'appointments',
-      'sales',
-      'marketing',
-      'care',
-      'inbox',
-      'catalog',
-      'billing',
-      'loyalty'
-    ],
-    permissions: {
-      canViewClinicalEMR: true,
-      canEditClinicalEMR: true,
-      canManageAppointments: true,
-      canManageB2BContracts: true,
-      canManageMarketing: true,
-      canManageTickets: true,
-      canManageInsurance: true,
-      canManageLoyalty: true,
-      canViewFinancialBI: true,
-      canUseAiTriage: true
-    }
+    allowedTabs: ['dashboard', 'customers', 'orders', 'products', 'sales', 'marketing', 'loyalty', 'care', 'inbox'],
+    badge: 'bg-purple-100 text-purple-800 border-purple-200',
   },
-
-  'Ban Giám Đốc': {
-    id: 'role-admin',
-    roleKey: 'admin',
-    title: 'Ban Giám Đốc (Quản trị Toàn diện)',
-    shortTitle: 'Ban Giám Đốc',
-    department: 'Ban Lãnh Đạo & HĐQT',
-    badgeColor: 'bg-purple-100 text-purple-800 border-purple-300',
-    bgLight: 'bg-purple-50',
-    textColor: 'text-purple-700',
-    borderColor: 'border-purple-200',
-    description: 'Toàn quyền truy cập tất cả phân hệ: Báo cáo tài chính BI, Hồ sơ khách hàng 360°, KSK Doanh nghiệp B2B, Marketing Automation, CSKH & Quản trị SLA, Loyalty.',
+  sales_manager: {
+    roleKey: 'sales_manager',
+    title: 'Quản lý kinh doanh (ASM/RSM)',
+    description: 'Quản lý đội sales, duyệt đơn vượt hạn mức/chiết khấu, giao chỉ tiêu, theo dõi công nợ và KPI.',
     defaultTab: 'dashboard',
-    allowedTabs: [
-      'dashboard',
-      'patients',
-      'appointments',
-      'sales',
-      'marketing',
-      'care',
-      'inbox',
-      'catalog',
-      'billing',
-      'loyalty'
-    ],
-    permissions: {
-      canViewClinicalEMR: true,
-      canEditClinicalEMR: true,
-      canManageAppointments: true,
-      canManageB2BContracts: true,
-      canManageMarketing: true,
-      canManageTickets: true,
-      canManageInsurance: false,
-      canManageLoyalty: true,
-      canViewFinancialBI: true,
-      canUseAiTriage: true
-    }
+    allowedTabs: ['dashboard', 'customers', 'orders', 'products', 'sales', 'loyalty', 'care', 'inbox'],
+    badge: 'bg-indigo-100 text-indigo-800 border-indigo-200',
   },
-
-  'Bác sĩ Trưởng Khoa': {
-    id: 'role-doctor',
-    roleKey: 'doctor',
-    title: 'Bác sĩ Trưởng Khoa & Cố Vấn',
-    shortTitle: 'Bác sĩ Cố Vấn',
-    department: 'Khối Chuyên Môn & Tư Vấn',
-    badgeColor: 'bg-blue-100 text-blue-800 border-blue-300',
-    bgLight: 'bg-blue-50',
-    textColor: 'text-blue-700',
-    borderColor: 'border-blue-200',
-    description: 'Tập trung lịch khám và tư vấn khách hàng: Lịch khám phòng khám, Hồ sơ khách hàng 360°, Lịch hẹn đặt trực tuyến.',
-    defaultTab: 'appointments',
-    allowedTabs: [
-      'dashboard',
-      'patients',
-      'appointments'
-    ],
-    permissions: {
-      canViewClinicalEMR: true,
-      canEditClinicalEMR: true,
-      canManageAppointments: true,
-      canManageB2BContracts: false,
-      canManageMarketing: false,
-      canManageTickets: false,
-      canManageInsurance: false,
-      canManageLoyalty: false,
-      canViewFinancialBI: false,
-      canUseAiTriage: true
-    }
+  sales_rep: {
+    roleKey: 'sales_rep',
+    title: 'Nhân viên kinh doanh',
+    description: 'Viếng thăm điểm bán theo tuyến, check-in, lên đơn, thu nợ, chăm sóc khách hàng được giao.',
+    defaultTab: 'sales',
+    allowedTabs: ['dashboard', 'sales', 'customers', 'orders', 'products'],
+    badge: 'bg-blue-100 text-blue-800 border-blue-200',
   },
-
-  'Chuyên viên Tiếp đón': {
-    id: 'role-receptionist',
-    roleKey: 'receptionist',
-    title: 'Chuyên viên Tiếp đón & Lễ Tân',
-    shortTitle: 'Lễ Tân / Tiếp Đón',
-    department: 'Bộ phận Tiếp tân & Điều phối Sảnh',
-    badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-    bgLight: 'bg-emerald-50',
-    textColor: 'text-emerald-700',
-    borderColor: 'border-emerald-200',
-    description: 'Nhiệm vụ tiếp đón tại quầy: Check-in khách hàng, Điều phối phòng khám, Đặt lịch hẹn mới, Tra cứu hồ sơ khách hàng.',
-    defaultTab: 'appointments',
-    allowedTabs: [
-      'appointments',
-      'patients',
-      'inbox',
-      'billing'
-    ],
-    permissions: {
-      canViewClinicalEMR: false,
-      canEditClinicalEMR: false,
-      canManageAppointments: true,
-      canManageB2BContracts: false,
-      canManageMarketing: false,
-      canManageTickets: false,
-      canManageInsurance: false,
-      canManageLoyalty: false,
-      canViewFinancialBI: false,
-      canUseAiTriage: true
-    }
+  accountant: {
+    roleKey: 'accountant',
+    title: 'Kế toán công nợ',
+    description: 'Ghi nhận thanh toán, đối soát công nợ, duyệt đơn vượt hạn mức, báo cáo doanh thu.',
+    defaultTab: 'orders',
+    allowedTabs: ['dashboard', 'orders', 'customers', 'products'],
+    badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   },
-
-  'Tư Vấn, Kinh Doanh & CSKH': {
-    id: 'role-cskh-sales-consultant',
+  cskh_sales_consultant: {
     roleKey: 'cskh_sales_consultant',
-    title: 'Khối Tư Vấn, Kinh Doanh & CSKH',
-    shortTitle: 'Tư Vấn, KD & CSKH',
-    department: 'Khối Tư Vấn, Kinh Doanh & Chăm Sóc Khách Hàng',
-    badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
-    bgLight: 'bg-amber-50',
-    textColor: 'text-amber-700',
-    borderColor: 'border-amber-200',
-    description: 'Hợp nhất toàn diện nghiệp vụ khách hàng: Tư vấn & xác nhận lịch khám, Phát triển hợp đồng KSK doanh nghiệp B2B & Deals gói khám, Xử lý khiếu nại Ticket SLA, Cuộc gọi sau khám D+3 và Quản trị Hội viên & Tích điểm.',
-    defaultTab: 'care',
-    allowedTabs: [
-      'care',
-      'inbox',
-      'sales',
-      'catalog',
-      'billing',
-      'appointments',
-      'patients',
-      'loyalty',
-      'dashboard'
-    ],
-    permissions: {
-      canViewClinicalEMR: false,
-      canEditClinicalEMR: false,
-      canManageAppointments: true,
-      canManageB2BContracts: true,
-      canManageMarketing: false,
-      canManageTickets: true,
-      canManageInsurance: false,
-      canManageLoyalty: true,
-      canViewFinancialBI: false,
-      canUseAiTriage: true
-    }
+    title: 'CSKH & Bán hàng online',
+    description: 'Tư vấn, chốt đơn B2C qua Zalo/Facebook/hotline, xử lý khiếu nại, chăm sóc hội viên.',
+    defaultTab: 'customers',
+    allowedTabs: ['dashboard', 'customers', 'orders', 'products', 'loyalty', 'care', 'inbox'],
+    badge: 'bg-teal-100 text-teal-800 border-teal-200',
   },
-
-  'Marketing Lead': {
-    id: 'role-marketing',
+  marketing_lead: {
     roleKey: 'marketing_lead',
-    title: 'Marketing Lead & Automation',
-    shortTitle: 'Marketing Lead',
-    department: 'Phòng Truyền Thông & Tăng Trưởng',
-    badgeColor: 'bg-pink-100 text-pink-800 border-pink-300',
-    bgLight: 'bg-pink-50',
-    textColor: 'text-pink-700',
-    borderColor: 'border-pink-200',
-    description: 'Nhiệm vụ tăng trưởng tệp khách hàng: Kịch bản Zalo ZNS / SMS tự động, Phân khúc khách hàng Target, Báo cáo hiệu quả ROI chiến dịch tiếp thị.',
+    title: 'Marketing',
+    description: 'Phân khúc RFM, chiến dịch Zalo/SMS, chương trình hội viên và nhắc mua lại.',
     defaultTab: 'marketing',
-    allowedTabs: [
-      'marketing',
-      'inbox',
-      'loyalty',
-      'dashboard',
-      'patients'
-    ],
-    permissions: {
-      canViewClinicalEMR: false,
-      canEditClinicalEMR: false,
-      canManageAppointments: false,
-      canManageB2BContracts: false,
-      canManageMarketing: true,
-      canManageTickets: false,
-      canManageInsurance: false,
-      canManageLoyalty: true,
-      canViewFinancialBI: false,
-      canUseAiTriage: false
-    }
-  }
+    allowedTabs: ['dashboard', 'marketing', 'loyalty', 'customers', 'products'],
+    badge: 'bg-pink-100 text-pink-800 border-pink-200',
+  },
+  viewer: {
+    roleKey: 'viewer',
+    title: 'Chỉ xem',
+    description: 'Tài khoản chưa được gán vai trò — chỉ xem tổng quan và sản phẩm.',
+    defaultTab: 'dashboard',
+    allowedTabs: ['dashboard', 'products'],
+    badge: 'bg-slate-100 text-slate-700 border-slate-200',
+  },
 };
 
-/**
- * Normalizes role string to standard configuration
- */
-export function getRoleConfig(roleName: UserRole | string): RoleConfig {
-  if (ROLE_CONFIGS[roleName]) {
-    return ROLE_CONFIGS[roleName];
-  }
-  
-  // Fuzzy match by key or partial name
-  const roleLower = (roleName || '').toLowerCase();
-  if (roleLower.includes('quản trị viên') || roleLower.includes('sysadmin') || roleLower.includes('admin') || roleLower.includes('it') || roleLower.includes('công nghệ') || roleLower.includes('hệ thống')) {
-    return ROLE_CONFIGS['Quản Trị Viên Hệ Thống (Admin)'];
-  }
-  if (roleLower.includes('giám đốc') || roleLower.includes('lãnh đạo') || roleLower.includes('hđqt')) {
-    return ROLE_CONFIGS['Ban Giám Đốc'];
-  }
-  if (roleLower.includes('bác sĩ') || roleLower.includes('doctor') || roleLower.includes('khoa')) {
-    return ROLE_CONFIGS['Bác sĩ Trưởng Khoa'];
-  }
-  if (roleLower.includes('tiếp đón') || roleLower.includes('lễ tân') || roleLower.includes('receptionist')) {
-    return ROLE_CONFIGS['Chuyên viên Tiếp đón'];
-  }
-  if (
-    roleLower.includes('cskh') ||
-    roleLower.includes('chăm sóc') ||
-    roleLower.includes('kinh doanh') ||
-    roleLower.includes('sales') ||
-    roleLower.includes('b2b') ||
-    roleLower.includes('tư vấn') ||
-    roleLower.includes('consultant')
-  ) {
-    return ROLE_CONFIGS['Tư Vấn, Kinh Doanh & CSKH'];
-  }
-  if (roleLower.includes('marketing') || roleLower.includes('tiếp thị')) {
-    return ROLE_CONFIGS['Marketing Lead'];
-  }
-  if (roleLower.includes('bảo hiểm') || roleLower.includes('insurance')) {
-    return ROLE_CONFIGS['Ban Giám Đốc'];
-  }
+/** Role values offered when creating staff accounts (free text is still accepted by the server). */
+export const ROLE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'Ban Giám Đốc', label: 'Ban Giám đốc' },
+  { value: 'Quản Trị Viên Hệ Thống (Admin)', label: 'Quản trị hệ thống (IT)' },
+  { value: 'Quản lý kinh doanh', label: 'Quản lý kinh doanh (ASM/RSM)' },
+  { value: 'Nhân viên kinh doanh', label: 'Nhân viên kinh doanh / Sales thị trường' },
+  { value: 'Kế toán công nợ', label: 'Kế toán công nợ' },
+  { value: 'CSKH & Bán hàng online', label: 'CSKH & Bán hàng online' },
+  { value: 'Marketing Lead', label: 'Marketing' },
+];
 
-  return ROLE_CONFIGS['Ban Giám Đốc'];
+export function getRoleConfig(role: string | undefined | null): RoleConfig {
+  return ROLE_CONFIGS[roleKeyOf(role)];
 }
 
-/**
- * Checks if a tab is allowed for a given role
- */
-export function isTabAllowedForRole(tabId: ActiveTab, roleName: UserRole | string): boolean {
-  const config = getRoleConfig(roleName);
-  return config.allowedTabs.includes(tabId);
+export function isTabAllowedForRole(tab: ActiveTab, role: string | undefined | null): boolean {
+  return getRoleConfig(role).allowedTabs.includes(tab);
 }
 
-/**
- * Returns list of allowed tabs for a role
- */
-export function getAllowedTabsForRole(roleName: UserRole | string): ActiveTab[] {
-  const config = getRoleConfig(roleName);
-  return config.allowedTabs;
+export function getAllowedTabsForRole(role: string | undefined | null): ActiveTab[] {
+  return getRoleConfig(role).allowedTabs;
+}
+
+export function can(role: string | undefined | null, perm: Permission): boolean {
+  return hasPerm(role || undefined, perm);
 }

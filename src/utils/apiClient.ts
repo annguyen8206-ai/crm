@@ -9,7 +9,7 @@ export interface ApiResponse<T> {
   success?: boolean;
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('vitcrm_access_token') : null;
   const headers = {
     'Content-Type': 'application/json',
