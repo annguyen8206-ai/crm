@@ -1,6 +1,7 @@
 // In-Memory Database Store & Seed Data for the VitCRM backend
 import type { CustomerRecord, ProductRecord, OrderRecord, VisitRecord } from './commerce-types';
 export type { CustomerRecord, ProductRecord, OrderRecord, VisitRecord } from './commerce-types';
+import { buildFmcgDemo } from './seed-fmcg';
 
 export interface PatientRecord {
   id: string;
@@ -928,9 +929,15 @@ class HospitalBackendStore {
 
 export const dbStore = new HospitalBackendStore();
 
-// Demo/seed data ships in the class above for local exploration only.
-// Production keeps the store empty until real data arrives — set
-// SEED_DEMO_DATA=true to keep the sample records.
-if (process.env.SEED_DEMO_DATA !== 'true') {
-  dbStore.clearAll();
+// The legacy healthcare seed above is always dropped. Production keeps the
+// store empty until real data arrives — set SEED_DEMO_DATA=true to load the
+// consumer-goods demo dataset (server/seed-fmcg.ts) instead.
+dbStore.clearAll();
+if (process.env.SEED_DEMO_DATA === 'true') {
+  const demo = buildFmcgDemo();
+  dbStore.products = demo.products;
+  dbStore.customers = demo.customers;
+  dbStore.orders = demo.orders;
+  dbStore.visits = demo.visits;
+  dbStore.collections.salesTargets = demo.salesTargets;
 }

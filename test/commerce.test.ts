@@ -121,8 +121,8 @@ describe('loyalty', () => {
   it('converts spend to points and points to tier', () => {
     expect(pointsForAmount(125_000)).toBe(12);
     expect(tierForPoints(0)).toBe('Thành viên');
-    expect(tierForPoints(500)).toBe('Bạc');
-    expect(tierForPoints(2500)).toBe('Vàng');
+    expect(tierForPoints(250)).toBe('Bạc');
+    expect(tierForPoints(1000)).toBe('Vàng');
     expect(tierForPoints(9999)).toBe('Kim cương');
   });
 

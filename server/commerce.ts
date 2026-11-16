@@ -164,9 +164,9 @@ export function receivables(orders: OrderRecord[], now = new Date()): Receivable
 export const VND_PER_POINT = Number(process.env.LOYALTY_VND_PER_POINT || 10_000);
 
 export const LOYALTY_TIERS: Array<{ tier: LoyaltyTier; minLifetimePoints: number }> = [
-  { tier: 'Kim cương', minLifetimePoints: 5000 },
-  { tier: 'Vàng', minLifetimePoints: 2000 },
-  { tier: 'Bạc', minLifetimePoints: 500 },
+  { tier: 'Kim cương', minLifetimePoints: 2000 },
+  { tier: 'Vàng', minLifetimePoints: 800 },
+  { tier: 'Bạc', minLifetimePoints: 200 },
   { tier: 'Thành viên', minLifetimePoints: 0 },
 ];
 
