@@ -78,7 +78,17 @@ echo "==> nginx"
 cp deploy/nginx/crm.pure.vn.conf "/etc/nginx/sites-available/$DOMAIN"
 ln -sf "/etc/nginx/sites-available/$DOMAIN" "/etc/nginx/sites-enabled/$DOMAIN"
 rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl reload nginx
+nginx -t
+# Fresh installs may leave nginx stopped (e.g. port 80 was busy during apt install).
+systemctl enable nginx >/dev/null 2>&1 || true
+if systemctl is-active --quiet nginx; then systemctl reload nginx; else
+  systemctl start nginx || {
+    echo "!! nginx failed to start. Something else probably holds port 80:"
+    ss -ltnp 'sport = :80' || true
+    echo "   Stop it (e.g. systemctl disable --now apache2) and re-run this script."
+    exit 1
+  }
+fi
 
 echo "==> Daily DB backup (03:00, keep 14)"
 mkdir -p /home/$DEPLOY_USER/backups && chown $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER/backups
