@@ -138,7 +138,7 @@ export function SendModal({ title, recipients, defaultName, defaultMessage, onCl
 }) {
   const [name, setName] = useState(defaultName);
   const [channel, setChannel] = useState<'sms' | 'zns'>('sms');
-  const [message, setMessage] = useState(defaultMessage || 'Chào {ten}, VitFood gửi tặng bạn mã ưu đãi 10% cho đơn hàng tiếp theo. Đặt hàng qua Zalo OA hoặc hotline. Từ chối nhận tin: trả lời TC.');
+  const [message, setMessage] = useState(defaultMessage || 'Chào {ten}, Pure Essential Oils gửi tặng bạn mã ưu đãi 10% cho đơn hàng tiếp theo. Đặt hàng qua Zalo OA hoặc hotline. Từ chối nhận tin: trả lời TC.');
   const [templateType, setTemplateType] = useState('ZNS_PROMOTION');
   const { busy, run } = useAction(notify);
   const preview = message.replace(/\{ten\}/g, recipients[0]?.name || 'Quý khách');

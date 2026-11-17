@@ -74,7 +74,7 @@ function OrdersList({ notify, can, userName, refreshKey }: ViewProps) {
               <tbody className="divide-y divide-slate-100">
                 {rows.slice(0, 500).map(o => (
                   <tr key={o.id} onClick={() => setSelected(o)} className="hover:bg-slate-50 cursor-pointer">
-                    <Td><div className="font-semibold text-slate-900">{o.code}</div><div className="text-xs text-slate-400">{fmtDateTime(o.createdAt)}</div></Td>
+                    <Td><div className="font-semibold text-slate-900 whitespace-nowrap">{o.code}</div><div className="text-xs text-slate-400 whitespace-nowrap">{fmtDateTime(o.createdAt)}</div></Td>
                     <Td><div className="flex items-center gap-1.5"><TypeBadge type={o.customerType} /><span className="truncate max-w-48">{o.customerName}</span></div></Td>
                     <Td className="text-xs"><div>{o.channel}</div><div className="text-slate-400">{o.salesRep}</div></Td>
                     <Td className="text-right tabular-nums font-semibold">{vnd(o.total)}</Td>

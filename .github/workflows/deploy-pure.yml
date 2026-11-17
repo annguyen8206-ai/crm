@@ -1,0 +1,64 @@
+name: Deploy Pure CRM
+# Separate from deploy.yml (healthcare edition on `main`): this deploys the
+# fmcg-crm branch to the Pure VPS (crm.pure.vn). Secrets: PURE_HOST, PURE_USER,
+# PURE_PORT, PURE_SSH_KEY.
+on:
+  push:
+    branches:
+      - fmcg-crm
+  workflow_dispatch:
+concurrency:
+  group: purecrm-production
+  cancel-in-progress: false
+jobs:
+  test:
+    name: Typecheck + tests + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  deploy:
+    name: Deploy to crm.pure.vn
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.PURE_HOST }}
+          username: ${{ secrets.PURE_USER }}
+          port: ${{ secrets.PURE_PORT }}
+          key: ${{ secrets.PURE_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd /var/www/purecrm
+            # Backup before migrations run. Read DATABASE_URL only — sourcing the
+            # whole .env would export NODE_ENV=production and make `npm ci` skip
+            # the dev dependencies the build needs.
+            mkdir -p "$HOME/backups"
+            DBURL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | tr -d '"')"
+            if [ -n "$DBURL" ]; then
+              pg_dump "$DBURL" | gzip > "$HOME/backups/pre-deploy-$(date +%Y%m%d-%H%M%S).sql.gz" || echo "WARN: pg_dump failed (continuing)"
+            fi
+            ls -1t "$HOME/backups"/pre-deploy-*.sql.gz 2>/dev/null | tail -n +8 | xargs -r rm -f
+            git fetch origin fmcg-crm
+            git reset --hard origin/fmcg-crm
+            npm ci --include=dev
+            npm run build
+            pm2 reload deploy/ecosystem.config.cjs --update-env || pm2 start deploy/ecosystem.config.cjs
+            pm2 save
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              curl --fail --silent http://127.0.0.1:3000/api/health && break
+              sleep 2
+            done
+            curl --fail --silent --show-error http://127.0.0.1:3000/api/health
+            echo
+            git log -1 --oneline

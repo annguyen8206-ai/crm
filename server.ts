@@ -3,7 +3,6 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import path from "path";
 import dotenv from "dotenv";
-import { createServer as createViteServer } from "vite";
 import { dbStore } from "./server/store";
 import { checkDatabase, flushStore, initializeDatabase, persistStore } from "./server/database";
 import { authConfigured, authStatus, authTableReady, initializeAuth, requireAuth } from "./server/auth";
@@ -48,6 +47,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   // CSP: allows what the app actually uses (Google Fonts, VietQR/QR images,
   // same-origin API + SSE, Vite HMR ws in dev) and blocks the rest.
   const devCsp = process.env.NODE_ENV !== 'production';
+  const servedOverHttps = /^https:\/\//i.test(process.env.APP_URL || '');
   app.use(helmet({
     contentSecurityPolicy: {
       useDefaults: true,
@@ -61,9 +61,13 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
         frameAncestors: ["'self'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
-        upgradeInsecureRequests: devCsp ? null : [],
+        // Only when the public URL is HTTPS: on plain http://IP it would make the
+        // browser request every asset over https and the page loads blank.
+        upgradeInsecureRequests: !devCsp && servedOverHttps ? [] : null,
       },
     },
+    // HSTS likewise only makes sense behind TLS.
+    strictTransportSecurity: servedOverHttps ? { maxAge: 15552000, includeSubDomains: false } : false,
     crossOriginEmbedderPolicy: false,
   }));
   app.use(rateLimit({
@@ -160,6 +164,8 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
 
   // ---- Vite dev middleware / static client ----
   if (serveClient && process.env.NODE_ENV !== "production") {
+    // Imported lazily so production never loads Vite (memory + startup time).
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -167,8 +173,12 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
     app.use(vite.middlewares);
   } else if (serveClient) {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    // Hashed build assets never change → cache for a year. Everything else
+    // (index.html, logo) is revalidated so a deploy shows up immediately.
+    app.use("/assets", express.static(path.join(distPath, "assets"), { immutable: true, maxAge: "365d", index: false }));
+    app.use(express.static(distPath, { index: false, maxAge: 0, setHeaders: res => res.setHeader("Cache-Control", "no-cache") }));
+    app.get("*", (_req, res) => {
+      res.setHeader("Cache-Control", "no-cache");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
@@ -179,13 +189,29 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   return app;
 }
 
+/** Sample / weak values that must never reach production. Exported for tests. */
+export function productionConfigProblems(env: NodeJS.ProcessEnv): string[] {
+  const out: string[] = [];
+  const jwt = env.JWT_SECRET || '';
+  if (jwt.length < 32 || /generate-a-long|change-this/i.test(jwt)) {
+    out.push('JWT_SECRET must be a random string of at least 32 characters (openssl rand -hex 32).');
+  }
+  const pw = env.AUTH_BOOTSTRAP_PASSWORD || '';
+  if (pw === 'change-this-immediately' || pw.length < 10) {
+    out.push('AUTH_BOOTSTRAP_PASSWORD is the sample value or shorter than 10 characters.');
+  }
+  if (/CHANGE_ME/.test(env.DATABASE_URL || '')) out.push('DATABASE_URL still contains the CHANGE_ME placeholder password.');
+  return out;
+}
+
 async function startServer() {
   installProcessLogging();
   const PORT = Number(process.env.PORT) || 3000;
   const isProd = process.env.NODE_ENV === 'production';
   const authState = authStatus();
   console.log('=======================================================');
-  console.log('VitCRM startup diagnostics');
+  console.log('Pure CRM startup diagnostics');
+  console.log(`  APP_URL               : ${process.env.APP_URL || '(unset)'}`);
   console.log(`  NODE_ENV              : ${process.env.NODE_ENV || 'development'}`);
   console.log(`  DATABASE_URL          : ${process.env.DATABASE_URL ? 'set' : 'MISSING'}`);
   console.log(`  DATABASE_SSL          : ${process.env.DATABASE_SSL || '(unset → no SSL)'}`);
@@ -202,6 +228,13 @@ async function startServer() {
       `Production requires these environment variables but they are missing: ${authState.missing.join(', ')}. ` +
       `Set them (e.g. in the VPS .env / systemd unit) and restart.`
     );
+  }
+  if (isProd) {
+    const weak = productionConfigProblems(process.env);
+    if (weak.length) throw new Error(`Refusing to start in production:\n  - ${weak.join('\n  - ')}`);
+    if (process.env.SEED_DEMO_DATA === 'true') {
+      console.warn('[startup] ⚠ SEED_DEMO_DATA=true in production — the store is loaded with DEMO data on every boot until real data is saved.');
+    }
   }
 
   try {
@@ -239,10 +272,12 @@ async function startServer() {
   console.log('=======================================================');
 
   const app = await createApp();
-  const server = app.listen(PORT, "0.0.0.0", () => {
+  // Behind nginx set HOST=127.0.0.1 so the app port isn't reachable from outside.
+  const HOST = process.env.HOST || "0.0.0.0";
+  const server = app.listen(PORT, HOST, () => {
     console.log(`=======================================================`);
     console.log(`VitCRM server running on port ${PORT}`);
-    console.log(`Live Backend Endpoints ready on http://0.0.0.0:${PORT}/api/health`);
+    console.log(`Health check: http://${HOST === '0.0.0.0' ? '127.0.0.1' : HOST}:${PORT}/api/health`);
     console.log(`=======================================================`);
   });
 

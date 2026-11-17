@@ -5,6 +5,7 @@ import { requireAdmin } from './http-util';
 import { computeNotifications } from './routes/notifications';
 import { log } from './logger';
 import { isRevenueOrder, receivables } from './commerce';
+import { APP_NAME } from './brand';
 
 /**
  * End-of-day digest emailed to management.
@@ -90,13 +91,13 @@ function renderHtml(r: ReturnType<typeof buildDailyReport>): { subject: string; 
     : '<p style="color:#16a34a;margin:8px 0 0">Không có việc nào cần chú ý.</p>';
 
   return {
-    subject: `VitCRM — Báo cáo cuối ngày ${r.date}`,
+    subject: `${APP_NAME} — Báo cáo cuối ngày ${r.date}`,
     text: rows.map(([a, b]) => `${a}: ${b}`).join('\n') + '\n\nCẦN CHÚ Ý:\n' + r.alerts.map(a => `- ${a.title}: ${a.detail}`).join('\n'),
     html: `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto">
       <h2 style="color:#0f172a">Báo cáo cuối ngày · ${r.date}</h2>
       <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-radius:8px">${tr}</table>
       <h3 style="color:#b45309;margin-top:20px">Cần chú ý</h3>${alertList}
-      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Gửi tự động từ VitCRM.</p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Gửi tự động từ ${APP_NAME}.</p>
     </div>`,
   };
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBasket, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import { apiClient } from '../utils/apiClient';
 import type { CurrentUser } from '../types';
 import { Field, Input, Button } from './ui';
@@ -73,16 +73,15 @@ export function LoginView({ onLoginSuccess }: { onLoginSuccess: (u: CurrentUser)
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-blue-50/50 flex items-center justify-center px-4 py-10">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-sun-50 flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
-        <div className="flex items-center gap-3 mb-6 justify-center">
-          <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center"><ShoppingBasket className="w-6 h-6" /></div>
-          <div>
-            <div className="text-xl font-bold text-slate-900 tracking-tight">VitCRM</div>
-            <div className="text-xs text-slate-500">CRM hàng tiêu dùng · B2B & B2C</div>
-          </div>
+        <div className="flex flex-col items-center gap-2 mb-6">
+          <img src="/brand/logo.png" alt="Pure Essential Oils" className="h-16 w-auto" />
+          <div className="text-xs font-semibold text-slate-500 tracking-wide">Hệ thống quản trị khách hàng · B2B & B2C</div>
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="brand-stripe h-1" aria-hidden />
+          <div className="p-6">
           {!preAuth ? (
             <form onSubmit={login} className="space-y-4">
               <h1 className="text-base font-bold text-slate-900">Đăng nhập nhân viên</h1>
@@ -112,7 +111,9 @@ export function LoginView({ onLoginSuccess }: { onLoginSuccess: (u: CurrentUser)
               </div>
             </form>
           )}
+          </div>
         </div>
+        <p className="text-center text-[11px] text-slate-400 mt-4">© Pure Essential Oils</p>
       </div>
     </div>
   );

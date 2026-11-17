@@ -74,7 +74,7 @@ async function callViaStringee(req: CallRequest): Promise<DispatchResult> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-STRINGEE-AUTH': token },
     body: JSON.stringify({
-      from: { type: 'external', number: req.fromNumber || process.env.STRINGEE_FROM_NUMBER, alias: 'VitCRM' },
+      from: { type: 'external', number: req.fromNumber || process.env.STRINGEE_FROM_NUMBER, alias: process.env.APP_NAME || 'Pure CRM' },
       to: [{ type: 'external', number: req.toNumber, alias: req.toNumber }],
       answer_url: process.env.STRINGEE_ANSWER_URL || undefined
     })

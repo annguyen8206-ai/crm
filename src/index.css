@@ -4,6 +4,40 @@
 @theme {
   --font-sans: "Quicksand", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Brand: Pure Essential Oils — teal #00B6B3 + sun yellow #FDD204.
+     `blue` is remapped to the brand teal so every existing blue-* class follows
+     the brand. 600+ are darkened so white text on buttons stays ≥ 4.5:1. */
+  --color-blue-50: #e6f8f7;
+  --color-blue-100: #c2eeec;
+  --color-blue-200: #8fe0dd;
+  --color-blue-300: #4fcfcb;
+  --color-blue-400: #1fc2be;
+  --color-blue-500: #00b6b3;
+  --color-blue-600: #00837f;
+  --color-blue-700: #006b68;
+  --color-blue-800: #055654;
+  --color-blue-900: #0a4745;
+  --color-blue-950: #042b2a;
+
+  --color-sun-50: #fffbe6;
+  --color-sun-100: #fff4bf;
+  --color-sun-200: #ffea80;
+  --color-sun-300: #fedf40;
+  --color-sun-400: #fdd204;
+  --color-sun-500: #e6bc00;
+  --color-sun-600: #b89400;
+  --color-sun-700: #8a6f00;
+  --color-sun-800: #6b5600;
+  --color-sun-900: #4d3e00;
+
+  --color-brand: #00b6b3;
+  --color-brand-sun: #fdd204;
+}
+
+/* Thin teal → yellow brand stripe (header top, login card). */
+.brand-stripe {
+  background-image: linear-gradient(90deg, var(--color-brand) 0%, var(--color-brand) 62%, var(--color-brand-sun) 62%, var(--color-brand-sun) 100%);
 }
 
 *, ::before, ::after {

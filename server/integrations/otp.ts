@@ -3,6 +3,7 @@ import { sendEmail } from './email';
 import { sendZaloOtp, znsOtpConfigured } from './zns';
 import type { IntegrationStatus } from './types';
 import { log } from '../logger';
+import { APP_NAME, APP_NAME_ASCII } from '../brand';
 
 /**
  * One-time passcodes for login 2FA / verification.
@@ -107,7 +108,7 @@ export async function requestOtp(identifier: string, opts: { phone?: string; ema
 
 async function deliverOtp(code: string, opts: { phone?: string; email?: string; purpose?: string }): Promise<OtpRequestResult> {
   const minutes = String(Math.round(ttlMs() / 60000));
-  const message = `${code} la ma xac thuc VitCRM cua ban${opts.purpose ? ` (${opts.purpose})` : ''}. Ma het han sau ${minutes} phut.`;
+  const message = `${code} la ma xac thuc ${APP_NAME_ASCII} cua ban${opts.purpose ? ` (${opts.purpose})` : ''}. Ma het han sau ${minutes} phut.`;
   const devEcho = process.env.OTP_DEV_ECHO === 'true' ? { devCode: code } : {};
   let lastError: string | undefined;
 
@@ -129,7 +130,7 @@ async function deliverOtp(code: string, opts: { phone?: string; email?: string; 
       lastError = r.error || lastError;
     } else if (ch === 'email') {
       if (!opts.email) continue;
-      const r = await sendEmail({ to: opts.email, subject: 'Mã xác thực VitCRM', text: message });
+      const r = await sendEmail({ to: opts.email, subject: `Mã xác thực ${APP_NAME}`, text: message });
       if (r.ok) return { sent: true, channel: 'email', mode: r.mode, ...devEcho };
       lastError = r.error || lastError;
     }

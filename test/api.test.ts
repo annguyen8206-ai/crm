@@ -18,12 +18,42 @@ describe('GET /api/health', () => {
     expect(res.body.status).toBe('ok');
     expect(res.body.database.configured).toBe(false);
     expect(Array.isArray(res.body.integrations)).toBe(true);
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
+
+  it('in production, anonymous callers only get the minimal status', async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const res = await request(app).get('/api/health');
+      expect(res.body.status).toBe('ok');
+      expect(res.body.integrations).toBeUndefined();
+      expect(res.body.database).toEqual({ configured: false, connected: false });
+      expect(JSON.stringify(res.body)).not.toMatch(/customersCount|missing|environment/);
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+});
+
+describe('productionConfigProblems', () => {
+  it('flags the sample values from .env.example and accepts real ones', async () => {
+    const { productionConfigProblems } = await import('../server');
+    expect(productionConfigProblems({
+      JWT_SECRET: 'generate-a-long-random-secret-at-least-32-chars',
+      AUTH_BOOTSTRAP_PASSWORD: 'change-this-immediately',
+      DATABASE_URL: 'postgresql://purecrm:CHANGE_ME@127.0.0.1:5432/purecrm',
+    })).toHaveLength(3);
+    expect(productionConfigProblems({ JWT_SECRET: 'short', AUTH_BOOTSTRAP_PASSWORD: 'Str0ng!Pass#2026', DATABASE_URL: 'postgresql://u:p@h/d' })).toHaveLength(1);
+    expect(productionConfigProblems({
+      JWT_SECRET: 'a3f9c1d27e8b4f6a90c5d1e2b7f8a4c6d9e0f1a2b3c4d5e6', AUTH_BOOTSTRAP_PASSWORD: 'Str0ng!Pass#2026', DATABASE_URL: 'postgresql://u:p@h/d',
+    })).toEqual([]);
   });
 });
 
 describe('auth gate', () => {
   it('rejects unauthenticated access to a business endpoint', async () => {
-    const res = await request(app).get('/api/patients');
+    const res = await request(app).get('/api/customers');
     expect([401, 503]).toContain(res.status);
   });
 });

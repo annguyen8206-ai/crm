@@ -50,6 +50,7 @@ const TONES: Record<string, string> = {
   slate: 'bg-slate-100 text-slate-600 border-slate-200',
   violet: 'bg-violet-50 text-violet-700 border-violet-200',
   sky: 'bg-sky-50 text-sky-700 border-sky-200',
+  sun: 'bg-sun-50 text-sun-800 border-sun-200',
 };
 export type Tone = keyof typeof TONES;
 
@@ -59,7 +60,7 @@ export const ORDER_STATUS_TONE: Record<string, Tone> = {
 export const PAYMENT_TONE: Record<string, Tone> = { 'Chưa thanh toán': 'red', 'Thanh toán một phần': 'amber', 'Đã thanh toán': 'green' };
 export const VISIT_TONE: Record<string, Tone> = { 'Kế hoạch': 'slate', 'Đã check-in': 'blue', 'Hoàn thành': 'green', 'Bỏ lỡ': 'red' };
 export const SEGMENT_TONE: Record<string, Tone> = {
-  'Khách VIP': 'violet', 'Trung thành': 'green', 'Tiềm năng': 'sky', 'Khách mới': 'blue',
+  'Khách VIP': 'sun', 'Trung thành': 'green', 'Tiềm năng': 'sky', 'Khách mới': 'blue',
   'Cần chăm sóc': 'amber', 'Có nguy cơ rời bỏ': 'red', 'Ngủ đông': 'slate', 'Chưa mua hàng': 'slate',
 };
 
@@ -68,7 +69,7 @@ export function Badge({ children, tone = 'slate', className = '' }: { children: 
 }
 
 export function TypeBadge({ type }: { type: 'B2B' | 'B2C' | string }) {
-  return <Badge tone={type === 'B2B' ? 'violet' : 'sky'}>{type}</Badge>;
+  return <Badge tone={type === 'B2B' ? 'blue' : 'sun'}>{type}</Badge>;
 }
 
 export function TierBadge({ tier }: { tier?: string }) {
@@ -94,7 +95,7 @@ export function Card({ children, className = '', title, actions }: { children: R
     <section className={`bg-white border border-slate-200 rounded-2xl ${className}`}>
       {(title || actions) && (
         <div className="flex items-center justify-between gap-2 px-4 pt-4 pb-2">
-          {title && <h2 className="text-sm font-bold text-slate-800">{title}</h2>}
+          {title && <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2"><span aria-hidden className="w-1 h-3.5 rounded-full bg-brand shrink-0" />{title}</h2>}
           {actions}
         </div>
       )}
@@ -121,7 +122,7 @@ export function Tabs<T extends string>({ value, onChange, items }: { value: T; o
         <button
           key={it.id}
           onClick={() => onChange(it.id)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${value === it.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${value === it.id ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
         >
           {it.label}
         </button>

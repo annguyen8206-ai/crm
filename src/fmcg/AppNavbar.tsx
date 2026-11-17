@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ShoppingBasket, LayoutDashboard, Users, ShoppingCart, Package, Briefcase, Megaphone, Award, Headphones, MessageSquare,
+  LayoutDashboard, Users, ShoppingCart, Package, Briefcase, Megaphone, Award, Headphones, MessageSquare,
   Bell, LogOut, UserCog, Building2, Plug, ChevronDown,
 } from 'lucide-react';
 import type { ActiveTab, Branch, BranchId, CurrentUser } from '../types';
@@ -41,10 +41,12 @@ export function AppNavbar({
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
+      <div className="brand-stripe h-1" aria-hidden />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3" ref={ref}>
-        <button onClick={() => onTab(role.defaultTab)} className="flex items-center gap-2 shrink-0 cursor-pointer">
-          <span className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center"><ShoppingBasket className="w-4.5 h-4.5" /></span>
-          <span className="font-bold text-slate-900 hidden sm:inline">VitCRM</span>
+        <button onClick={() => onTab(role.defaultTab)} className="flex items-center gap-2 shrink-0 cursor-pointer" aria-label="Pure CRM — về trang chính">
+          <img src="/brand/logo.png" alt="Pure Essential Oils" className="h-9 w-auto hidden sm:block" />
+          <img src="/brand/icon-64.png" alt="Pure Essential Oils" className="h-8 w-8 sm:hidden" />
+          <span className="hidden sm:inline text-[11px] font-bold tracking-widest text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-1.5 py-0.5">CRM</span>
         </button>
 
         {branches.length > 0 && (
@@ -88,7 +90,7 @@ export function AppNavbar({
 
         <div className="relative">
           <button onClick={() => setMenu(menu === 'user' ? null : 'user')} className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-slate-100 cursor-pointer">
-            <span className="w-8 h-8 rounded-full bg-slate-800 text-white text-xs font-bold flex items-center justify-center">{initials}</span>
+            <span className="w-8 h-8 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center ring-2 ring-sun-300">{initials}</span>
             <span className="hidden sm:block text-left leading-tight">
               <span className="block text-xs font-bold text-slate-900 max-w-36 truncate">{user.name}</span>
               <span className="block text-[11px] text-slate-500 max-w-36 truncate">{role.title}</span>

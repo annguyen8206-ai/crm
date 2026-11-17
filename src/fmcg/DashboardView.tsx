@@ -91,8 +91,8 @@ export function DashboardView({ notify, can, refreshKey, onNavigate }: ViewProps
               <YAxis tickFormatter={v => shortVnd(v)} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={56} />
               <Tooltip formatter={(v: number) => vnd(v)} labelFormatter={l => `Ngày ${l}`} cursor={{ fill: '#f1f5f9' }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="B2B" stackId="a" fill="#6d28d9" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="B2C" stackId="a" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="B2B" stackId="a" fill="#00b6b3" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="B2C" stackId="a" fill="#f2c200" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -155,8 +155,8 @@ export function DashboardView({ notify, can, refreshKey, onNavigate }: ViewProps
             ))}
           </div>
           <div className="px-4 pb-4 grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-violet-50 rounded-xl p-3"><div className="text-xs text-violet-700 font-semibold">Khách B2B</div><div className="text-lg font-bold text-violet-900">{d.customerCounts.B2B}</div></div>
-            <div className="bg-sky-50 rounded-xl p-3"><div className="text-xs text-sky-700 font-semibold">Khách B2C</div><div className="text-lg font-bold text-sky-900">{d.customerCounts.B2C}</div></div>
+            <div className="bg-blue-50 rounded-xl p-3"><div className="text-xs text-blue-700 font-semibold">Khách B2B</div><div className="text-lg font-bold text-blue-900">{d.customerCounts.B2B}</div></div>
+            <div className="bg-sun-50 rounded-xl p-3"><div className="text-xs text-sun-800 font-semibold">Khách B2C</div><div className="text-lg font-bold text-sun-900">{d.customerCounts.B2C}</div></div>
           </div>
         </Card>
       </div>

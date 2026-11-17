@@ -134,7 +134,7 @@ function Repurchase({ notify, can, refreshKey }: ViewProps) {
           title={`Nhắc mua lại · ${recipients.length} khách`}
           recipients={recipients}
           defaultName={`Nhắc mua lại – ${new Date().toLocaleDateString('vi-VN')}`}
-          defaultMessage="Chào {ten}, sản phẩm VitFood bạn mua lần trước có lẽ sắp hết. Đặt lại ngay qua Zalo OA để được giao nhanh trong ngày và nhận thêm điểm thưởng!"
+          defaultMessage="Chào {ten}, sản phẩm Pure bạn mua lần trước có lẽ sắp hết. Đặt lại ngay qua Zalo OA để được giao nhanh trong ngày và nhận thêm điểm thưởng!"
           onClose={() => setSendOpen(false)}
           notify={notify}
           onSent={() => setSelected(new Set())}

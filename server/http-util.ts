@@ -31,23 +31,7 @@ export const phoneMatches = (a: string, b: string) => {
   return x.slice(-9) === y.slice(-9);
 };
 
-/** Start time of an appointment as epoch ms, from `date` (YYYY-MM-DD) + `timeSlot` ("08:30 - 09:00"). */
-export function appointmentStartMs(apt: { date?: string; timeSlot?: string }): number | null {
-  if (!apt.date) return null;
-  const t = (apt.timeSlot || '00:00').match(/(\d{1,2}):(\d{2})/);
-  const hh = t ? Number(t[1]) : 0;
-  const mm = t ? Number(t[2]) : 0;
-  const d = new Date(`${apt.date}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return null;
-  d.setHours(hh, mm, 0, 0);
-  return d.getTime();
-}
-
 export const APP_BASE_URL = (process.env.APP_URL && process.env.APP_URL !== 'MY_APP_URL') ? process.env.APP_URL.replace(/\/$/, '') : '';
-export const queueLookupUrl = (code: string) => `${APP_BASE_URL}/api/queue/${encodeURIComponent(code)}`;
-export const queueQrUrl = (code: string) =>
-  `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(queueLookupUrl(code) || code)}`;
-
 /** Gate a route to admin / ban giám đốc roles. */
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (isAdmin((req as any).authUser?.role)) { next(); return; }

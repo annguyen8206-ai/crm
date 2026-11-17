@@ -17,6 +17,8 @@ import { completeZaloOAuth, zaloOAuthResultPage } from '../zalo-oauth';
 import { registerPublicOptOut } from './messaging-bulk';
 import { registerPublicFileDownload } from './files';
 import { recordOrderPayment } from './commerce';
+import { APP_NAME } from '../brand';
+import { isAdmin } from '../rbac';
 
 /** Routes reachable WITHOUT a staff bearer token (verified by shared secret,
  *  signed webhook, or nothing). Registered before `app.use('/api', requireAuth)`. */
@@ -27,9 +29,25 @@ export function registerPublicRoutes(app: Express): void {
   app.get('/api/health', async (req, res) => {
     const database = await checkDatabase();
     const authTable = await authTableReady();
-    res.status(database.configured && !database.connected ? 503 : 200).json({
+    const code = database.configured && !database.connected ? 503 : 200;
+    // Public callers (uptime monitors, the deploy script) get a minimal answer in
+    // production; record counts, DB errors and integration config only go to an
+    // admin session (Bearer token) or to dev.
+    const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const viewer = bearer ? verifySessionToken(bearer) : null;
+    const detailed = process.env.NODE_ENV !== 'production' || isAdmin(viewer?.role);
+    if (!detailed) {
+      return res.status(code).json({
+        status: code === 200 ? 'ok' : 'degraded',
+        app: APP_NAME,
+        timestamp: new Date().toISOString(),
+        database: { configured: databaseConfigured, connected: database.connected },
+        authentication: { configured: authConfigured, tableReady: authTable },
+      });
+    }
+    res.status(code).json({
       status: 'ok',
-      app: 'VitCRM — CRM hàng tiêu dùng B2B & B2C',
+      app: APP_NAME,
       version: '3.0.0',
       environment: process.env.NODE_ENV || 'development',
       timestamp: new Date().toISOString(),
@@ -51,7 +69,7 @@ export function registerPublicRoutes(app: Express): void {
   });
 
   async function sendLoginOtp(userId: string, phone: string | null, email: string) {
-    return requestOtp(`2fa:${userId}`, { phone: phone || undefined, email, purpose: 'Đăng nhập VitCRM' });
+    return requestOtp(`2fa:${userId}`, { phone: phone || undefined, email, purpose: 'Dang nhap' });
   }
 
   app.post('/api/auth/staff/login', async (req, res) => {
@@ -223,7 +241,7 @@ export function registerPublicRoutes(app: Express): void {
     }
     res.send(zaloOAuthResultPage(
       'Đã kết nối Zalo OA',
-      'Refresh token đã được lưu — hệ thống sẽ tự gia hạn access token. Đóng tab này và quay lại VitCRM.',
+      `Refresh token đã được lưu — hệ thống sẽ tự gia hạn access token. Đóng tab này và quay lại ${APP_NAME}.`,
       true,
     ));
   });
