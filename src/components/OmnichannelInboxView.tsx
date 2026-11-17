@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, RefreshCw, Facebook, Circle, User, Paperclip, X, FileText, Loader2, Building2 } from 'lucide-react';
+import { MessageSquare, Send, RefreshCw, Facebook, Circle, User, Paperclip, X, FileText, Loader2, Building2, ArrowLeft } from 'lucide-react';
 
 export type InboxChannel = 'zalo' | 'facebook' | 'portal';
 
@@ -102,6 +102,9 @@ export const OmnichannelInboxView: React.FC<Props> = ({
   const endRef = useRef<HTMLDivElement>(null);
 
   const selected = conversations.find(c => c.id === selectedId) || null;
+  // Phones (< lg) show either the list or one thread, like a chat app.
+  const [threadOpen, setThreadOpen] = useState(false);
+  const openConversation = (id: string) => { setThreadOpen(true); onSelectConversation(id); };
   const totalUnread = conversations.reduce((n, c) => n + (c.unreadCount || 0), 0);
 
   useEffect(() => {
@@ -142,14 +145,14 @@ export const OmnichannelInboxView: React.FC<Props> = ({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-900 flex flex-wrap items-center gap-2">
             <MessageSquare className="w-6 h-6 text-blue-600" />
-            Tin Nhắn Đa Kênh (Zalo OA + Facebook)
+            Tin nhắn đa kênh <span className="hidden sm:inline">(Zalo OA + Facebook)</span>
             {totalUnread > 0 && (
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-600 text-white">{totalUnread} chưa đọc</span>
             )}
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="hidden sm:block text-xs text-slate-500 mt-1">
             Toàn bộ tin nhắn khách gửi tới OA Zalo / Fanpage Facebook đổ về đây theo thời gian thực. Trả lời trực tiếp trong CRM.
           </p>
         </div>
@@ -181,16 +184,16 @@ export const OmnichannelInboxView: React.FC<Props> = ({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 bg-white border border-slate-200 rounded-2xl overflow-hidden" style={{ minHeight: 480 }}>
+      <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-4 bg-white border border-slate-200 rounded-2xl overflow-hidden lg:min-h-[480px]">
         {/* Conversation list */}
-        <div className="border-r border-slate-200 max-h-[70vh] overflow-y-auto">
+        <div className={`border-r border-slate-200 max-h-[70vh] overflow-y-auto ${threadOpen && selected ? 'hidden lg:block' : ''}`}>
           {conversations.length === 0 && (
             <div className="p-8 text-center text-xs text-slate-400">Chưa có hội thoại nào.</div>
           )}
           {conversations.map(c => (
             <button
               key={c.id}
-              onClick={() => onSelectConversation(c.id)}
+              onClick={() => openConversation(c.id)}
               className={`w-full text-left px-3 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer ${selectedId === c.id ? 'bg-blue-50' : ''}`}
             >
               <div className="flex items-center justify-between gap-2">
@@ -207,14 +210,17 @@ export const OmnichannelInboxView: React.FC<Props> = ({
         </div>
 
         {/* Message pane */}
-        <div className="lg:col-span-2 flex flex-col max-h-[70vh]">
+        <div className={`lg:col-span-2 flex-col h-[calc(100dvh-210px)] lg:h-auto lg:max-h-[70vh] ${threadOpen && selected ? 'flex' : 'hidden lg:flex'}`}>
           {!selected ? (
             <div className="flex-1 flex items-center justify-center text-sm text-slate-400">Chọn một hội thoại để xem</div>
           ) : (
             <>
-              <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
-                <User className="w-4 h-4 text-slate-400" />
-                <span className="font-bold text-slate-800">{selected.displayName}</span>
+              <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2 min-w-0">
+                <button type="button" onClick={() => setThreadOpen(false)} className="lg:hidden -ml-2 p-2 text-slate-500 cursor-pointer" aria-label="Quay lại danh sách hội thoại">
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <User className="w-4 h-4 text-slate-400 hidden lg:block" />
+                <span className="font-bold text-slate-800 truncate">{selected.displayName}</span>
                 <ChannelBadge channel={selected.channel} />
                 {selected.assignedStaff && <span className="text-[11px] text-slate-400">· phụ trách: {selected.assignedStaff}</span>}
               </div>

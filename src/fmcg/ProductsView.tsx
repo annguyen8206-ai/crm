@@ -4,7 +4,7 @@ import { crm, type Product } from './api';
 import { ExportButton } from './ExportButton';
 import {
   PageHeader, Card, Input, Select, Textarea, Button, Badge, Loading, ErrorBox, Empty, Modal, Field, MoneyInput,
-  Table, Th, Td, useLoad, useAction, vnd, PRICE_TIER_LABELS, type PriceTier, type ViewProps,
+  Table, MobileList, Th, Td, useLoad, useAction, vnd, PRICE_TIER_LABELS, type PriceTier, type ViewProps,
 } from './ui';
 
 const TIERS: PriceTier[] = ['LE', 'NPP', 'DL1', 'DL2', 'GT', 'MT'];
@@ -49,8 +49,26 @@ export function ProductsView({ notify, can, refreshKey }: ViewProps) {
 
       {error ? <ErrorBox error={error} onRetry={reload} /> : loading && !data ? <Loading /> : (
         <Card>
-          {rows.length === 0 ? <Empty text="Chưa có sản phẩm" action={canEdit && <Button onClick={() => setEditing('new')}>Thêm sản phẩm đầu tiên</Button>} /> : (
-            <Table>
+          {rows.length === 0 ? <Empty text="Chưa có sản phẩm" action={canEdit && <Button onClick={() => setEditing('new')}>Thêm sản phẩm đầu tiên</Button>} /> : (<>
+            <MobileList rows={rows} keyOf={p => p.id} onSelect={canEdit ? p => setEditing(p) : undefined} render={p => {
+              const cmpTier = tierView === 'LE' ? 'NPP' : tierView;
+              const cmp = p.prices[cmpTier];
+              const low = typeof p.stock === 'number' && p.stock <= 10;
+              return (
+                <div className="space-y-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0"><div className="font-semibold text-slate-900">{p.name}</div><div className="text-xs text-slate-400">{p.sku} · {p.category}</div></div>
+                    <div className="text-right shrink-0"><div className="font-semibold tabular-nums">{vnd(p.prices.LE)}</div>{cmp ? <div className="text-xs text-slate-500 tabular-nums">{PRICE_TIER_LABELS[cmpTier].replace('Giá ', '')}: {vnd(cmp)}</div> : null}</div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Badge tone={p.status === 'Đang bán' ? 'green' : p.status === 'Sắp ra mắt' ? 'sky' : 'slate'}>{p.status}</Badge>
+                    <span className={low ? 'text-rose-600 font-bold' : 'text-slate-500'}>Tồn {typeof p.stock === 'number' ? p.stock.toLocaleString('vi-VN') : '—'}{low ? ' · sắp hết' : ''}</span>
+                    {p.repurchaseCycleDays ? <span className="text-slate-400 ml-auto">Mua lại {p.repurchaseCycleDays} ngày</span> : null}
+                  </div>
+                </div>
+              );
+            }} />
+            <Table desktopOnly>
               <thead className="border-b border-slate-100"><tr><Th>Sản phẩm</Th><Th>Ngành hàng</Th><Th className="text-right">Giá lẻ</Th><Th className="text-right">{tierView === 'LE' ? 'Giá NPP' : PRICE_TIER_LABELS[tierView]}</Th><Th className="text-right">Tồn kho</Th><Th>Chu kỳ mua</Th><Th>Trạng thái</Th>{canEdit && <Th />}</tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map(p => {
@@ -68,13 +86,13 @@ export function ProductsView({ notify, can, refreshKey }: ViewProps) {
                       <Td><Badge tone={p.status === 'Đang bán' ? 'green' : p.status === 'Sắp ra mắt' ? 'sky' : 'slate'}>{p.status}</Badge></Td>
                       {canEdit && (
                         <Td className="whitespace-nowrap text-right">
-                          <button onClick={() => setEditing(p)} className="p-1.5 text-slate-400 hover:text-blue-600 cursor-pointer" aria-label="Sửa"><Pencil className="w-4 h-4" /></button>
+                          <button onClick={() => setEditing(p)} className="p-2 text-slate-400 hover:text-blue-600 cursor-pointer" aria-label="Sửa"><Pencil className="w-4 h-4" /></button>
                           {p.status !== 'Ngừng bán' && (
                             <button disabled={busy} onClick={async () => {
                               if (!confirm(`Ngừng bán / xoá ${p.sku}?`)) return;
                               const r = await run(() => crm.products.remove(p.id));
                               if (r) { notify(r.archived ? `${p.sku} đã có đơn hàng nên được chuyển sang Ngừng bán` : `Đã xoá ${p.sku}`); void reload(); }
-                            }} className="p-1.5 text-slate-400 hover:text-rose-600 cursor-pointer" aria-label="Ngừng bán"><Archive className="w-4 h-4" /></button>
+                            }} className="p-2 text-slate-400 hover:text-rose-600 cursor-pointer" aria-label="Ngừng bán"><Archive className="w-4 h-4" /></button>
                           )}
                         </Td>
                       )}
@@ -83,7 +101,7 @@ export function ProductsView({ notify, can, refreshKey }: ViewProps) {
                 })}
               </tbody>
             </Table>
-          )}
+          </>)}
         </Card>
       )}
 

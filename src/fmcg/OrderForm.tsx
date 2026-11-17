@@ -169,7 +169,34 @@ export function OrderFormModal({
                 </Field>
               </div>
               {priced.length > 0 && (
-                <div className="border border-slate-200 rounded-xl overflow-x-auto">
+                <ul className="sm:hidden border border-slate-200 rounded-xl divide-y divide-slate-100">
+                  {priced.map((l, i) => (
+                    <li key={l.productId} className="p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0"><div className="font-semibold text-sm">{l.product?.name}</div><div className="text-[11px] text-slate-400">{l.product?.sku} · {vnd(l.unitPrice)}/{l.product?.unit}{typeof l.product?.stock === 'number' ? ` · tồn ${l.product.stock}` : ''}</div></div>
+                        <button onClick={() => setLines(ls => ls.filter((_, j) => j !== i))} className="p-2 -m-1 text-slate-400 hover:text-rose-600 cursor-pointer" aria-label={`Xoá ${l.product?.name}`}><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                      <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                        <label className="text-[11px] font-semibold text-slate-500">Số lượng
+                          <Input type="number" inputMode="numeric" min={1} value={l.quantity} onChange={e => setLines(ls => ls.map((x, j) => (j === i ? { ...x, quantity: Math.max(1, Number(e.target.value) || 1) } : x)))} className="text-center mt-1" />
+                        </label>
+                        <label className="text-[11px] font-semibold text-slate-500">CK %
+                          <Input type="number" inputMode="decimal" min={0} max={100} value={l.discountPercent} onChange={e => setLines(ls => ls.map((x, j) => (j === i ? { ...x, discountPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) } : x)))} className="text-center mt-1" />
+                        </label>
+                        <div className="text-right pb-2 font-semibold tabular-nums text-sm">{vnd(l.lineTotal)}</div>
+                      </div>
+                    </li>
+                  ))}
+                  {promo?.giftItems.map(g => (
+                    <li key={`gift-${g.productId}`} className="p-3 bg-emerald-50/60 flex justify-between gap-2 text-sm">
+                      <div><div className="font-semibold text-emerald-800">🎁 {g.name}</div><div className="text-[11px] text-emerald-700">{g.quantity} {g.unit} · tặng</div></div>
+                      <div className="font-semibold tabular-nums">0đ</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {priced.length > 0 && (
+                <div className="hidden sm:block border border-slate-200 rounded-xl overflow-x-auto">
                   <table className="w-full min-w-[560px] text-sm">
                     <thead className="bg-slate-50 text-[11px] uppercase text-slate-500">
                       <tr><th className="text-left px-3 py-2">Sản phẩm</th><th className="px-2 py-2 w-24">SL</th><th className="px-2 py-2 w-24">CK %</th><th className="text-right px-3 py-2">Đơn giá</th><th className="text-right px-3 py-2">Thành tiền</th><th className="w-8" /></tr>

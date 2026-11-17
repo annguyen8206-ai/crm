@@ -3,7 +3,7 @@ import { Plus, Search, Check, Truck, PackageCheck, XCircle, Undo2, Wallet, Alert
 import { crm, type Order } from './api';
 import {
   PageHeader, Card, Tabs, Input, Select, Button, Badge, TypeBadge, Loading, ErrorBox, Empty, Drawer, Modal, Field, Stat,
-  MoneyInput, Table, Th, Td, useLoad, useAction, vnd, shortVnd, fmtDate, fmtDateTime, ORDER_STATUS_TONE, PAYMENT_TONE,
+  MoneyInput, Table, MobileList, Th, Td, useLoad, useAction, vnd, shortVnd, fmtDate, fmtDateTime, ORDER_STATUS_TONE, PAYMENT_TONE,
   PAYMENT_METHODS, PRICE_TIER_LABELS, type ViewProps,
 } from './ui';
 import { OrderFormModal } from './OrderForm';
@@ -68,8 +68,20 @@ function OrdersList({ notify, can, userName, refreshKey }: ViewProps) {
 
       {error ? <ErrorBox error={error} onRetry={reload} /> : loading && !data ? <Loading /> : (
         <Card>
-          {rows.length === 0 ? <Empty text="Không có đơn hàng" /> : (
-            <Table>
+          {rows.length === 0 ? <Empty text="Không có đơn hàng" /> : (<>
+            <MobileList rows={rows.slice(0, 500)} keyOf={o => o.id} onSelect={o => setSelected(o)} render={o => (
+              <div className="space-y-1.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5"><TypeBadge type={o.customerType} /><span className="font-semibold text-slate-900 truncate">{o.customerName}</span></div>
+                    <div className="text-xs text-slate-400 mt-0.5">{o.code} · {fmtDateTime(o.createdAt)}</div>
+                  </div>
+                  <div className="font-bold tabular-nums shrink-0">{vnd(o.total)}</div>
+                </div>
+                <div className="flex flex-wrap gap-1"><Badge tone={ORDER_STATUS_TONE[o.status]}>{o.status}</Badge><Badge tone={PAYMENT_TONE[o.paymentStatus]}>{o.paymentStatus}</Badge></div>
+              </div>
+            )} />
+            <Table desktopOnly>
               <thead className="border-b border-slate-100"><tr><Th>Mã đơn</Th><Th>Khách hàng</Th><Th>Kênh / NV</Th><Th className="text-right">Tổng tiền</Th><Th>Trạng thái</Th><Th>Thanh toán</Th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.slice(0, 500).map(o => (
@@ -84,7 +96,7 @@ function OrdersList({ notify, can, userName, refreshKey }: ViewProps) {
                 ))}
               </tbody>
             </Table>
-          )}
+          </>)}
         </Card>
       )}
 
@@ -156,11 +168,20 @@ export function OrderDrawer({ order: o, onClose, onChanged, notify, can }: {
       </Card>
 
       <Card title="Sản phẩm">
-        <Table>
+        <MobileList rows={o.items} keyOf={i => `${i.productId}-${i.isGift ? 'g' : 'p'}`} render={i => (
+          <div className="flex items-start justify-between gap-3 text-sm">
+            <div className="min-w-0">
+              <div className={`font-semibold ${i.isGift ? 'text-emerald-800' : ''}`}>{i.isGift ? '🎁 ' : ''}{i.name}</div>
+              <div className="text-xs text-slate-500 tabular-nums">{i.quantity} {i.unit} × {vnd(i.unitPrice)}{i.discountPercent && !i.isGift ? ` · CK ${i.discountPercent}%` : ''}</div>
+            </div>
+            <div className="font-semibold tabular-nums shrink-0">{vnd(i.lineTotal)}</div>
+          </div>
+        )} />
+        <Table desktopOnly>
           <thead className="border-b border-slate-100"><tr><Th>Sản phẩm</Th><Th className="text-right">SL</Th><Th className="text-right">Đơn giá</Th><Th className="text-right">CK</Th><Th className="text-right">Thành tiền</Th></tr></thead>
           <tbody className="divide-y divide-slate-100">
             {o.items.map(i => (
-              <tr key={i.productId}>
+              <tr key={`${i.productId}-${i.isGift ? 'g' : 'p'}`}>
                 <Td><div className="font-semibold">{i.name}</div><div className="text-xs text-slate-400">{i.sku}</div></Td>
                 <Td className="text-right tabular-nums">{i.quantity} {i.unit}</Td>
                 <Td className="text-right tabular-nums">{vnd(i.unitPrice)}</Td>

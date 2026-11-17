@@ -36,6 +36,11 @@ export function AppNavbar({
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
   const items = NAV_ITEMS.filter(i => role.allowedTabs.includes(i.id));
+  // On phones the tab bar scrolls sideways — keep the current tab in view.
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    navRef.current?.querySelector<HTMLElement>('[data-active-tab="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [activeTab]);
   const branchLocked = !!user.branchId && user.branchId !== 'ALL';
   const initials = user.name.split(/\s+/).filter(Boolean).map(p => p[0]).slice(-2).join('').toUpperCase();
 
@@ -117,11 +122,13 @@ export function AppNavbar({
         </div>
       </div>
 
-      <nav className="max-w-7xl mx-auto px-2 sm:px-4 flex gap-1 overflow-x-auto no-scrollbar">
+      <nav ref={navRef} className="max-w-7xl mx-auto px-2 sm:px-4 flex gap-1 overflow-x-auto no-scrollbar">
         {items.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => onTab(id)}
+            aria-current={activeTab === id ? 'page' : undefined}
+            data-active-tab={activeTab === id ? 'true' : undefined}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition-colors cursor-pointer ${activeTab === id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
             <Icon className="w-4 h-4" />{label}

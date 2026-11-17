@@ -3,7 +3,7 @@ import { Plus, Search, Phone, MapPin, Pencil, ShoppingCart, Gift } from 'lucide-
 import { crm, type Customer } from './api';
 import {
   PageHeader, Card, Tabs, Input, Select, Button, Badge, TypeBadge, TierBadge, Loading, ErrorBox, Empty, Drawer, Stat,
-  Table, Th, Td, Modal, Field, useLoad, useAction, vnd, shortVnd, fmtDate, fmtDateTime, B2B_CHANNELS, PRICE_TIER_LABELS,
+  Table, MobileList, Th, Td, Modal, Field, useLoad, useAction, vnd, shortVnd, fmtDate, fmtDateTime, B2B_CHANNELS, PRICE_TIER_LABELS,
   ORDER_STATUS_TONE, PAYMENT_TONE, VISIT_TONE, SEGMENT_TONE, type ViewProps,
 } from './ui';
 import { CustomerFormModal } from './CustomerForm';
@@ -70,8 +70,29 @@ export function CustomersView({ notify, can, userName, refreshKey }: ViewProps) 
 
       {error ? <ErrorBox error={error} onRetry={reload} /> : loading && !data ? <Loading /> : (
         <Card>
-          {rows.length === 0 ? <Empty text="Không có khách hàng phù hợp" /> : (
-            <Table>
+          {rows.length === 0 ? <Empty text="Không có khách hàng phù hợp" /> : (<>
+            <MobileList rows={rows.slice(0, 500)} keyOf={c => c.id} onSelect={c => setSelectedId(c.id)} render={c => {
+              const overLimit = c.type === 'B2B' && (c.creditLimit || 0) > 0 && c.outstandingDebt > (c.creditLimit || 0);
+              return (
+                <div className="space-y-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0"><div className="font-semibold text-slate-900">{c.name}</div><div className="text-xs text-slate-400">{c.code} · {c.phone}</div></div>
+                    <div className="text-right shrink-0"><div className="font-semibold tabular-nums">{shortVnd(c.totalRevenue)}</div><div className="text-xs text-slate-400">{c.totalOrders} đơn</div></div>
+                  </div>
+                  <div className="flex flex-wrap gap-1 items-center text-xs">
+                    <TypeBadge type={c.type} />
+                    {c.type === 'B2B' ? <span className="text-slate-600">{c.channel}</span> : <TierBadge tier={c.loyaltyTier} />}
+                    {c.status !== 'Đang hoạt động' && <Badge tone={c.status === 'Tiềm năng' ? 'sky' : 'slate'}>{c.status}</Badge>}
+                    <span className="ml-auto tabular-nums">
+                      {c.type === 'B2B'
+                        ? <span className={overLimit ? 'text-rose-600 font-bold' : 'text-slate-500'}>Nợ {shortVnd(c.outstandingDebt)}{c.creditLimit ? ` / ${shortVnd(c.creditLimit)}` : ''}{overLimit ? ' · vượt hạn mức' : ''}</span>
+                        : <span className="text-slate-500">{(c.loyaltyPoints || 0).toLocaleString('vi-VN')} điểm</span>}
+                    </span>
+                  </div>
+                </div>
+              );
+            }} />
+            <Table desktopOnly>
               <thead className="border-b border-slate-100">
                 <tr><Th>Khách hàng</Th><Th>Phân loại</Th><Th>Phụ trách</Th><Th className="text-right">Doanh số</Th><Th className="text-right">Công nợ / Điểm</Th><Th>Mua gần nhất</Th></tr>
               </thead>
@@ -104,7 +125,7 @@ export function CustomersView({ notify, can, userName, refreshKey }: ViewProps) 
                 })}
               </tbody>
             </Table>
-          )}
+          </>)}
           {rows.length > 500 && <div className="text-xs text-slate-400 px-4 py-2">Hiển thị 500 / {rows.length} — hãy lọc thêm.</div>}
         </Card>
       )}

@@ -1,0 +1,15 @@
+{
+  "name": "Pure CRM",
+  "short_name": "Pure CRM",
+  "description": "Quản trị khách hàng và bán hàng B2B & B2C — Pure Essential Oils",
+  "lang": "vi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#00b6b3",
+  "icons": [
+    { "src": "/brand/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

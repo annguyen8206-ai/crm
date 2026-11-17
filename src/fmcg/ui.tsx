@@ -312,8 +312,26 @@ export function Th({ children, className = '' }: { children?: React.ReactNode; c
 export function Td({ children, className = '' }: { children?: React.ReactNode; className?: string }) {
   return <td className={`px-3 py-2.5 text-sm text-slate-700 align-middle ${className}`}>{children}</td>;
 }
-export function Table({ children }: { children: React.ReactNode }) {
-  return <div className="overflow-x-auto"><table className="w-full min-w-[640px]">{children}</table></div>;
+/** `desktopOnly` hides the table under 640px — pair it with a <MobileList> of cards. */
+export function Table({ children, desktopOnly }: { children: React.ReactNode; desktopOnly?: boolean }) {
+  return <div className={`overflow-x-auto ${desktopOnly ? 'hidden sm:block' : ''}`}><table className="w-full min-w-[640px]">{children}</table></div>;
+}
+
+/** Phone layout for a list: one tappable card per row, shown only under 640px. */
+export function MobileList<T>({ rows, render, onSelect, keyOf }: {
+  rows: T[]; render: (row: T) => React.ReactNode; onSelect?: (row: T) => void; keyOf: (row: T) => string;
+}) {
+  return (
+    <ul className="sm:hidden divide-y divide-slate-100">
+      {rows.map(r => (
+        <li key={keyOf(r)}>
+          {onSelect
+            ? <button type="button" onClick={() => onSelect(r)} className="w-full text-left px-4 py-3 active:bg-slate-50 cursor-pointer">{render(r)}</button>
+            : <div className="px-4 py-3">{render(r)}</div>}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /** Common props every FMCG view receives from App. */
