@@ -1,0 +1,19 @@
+# Pure CRM behind an EXISTING Caddy container (when Caddy already owns 80/443).
+# Paste this block into that Caddy's Caddyfile, replace GATEWAY_IP with the
+# gateway of the Caddy container's Docker network (the host as seen from the
+# container), then:  caddy validate  →  caddy reload.
+# Caddy obtains and renews the HTTPS certificate automatically.
+#
+# On the host, Pure CRM's .env must have HOST="0.0.0.0" (ufw keeps port 3000
+# closed to the internet; setup-vps.sh SKIP_NGINX=1 opens it to Docker only).
+
+crm.pure.vn {
+	encode gzip
+	request_body {
+		max_size 20MB
+	}
+	reverse_proxy GATEWAY_IP:3000 {
+		# Server-Sent Events (/api/stream) must not be buffered.
+		flush_interval -1
+	}
+}

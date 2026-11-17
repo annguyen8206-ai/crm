@@ -74,6 +74,14 @@ sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR && (pm2 describe purecrm >/dev/null 
 env PATH="$PATH" pm2 startup systemd -u "$DEPLOY_USER" --hp "/home/$DEPLOY_USER" >/dev/null
 sudo -u "$DEPLOY_USER" pm2 install pm2-logrotate >/dev/null 2>&1 || true
 
+if [ "${SKIP_NGINX:-}" = "1" ]; then
+  # Another reverse proxy (e.g. a Caddy container) already owns 80/443.
+  # Let containers on Docker bridge networks reach the app port; the public
+  # internet still can't (ufw default-deny).
+  echo "==> SKIP_NGINX=1 — using the existing reverse proxy"
+  systemctl disable --now nginx >/dev/null 2>&1 || true
+  ufw allow from 172.16.0.0/12 to any port 3000 proto tcp comment 'purecrm from docker proxy'
+else
 echo "==> nginx"
 cp deploy/nginx/crm.pure.vn.conf "/etc/nginx/sites-available/$DOMAIN"
 ln -sf "/etc/nginx/sites-available/$DOMAIN" "/etc/nginx/sites-enabled/$DOMAIN"
@@ -85,9 +93,11 @@ if systemctl is-active --quiet nginx; then systemctl reload nginx; else
   systemctl start nginx || {
     echo "!! nginx failed to start. Something else probably holds port 80:"
     ss -ltnp 'sport = :80' || true
-    echo "   Stop it (e.g. systemctl disable --now apache2) and re-run this script."
+    echo "   Stop it (e.g. systemctl disable --now apache2) and re-run this script,"
+    echo "   or if it is another reverse proxy you keep (Caddy/Traefik in Docker), re-run with SKIP_NGINX=1."
     exit 1
   }
+fi
 fi
 
 echo "==> Daily DB backup (03:00, keep 14)"
