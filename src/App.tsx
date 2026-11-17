@@ -26,9 +26,18 @@ const StaffAdminModal = lazy(() => import('./fmcg/AdminModals').then(m => ({ def
 const BranchAdminModal = lazy(() => import('./fmcg/AdminModals').then(m => ({ default: m.BranchAdminModal })));
 const IntegrationSettingsModal = lazy(() => import('./components/IntegrationSettingsModal').then(m => ({ default: m.IntegrationSettingsModal })));
 
+const TAB_KEY = 'vitcrm_active_tab';
+const readTab = (): ActiveTab | null => { try { return (localStorage.getItem(TAB_KEY) as ActiveTab) || null; } catch { return null; } };
+
 export default function App() {
   const [user, setUser] = useState<CurrentUser | null>(null);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  // true while a saved token is being checked — avoids flashing the login form on reload.
+  const [restoring, setRestoring] = useState(() => apiClient.auth.hasToken());
+  const [activeTab, setActiveTabState] = useState<ActiveTab>('dashboard');
+  const setActiveTab = useCallback((t: ActiveTab) => {
+    setActiveTabState(t);
+    try { localStorage.setItem(TAB_KEY, t); } catch { /* storage unavailable */ }
+  }, []);
   const [currentBranchId, setCurrentBranchId] = useState<BranchId>('ALL');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [staff, setStaff] = useState<CurrentUser[]>([]);
@@ -53,6 +62,39 @@ export default function App() {
   }, []);
 
   const can = useCallback((perm: string) => roleCan(user?.role, perm as Permission), [user?.role]);
+
+  const startSession = useCallback((u: CurrentUser, restoredTab?: ActiveTab | null) => {
+    const full = { ...u, roleTitle: u.roleTitle || u.role, status: 'active' as const };
+    setUser(full);
+    if (full.branchId && full.branchId !== 'ALL') setCurrentBranchId(full.branchId);
+    setActiveTab(restoredTab && isTabAllowedForRole(restoredTab, full.role) ? restoredTab : getRoleConfig(full.role).defaultTab);
+  }, [setActiveTab]);
+
+  // Restore the session from the saved token after a page reload. Runs once (the
+  // ref guards against StrictMode's double effect). A 401 already clears the token
+  // inside request(); any other failure (server restarting, offline) keeps it so
+  // the next reload can try again instead of forcing a fresh login.
+  const restoreStarted = useRef(false);
+  useEffect(() => {
+    if (!restoring || restoreStarted.current) return;
+    restoreStarted.current = true;
+    apiClient.auth.me()
+      .then(r => startSession(r.user, readTab()))
+      .catch((e: any) => { if (apiClient.auth.hasToken()) notify(e?.message || 'Không kết nối được máy chủ'); })
+      .finally(() => setRestoring(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Any 401 (expired token, account suspended) → back to the login screen.
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setUser(prev => {
+        if (prev) notify('Phiên đăng nhập đã hết hạn — vui lòng đăng nhập lại');
+        return null;
+      });
+    };
+    window.addEventListener('vitcrm:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('vitcrm:unauthorized', onUnauthorized);
+  }, [notify]);
 
   const loadShared = useCallback(async () => {
     const [col, notif, conv] = await Promise.all([
@@ -101,8 +143,6 @@ export default function App() {
         if (evt.type === 'message' && evt.conversationId === selectedConvRef.current && evt.message) {
           setInboxMessages(prev => (prev.some(m => m.id === evt.message.id) ? prev : [...prev, evt.message]));
         }
-      } else if (evt.type === 'incoming-call') {
-        notify(`Cuộc gọi đến: ${evt.patient?.name || evt.call?.patientPhone || 'khách mới'}`);
       }
     });
     return () => { if (timer) clearTimeout(timer); es?.close(); };
@@ -147,14 +187,16 @@ export default function App() {
     </div>
   );
 
+  if (!user && restoring) {
+    return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loading /></div>;
+  }
+
   if (!user) {
     return (
       <>
         {toastEl}
         <LoginView onLoginSuccess={u => {
-          setUser(u);
-          if (u.branchId && u.branchId !== 'ALL') setCurrentBranchId(u.branchId);
-          setActiveTab(getRoleConfig(u.role).defaultTab);
+          startSession(u);
           notify(`Xin chào ${u.name}!`);
         }} />
       </>

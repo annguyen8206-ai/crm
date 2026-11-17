@@ -4,6 +4,8 @@
  * seeded PRNG so every boot looks the same shape and stays fresh.
  */
 import type { CustomerRecord, ProductRecord, OrderRecord, VisitRecord, SalesTarget, B2BChannel } from './commerce-types';
+import type { SupportTicketRecord, LeadDealRecord, ConversationRecord, MessageRecord, MessageChannel } from './store';
+import type { PromotionRecord } from './promotions';
 import { CHANNEL_DEFAULT_TIER } from './commerce-types';
 import { buildOrderItems, orderTotals, paymentStatusOf, customerStats, tierForPoints, pointsForAmount, addDays, ymd } from './commerce';
 
@@ -140,8 +142,11 @@ export function buildFmcgDemo(now = new Date()) {
   const tapHoa = customers.find(c => c.id === 'cus-b2b-8')!;
   const bigItems = buildOrderItems([{ productId: 'prd-3', quantity: 20 }, { productId: 'prd-1', quantity: 20 }], products, tapHoa.priceTier);
   const bigT = orderTotals(bigItems);
+  // Next free per-day number, so orders created later today continue the sequence naturally.
+  const todayPrefix = `DH-${today.slice(2, 4)}${today.slice(5, 7)}${today.slice(8, 10)}-`;
+  const nextToday = 1 + Math.max(0, ...orders.filter(o => o.code.startsWith(todayPrefix)).map(o => Number(o.code.slice(todayPrefix.length)) || 0));
   orders.push({
-    id: 'ord-demo-pending', code: `DH-${today.slice(2, 4)}${today.slice(5, 7)}${today.slice(8, 10)}-9001`,
+    id: 'ord-demo-pending', code: `${todayPrefix}${String(nextToday).padStart(4, '0')}`,
     customerId: tapHoa.id, customerName: tapHoa.name, customerPhone: tapHoa.phone, customerType: 'B2B', branchId: 'ALL',
     channel: 'Sales thị trường', salesRep: tapHoa.assignedRep, priceTier: tapHoa.priceTier, items: bigItems, ...bigT,
     paidAmount: 0, paymentStatus: 'Chưa thanh toán', payments: [], status: 'Chờ duyệt',
@@ -164,5 +169,106 @@ export function buildFmcgDemo(now = new Date()) {
   const month = today.slice(0, 7);
   const salesTargets: SalesTarget[] = reps.map((salesRep, i) => ({ salesRep, month, revenueTarget: [450_000_000, 250_000_000, 300_000_000][i], visitTarget: 80 }));
 
-  return { products, customers, orders, visits, salesTargets };
+  // ------------------------------------------------------------- CSKH tickets
+  const stamp = (msAgo: number) => {
+    const d = new Date(now.getTime() - msAgo);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+  const H = 3_600_000;
+  const cust = (id: string) => customers.find(c => c.id === id)!;
+  const lastOrderOf = (id: string) => orders.filter(o => o.customerId === id && o.status === 'Đã giao').at(-1);
+  const ticketSpec: Array<[string, string, SupportTicketRecord['priority'], SupportTicketRecord['status'], number, number, string, string?]> = [
+    // customer, category, priority, status, created h ago, SLA h, description, resolution
+    ['cus-b2b-6', 'Giao hàng chậm / sai hàng', 'Cao (SLA 2h)', 'Mới tiếp nhận', 0.5, 2, 'Giao thiếu 2 thùng trà xanh so với phiếu xuất kho.'],
+    ['cus-b2c-3', 'Chất lượng sản phẩm', 'Cao (SLA 2h)', 'Đang xử lý', 3, 2, 'Hộp sữa tươi bị phồng, mùi lạ. Lô in trên hộp: L2611. Khách gửi ảnh qua Zalo.'],
+    ['cus-b2b-10', 'Trưng bày & hỗ trợ điểm bán', 'Trung bình (SLA 8h)', 'Đang xử lý', 5, 8, 'Siêu thị cần kệ trưng bày đầu quầy + POSM cho đợt khuyến mãi cuối tháng.'],
+    ['cus-b2c-7', 'Đổi trả hàng', 'Trung bình (SLA 8h)', 'Mới tiếp nhận', 1, 8, 'Đặt nhầm nước giặt 3kg, muốn đổi sang loại 1.8kg.'],
+    ['cus-b2b-3', 'Công nợ / hoá đơn', 'Thấp (SLA 24h)', 'Đang xử lý', 30, 24, 'Đại lý đề nghị xuất lại hoá đơn VAT, sai mã số thuế.'],
+    ['cus-b2c-1', 'Giá & khuyến mãi', 'Thấp (SLA 24h)', 'Đã giải quyết', 50, 24, 'Mã giảm giá trên Zalo không áp dụng được.', 'Đã cộng bù 50 điểm thưởng và hướng dẫn lại cách nhập mã.'],
+    ['cus-b2b-12', 'Giao hàng chậm / sai hàng', 'Cao (SLA 2h)', 'Đã giải quyết', 72, 2, 'Nhà hàng cần gấp 10 chai dầu ăn trước 11h.', 'Điều xe giao bổ sung lúc 10h20, khách xác nhận đã nhận.'],
+    ['cus-b2c-11', 'Chất lượng sản phẩm', 'Trung bình (SLA 8h)', 'Đã đóng', 120, 8, 'Bánh quy bị vỡ nhiều trong hộp.', 'Gửi tặng 1 hộp mới, chuyển phản ánh cho bộ phận đóng gói.'],
+  ];
+  const tickets: SupportTicketRecord[] = ticketSpec.map(([cid, category, priority, status, agoH, slaH, description, resolution], i) => {
+    const c = cust(cid);
+    const lo = lastOrderOf(cid);
+    return {
+      id: `ticket-demo-${i + 1}`, ticketCode: `CS-${today.slice(2, 4)}${today.slice(5, 7)}${today.slice(8, 10)}-${String(i + 1).padStart(3, '0')}`,
+      patientId: c.id, patientName: c.name, patientPhone: c.phone, category, priority, status,
+      department: 'Phòng CSKH', branchId: c.branchId, assignedStaff: i % 2 ? 'CSKH Phạm Thu' : 'CSKH Lê Hằng',
+      description, resolution, orderCode: lo?.code,
+      slaDeadline: stamp((agoH - slaH) * H), isOverdue: false, createdAt: stamp(agoH * H),
+      resolvedAt: resolution ? stamp((agoH - slaH * 0.6) * H) : undefined,
+      compensationVoucher: i === 5 ? '50 điểm' : undefined,
+    };
+  });
+
+  // ----------------------------------------------------------- deals pipeline
+  const leadSpec: Array<[string, 'B2B' | 'B2C', string, string, number, LeadDealRecord['stage'], number, string, number]> = [
+    ['Chuỗi WinMart+ khu vực Hà Đông', 'B2B', 'Chị Thu Hà - Trưởng ngành hàng', 'Listing 8 SKU đồ uống + sữa vào 40 cửa hàng', 1_200_000_000, 'Đàm phán', 70, 'Hội chợ / Triển lãm', 5],
+    ['NPP Đông Anh', 'B2B', 'Anh Quân - Giám đốc', 'Mở nhà phân phối độc quyền khu vực Đông Anh – Sóc Sơn', 800_000_000, 'Gửi báo giá', 50, 'Giới thiệu', 3],
+    ['Bếp ăn công nghiệp Sao Mai', 'B2B', 'Chị Loan - Bếp trưởng', 'Cung cấp dầu ăn, nước mắm, mì gói hàng tháng', 240_000_000, 'Đã liên hệ', 35, 'Website', 7],
+    ['Tạp hoá Minh Châu', 'B2B', 'Cô Châu', 'Mở điểm bán mới tuyến T4', 25_000_000, 'Mới tiếp nhận', 20, 'Sales thị trường', 1],
+    ['Trường Mầm non Hoa Sen', 'B2B', 'Cô Hiệu trưởng', 'Sữa chua uống cho 300 bé, giao 2 lần/tuần', 180_000_000, 'Chốt thành công (Won)', 100, 'Giới thiệu', -2],
+    ['Công ty CP Phần mềm FPT (quà Tết)', 'B2C', 'Phòng Hành chính', '500 giỏ quà Tết nhân viên', 450_000_000, 'Gửi báo giá', 60, 'Hotline', 4],
+    ['Siêu thị Hapro', 'B2B', 'Anh Tùng', 'Listing nước giặt + nước rửa bát', 300_000_000, 'Thất bại (Lost)', 0, 'Sales thị trường', -10],
+  ];
+  const leads: LeadDealRecord[] = leadSpec.map(([customerName, type, contactPerson, serviceCategory, expectedValue, stage, probability, source, followIn], i) => ({
+    id: `deal-demo-${i + 1}`, customerName, type, contactPerson, phone: `09${String(77_000_000 + i * 31_337).slice(0, 8)}`, email: '',
+    serviceCategory, expectedValue, stage, probability, assignedStaff: reps[i % reps.length], source,
+    notes: stage === 'Thất bại (Lost)' ? 'Đối thủ giảm giá sâu hơn 8%.' : '', followUpDate: addDays(today, followIn), createdAt: addDays(today, -20 + i * 2),
+  }));
+
+  // --------------------------------------------------------- inbox (Zalo / FB)
+  const conversations: ConversationRecord[] = [];
+  const messages: MessageRecord[] = [];
+  const convSpec: Array<[MessageChannel, string, string | undefined, number, Array<[('in' | 'out'), string]>]> = [
+    ['zalo', 'Nguyễn Thị Lan', 'cus-b2c-1', 1, [['in', 'Shop ơi sữa tươi 1L còn hàng không ạ? Mình lấy 2 thùng giao Cầu Giấy.'], ['out', 'Dạ còn ạ, chị cho em xin địa chỉ cụ thể để em lên đơn nhé.'], ['in', 'Ngõ 20 Cầu Giấy, sđt như Zalo này nhé']]],
+    ['facebook', 'Hoàng Minh Đức', 'cus-b2c-5', 0, [['in', 'Nước giặt hương hoa có loại túi nhỏ không shop?']]],
+    ['zalo', 'Tạp hoá Cô Ba', 'cus-b2b-6', 2, [['in', 'Em ơi tuần này có chương trình gì cho tạp hoá không?'], ['in', 'Cô lấy thêm 5 thùng mì nhé']]],
+    ['facebook', 'Trần Mai Phương', undefined, 1, [['in', 'Mình muốn làm đại lý ở Thái Bình thì liên hệ ai ạ?']]],
+  ];
+  convSpec.forEach(([channel, displayName, customerId, unread, thread], i) => {
+    const convId = `conv-demo-${i + 1}`;
+    const base = now.getTime() - (i * 3 + 1) * H;
+    thread.forEach(([direction, text], j) => {
+      messages.push({
+        id: `msg-demo-${i + 1}-${j}`, conversationId: convId, channel, direction,
+        senderId: direction === 'in' ? `ext-${i + 1}` : 'staff', senderName: direction === 'in' ? displayName : 'CSKH Lê Hằng',
+        text, attachments: [], status: direction === 'in' ? 'received' : 'sent', at: new Date(base + j * 4 * 60_000).toISOString(),
+      });
+    });
+    const last = messages[messages.length - 1];
+    conversations.push({
+      id: convId, channel, externalUserId: `ext-${i + 1}`, displayName, patientId: customerId,
+      lastMessageAt: last.at, lastMessagePreview: last.text.slice(0, 140), unreadCount: unread, status: 'open',
+      createdAt: new Date(base).toISOString(),
+    });
+  });
+  conversations.sort((a, b) => (a.lastMessageAt < b.lastMessageAt ? 1 : -1));
+
+  // ------------------------------------------------------------ campaign log
+  const campaigns = [
+    { id: 'cmp-demo-1', name: 'Nhắc mua lại sữa tươi', channel: 'zns', segment: 'Sắp hết hàng', customerType: 'B2C', recipients: 14, message: 'Sữa tươi VitFood của {ten} sắp hết — đặt ngay giảm 5%.', sentAt: `${addDays(today, -3)}T02:00:00.000Z`, sentBy: 'Marketing' },
+    { id: 'cmp-demo-2', name: 'CTKM tạp hoá tháng này', channel: 'sms', segment: 'Tạp hoá (GT)', customerType: 'B2B', recipients: 4, message: 'Mua 10 thùng mì tặng 1 thùng, áp dụng đến cuối tháng.', sentAt: `${addDays(today, -8)}T03:00:00.000Z`, sentBy: 'Marketing' },
+  ];
+
+  // ------------------------------------------------------------- promotions
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const promotions: PromotionRecord[] = [
+    { id: 'promo-demo-1', code: 'MI10TANG1', name: 'Mua 10 thùng mì tặng 1 thùng', description: 'Áp dụng cho tạp hoá & đại lý', type: 'gift',
+      buyProductId: 'prd-7', buyQty: 10, giftProductId: 'prd-7', giftQty: 1, customerType: 'B2B', channels: ['Tạp hoá (GT)', 'Đại lý cấp 1', 'Đại lý cấp 2'],
+      startDate: monthStart, endDate: addDays(today, 20), active: true, createdAt: `${monthStart}T01:00:00.000Z`, createdBy: 'Marketing' },
+    { id: 'promo-demo-2', code: 'SUA5', name: 'Giảm 5% ngành Sữa cho NPP', type: 'percent', value: 5, maxDiscount: 5_000_000, minOrderValue: 10_000_000,
+      productIds: ['prd-3', 'prd-4'], customerType: 'B2B', channels: ['Nhà phân phối'],
+      startDate: monthStart, endDate: addDays(today, 30), active: true, createdAt: `${monthStart}T01:00:00.000Z`, createdBy: 'Marketing' },
+    { id: 'promo-demo-3', code: 'CHAOBAN50K', name: 'Giảm 50k đơn online từ 300k', type: 'amount', value: 50_000, minOrderValue: 300_000,
+      customerType: 'B2C', perCustomerLimit: 1, startDate: addDays(today, -10), endDate: addDays(today, 45), active: true,
+      createdAt: `${addDays(today, -10)}T01:00:00.000Z`, createdBy: 'Marketing' },
+    { id: 'promo-demo-4', code: 'HE2026', name: 'Hè sảng khoái — giảm 8% đồ uống', type: 'percent', value: 8, productIds: ['prd-1', 'prd-2'],
+      customerType: 'ALL', startDate: addDays(today, -150), endDate: addDays(today, -60), active: true,
+      createdAt: `${addDays(today, -150)}T01:00:00.000Z`, createdBy: 'Marketing' },
+  ];
+
+  return { products, customers, orders, visits, salesTargets, tickets, leads, conversations, messages, campaigns, promotions };
 }

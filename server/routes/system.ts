@@ -10,6 +10,19 @@ import { getZaloAccessToken, zaloAppSecretProof, zaloAuthHeaders } from '../inte
 
 /** System / admin routes: audit log, staff accounts, integration status + settings. */
 export function registerSystemRoutes(app: Express): void {
+  // Current session → fresh account from the DB. Used by the client to restore a
+  // session after a page reload; a suspended / deleted account is rejected even
+  // while its JWT is still within its 8h lifetime.
+  app.get('/api/auth/me', async (req, res) => {
+    try {
+      const me = (await listStaff()).find(s => s.id === req.authUser?.id);
+      if (!me || me.status !== 'active') return res.status(401).json({ error: 'Tài khoản không còn hoạt động' });
+      res.json({ user: { id: me.id, email: me.email, staffCode: me.staffCode, name: me.name, role: me.role, roleTitle: me.roleTitle, department: me.department, branchId: me.branchId } });
+    } catch (e: any) {
+      res.status(500).json({ error: 'Không kiểm tra được phiên đăng nhập', details: e.message });
+    }
+  });
+
   // System Audit Logs — from the durable table when available (paginated).
   app.get('/api/system/audit-logs', requireAdmin, async (req, res) => {
     try {

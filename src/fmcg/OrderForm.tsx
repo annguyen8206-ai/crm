@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, AlertTriangle, Search } from 'lucide-react';
-import { crm, type Customer, type Product, type Order } from './api';
+import { crm, type Customer, type Product, type Order, type PromotionOffer } from './api';
 import {
   Modal, Field, Input, Select, Textarea, MoneyInput, Button, Badge, TypeBadge,
   vnd, PRICE_TIER_LABELS, ORDER_CHANNELS, PAYMENT_METHODS, useAction,
@@ -28,12 +28,16 @@ export function OrderFormModal({
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [payNow, setPayNow] = useState(0);
   const [payMethod, setPayMethod] = useState('Tiền mặt');
+  const [offers, setOffers] = useState<PromotionOffer[]>([]);
+  // '' = none chosen yet (auto-pick the best), 'NONE' = rep explicitly declined.
+  const [promoChoice, setPromoChoice] = useState('');
   const { busy, run } = useAction(notify);
 
   useEffect(() => {
     if (!open) return;
     setCustomerId(initialCustomerId || '');
     setLines([]); setDiscountAmount(0); setShippingFee(0); setNotes(''); setPayNow(0); setCustomerQuery(''); setExpectedDeliveryDate('');
+    setOffers([]); setPromoChoice('');
     Promise.all([crm.customers.list({ status: 'Đang hoạt động' }), crm.products.list({ status: 'Đang bán' })])
       .then(([c, p]) => { setCustomers(c.customers); setProducts(p.products); })
       .catch(e => notify(e.message));
@@ -49,7 +53,21 @@ export function OrderFormModal({
     return { ...l, product: p, unitPrice, lineTotal: Math.round(l.quantity * unitPrice * (1 - l.discountPercent / 100)) };
   });
   const subtotal = priced.reduce((s, l) => s + l.lineTotal, 0);
-  const total = Math.max(0, subtotal - Math.min(discountAmount, subtotal)) + shippingFee;
+
+  // Re-evaluate promotions whenever the customer or basket changes (debounced).
+  const basketKey = JSON.stringify(lines);
+  useEffect(() => {
+    if (!customer || !lines.length) { setOffers([]); return; }
+    const t = setTimeout(() => {
+      crm.promotions.evaluate(customer.id, lines).then(r => setOffers(r.applicable)).catch(() => setOffers([]));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [customer?.id, basketKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const promo = promoChoice === 'NONE' ? undefined
+    : offers.find(o => o.code === promoChoice) || (promoChoice === '' ? offers[0] : undefined);
+  const promoDiscount = promo?.discount || 0;
+
+  const total = Math.max(0, subtotal - Math.min(discountAmount + promoDiscount, subtotal)) + shippingFee;
   const unpaid = Math.max(0, total - payNow);
 
   const warnings: string[] = [];
@@ -81,7 +99,9 @@ export function OrderFormModal({
       items: lines.map(l => ({ productId: l.productId, quantity: l.quantity, discountPercent: l.discountPercent })),
       discountAmount, shippingFee, channel, notes: notes || undefined, visitId,
       expectedDeliveryDate: expectedDeliveryDate || undefined,
-      payment: payNow > 0 ? { amount: payNow, method: payMethod } : undefined,
+      promotionCode: promo?.code,
+      // Re-clamp: the total may have dropped after "pay now" was typed.
+      payment: Math.min(payNow, total) > 0 ? { amount: Math.min(payNow, total), method: payMethod } : undefined,
     }));
     if (r) {
       notify(r.needsApproval ? `Đã tạo đơn ${r.order.code} — đang chờ quản lý duyệt` : `Đã tạo đơn ${r.order.code}`);
@@ -165,6 +185,16 @@ export function OrderFormModal({
                           <td className="pr-2"><button onClick={() => setLines(ls => ls.filter((_, j) => j !== i))} className="p-1.5 text-slate-400 hover:text-rose-600 cursor-pointer" aria-label="Xoá dòng"><Trash2 className="w-4 h-4" /></button></td>
                         </tr>
                       ))}
+                      {promo?.giftItems.map(g => (
+                        <tr key={`gift-${g.productId}`} className="bg-emerald-50/60">
+                          <td className="px-3 py-2"><div className="font-semibold text-emerald-800">🎁 {g.name}</div><div className="text-[11px] text-emerald-700">{g.sku} · {g.unit}</div></td>
+                          <td className="px-2 py-2 text-center tabular-nums">{g.quantity}</td>
+                          <td className="px-2 py-2 text-center text-xs text-emerald-700">Tặng</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-slate-400 line-through">{vnd(g.unitPrice)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-semibold">0đ</td>
+                          <td />
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -174,6 +204,17 @@ export function OrderFormModal({
               )}
             </div>
 
+            {(offers.length > 0 || promoChoice === 'NONE') && (
+              <div className="flex flex-wrap items-end gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                <Field label={`Khuyến mãi (${offers.length} chương trình áp dụng được)`} className="flex-1 min-w-60">
+                  <Select value={promo?.code || 'NONE'} onChange={e => setPromoChoice(e.target.value)}>
+                    <option value="NONE">— Không áp dụng —</option>
+                    {offers.map(o => <option key={o.code} value={o.code}>{o.code} · {o.name} — {o.summary}</option>)}
+                  </Select>
+                </Field>
+                {promo && <div className="text-sm text-emerald-800 pb-2"><b>{promo.summary}</b> · không cần duyệt</div>}
+              </div>
+            )}
             <div className="grid sm:grid-cols-3 gap-3">
               <Field label="Chiết khấu đơn (đ)"><MoneyInput value={discountAmount} onChange={setDiscountAmount} /></Field>
               <Field label="Phí giao hàng (đ)"><MoneyInput value={shippingFee} onChange={setShippingFee} /></Field>
@@ -188,7 +229,8 @@ export function OrderFormModal({
 
             <div className="bg-slate-50 rounded-xl p-3 text-sm grid grid-cols-2 gap-y-1 max-w-sm ml-auto">
               <span className="text-slate-500">Tạm tính</span><span className="text-right tabular-nums">{vnd(subtotal)}</span>
-              <span className="text-slate-500">Chiết khấu</span><span className="text-right tabular-nums">-{vnd(Math.min(discountAmount, subtotal))}</span>
+              {promoDiscount > 0 && <><span className="text-emerald-700">KM {promo?.code}</span><span className="text-right tabular-nums text-emerald-700">-{vnd(Math.min(promoDiscount, subtotal))}</span></>}
+              <span className="text-slate-500">Chiết khấu</span><span className="text-right tabular-nums">-{vnd(Math.min(discountAmount, Math.max(0, subtotal - promoDiscount)))}</span>
               <span className="text-slate-500">Phí giao</span><span className="text-right tabular-nums">{vnd(shippingFee)}</span>
               <span className="font-bold">Tổng cộng</span><span className="text-right tabular-nums font-bold">{vnd(total)}</span>
               <span className="text-slate-500">Ghi công nợ</span><span className="text-right tabular-nums">{vnd(unpaid)}</span>

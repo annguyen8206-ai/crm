@@ -1,10 +1,10 @@
 import { pool } from './database';
 import { dbStore } from './store';
-import type { PatientRecord, AppointmentRecord, InvoiceRecord, SupportTicketRecord } from './store';
+import type { SupportTicketRecord, CustomerRecord, ProductRecord, OrderRecord } from './store';
 
 /**
- * Keeps the relational read-model tables (patients / appointments / invoices /
- * tickets) in step with the JSONB snapshot. The snapshot in vitcrm_store is
+ * Keeps the relational read-model tables (customers / products / orders /
+ * order_items / tickets) in step with the JSONB snapshot. The snapshot in vitcrm_store is
  * still the source of truth — this is a derived copy for querying, reporting and
  * per-table backups. Route handlers are unchanged.
  *
@@ -32,36 +32,40 @@ type TableSpec = { table: string; columns: string[]; row: (r: any) => unknown[];
 
 const SPECS: TableSpec[] = [
   {
-    table: 'patients',
-    columns: ['id', 'pid', 'name', 'phone', 'email', 'gender', 'dob', 'id_card', 'branch_id',
-      'risk_level', 'loyalty_tier', 'loyalty_points', 'total_visits', 'total_spent',
-      'first_visit_date', 'last_visit_date', 'raw'],
-    rows: () => dbStore.patients,
-    row: (r: PatientRecord) => [s(r.id), s(r.pid), s(r.name), s(r.phone), s(r.email), s(r.gender), s(r.dob),
-      s(r.idCard), s(r.branchId), s(r.riskLevel), s(r.loyaltyTier), n(r.loyaltyPoints), n(r.totalVisits),
-      n(r.totalSpent), s(r.firstVisitDate), s(r.lastVisitDate), JSON.stringify(r)],
+    table: 'customers',
+    columns: ['id', 'code', 'type', 'name', 'phone', 'email', 'province', 'channel', 'price_tier',
+      'branch_id', 'assigned_rep', 'status', 'loyalty_tier', 'loyalty_points', 'credit_limit',
+      'total_orders', 'total_revenue', 'outstanding_debt', 'last_order_date', 'created_at', 'raw'],
+    rows: () => dbStore.customers,
+    row: (r: CustomerRecord) => [s(r.id), s(r.code), s(r.type), s(r.name), s(r.phone), s(r.email),
+      s(r.province), s(r.channel), s(r.priceTier), s(r.branchId), s(r.assignedRep), s(r.status),
+      s(r.loyaltyTier), n(r.loyaltyPoints), n(r.creditLimit), n(r.totalOrders), n(r.totalRevenue),
+      n(r.outstandingDebt), s(r.lastOrderDate), s(r.createdAt), JSON.stringify(r)],
   },
   {
-    table: 'appointments',
-    columns: ['id', 'queue_number', 'patient_id', 'patient_name', 'patient_phone', 'doctor_id',
-      'doctor_name', 'department', 'branch_id', 'date', 'time_slot', 'status', 'type', 'channel',
-      'estimated_cost', 'is_paid', 'checked_in_at', 'seen_at', 'created_at', 'raw'],
-    rows: () => dbStore.appointments,
-    row: (r: AppointmentRecord) => [s(r.id), s(r.queueNumber), s(r.patientId), s(r.patientName),
-      s(r.patientPhone), s(r.doctorId), s(r.doctorName), s(r.department), s(r.branchId), s(r.date),
-      s(r.timeSlot), s(r.status), s(r.type), s(r.channel), n(r.estimatedCost), b(r.isPaid),
-      s(r.checkedInAt), s(r.seenAt), s(r.createdAt), JSON.stringify(r)],
+    table: 'products',
+    columns: ['id', 'sku', 'name', 'brand', 'category', 'unit', 'status', 'stock', 'retail_price', 'created_at', 'raw'],
+    rows: () => dbStore.products,
+    row: (r: ProductRecord) => [s(r.id), s(r.sku), s(r.name), s(r.brand), s(r.category), s(r.unit),
+      s(r.status), n(r.stock), n(r.prices?.LE), s(r.createdAt), JSON.stringify(r)],
   },
   {
-    table: 'invoices',
-    columns: ['id', 'invoice_code', 'patient_id', 'patient_name', 'patient_phone', 'branch_id',
-      'department', 'subtotal', 'discount', 'insurance_deduction', 'patient_payable', 'status',
-      'payment_method', 'transaction_ref', 'paid_at', 'created_at', 'raw'],
-    rows: () => dbStore.invoices,
-    row: (r: InvoiceRecord) => [s(r.id), s(r.invoiceCode), s(r.patientId), s(r.patientName),
-      s(r.patientPhone), s(r.branchId), s(r.department), n(r.subtotal), n(r.discount),
-      n(r.insuranceDeduction), n(r.patientPayable), s(r.status), s(r.paymentMethod), s(r.transactionRef),
-      s(r.paidAt), s(r.createdAt), JSON.stringify(r)],
+    table: 'orders',
+    columns: ['id', 'code', 'customer_id', 'customer_name', 'customer_type', 'branch_id', 'channel',
+      'sales_rep', 'status', 'payment_status', 'subtotal', 'discount_amount', 'total', 'paid_amount',
+      'due_date', 'created_at', 'delivered_at', 'raw'],
+    rows: () => dbStore.orders,
+    row: (r: OrderRecord) => [s(r.id), s(r.code), s(r.customerId), s(r.customerName), s(r.customerType),
+      s(r.branchId), s(r.channel), s(r.salesRep), s(r.status), s(r.paymentStatus), n(r.subtotal),
+      n(r.discountAmount), n(r.total), n(r.paidAmount), s(r.dueDate), s(r.createdAt), s(r.deliveredAt),
+      JSON.stringify(r)],
+  },
+  {
+    table: 'order_items',
+    columns: ['id', 'order_id', 'product_id', 'sku', 'name', 'quantity', 'unit_price', 'discount_percent', 'line_total'],
+    rows: () => (dbStore.orders || []).flatMap(o => (o.items || []).map((it, i) => ({ ...it, id: `${o.id}#${i}`, orderId: o.id }))),
+    row: (r: any) => [s(r.id), s(r.orderId), s(r.productId), s(r.sku), s(r.name), n(r.quantity),
+      n(r.unitPrice), n(r.discountPercent), n(r.lineTotal)],
   },
   {
     table: 'tickets',

@@ -5,6 +5,7 @@ import {
   PageHeader, Card, Tabs, Select, Textarea, Button, Badge, TypeBadge, Loading, ErrorBox, Empty, Modal, Field, Input,
   Table, Th, Td, useLoad, useAction, shortVnd, fmtDateTime, SEGMENT_TONE, type ViewProps,
 } from './ui';
+import { PromotionsPanel } from './PromotionsPanel';
 
 const SEGMENTS: Array<{ name: string; hint: string; action: string }> = [
   { name: 'Khách VIP', hint: 'Mua gần đây, thường xuyên, chi tiêu cao', action: 'Ưu đãi độc quyền, mời dùng thử sản phẩm mới' },
@@ -19,7 +20,22 @@ const SEGMENTS: Array<{ name: string; hint: string; action: string }> = [
 
 interface CampaignLog { id: string; name: string; channel: string; segment: string; customerType: string; recipients: number; message: string; jobId?: string; sentAt: string; sentBy: string }
 
-export function MarketingView({ notify, can, userName, refreshKey }: ViewProps) {
+export function MarketingView(props: ViewProps) {
+  const [section, setSection] = useState<'segments' | 'promotions'>('segments');
+  return (
+    <div className="space-y-4">
+      <Tabs value={section} onChange={setSection} items={[{ id: 'segments', label: 'Phân khúc & chiến dịch' }, { id: 'promotions', label: 'Chương trình khuyến mãi' }]} />
+      {section === 'segments' ? <SegmentsView {...props} /> : (
+        <>
+          <PageHeader title="Chương trình khuyến mãi" subtitle="Giảm %, giảm tiền, mua X tặng Y — theo kênh, nhóm khách và thời gian" />
+          <PromotionsPanel {...props} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function SegmentsView({ notify, can, userName, refreshKey }: ViewProps) {
   const [type, setType] = useState<'B2C' | 'B2B'>('B2C');
   const [segment, setSegment] = useState<string | null>(null);
   const [sendOpen, setSendOpen] = useState(false);

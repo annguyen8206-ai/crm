@@ -7,6 +7,7 @@ import {
   useLoad, vnd, shortVnd, today, shiftDate, ORDER_STATUS_TONE, type ViewProps,
 } from './ui';
 import type { ActiveTab } from '../types';
+import { ExportButton } from './ExportButton';
 
 const RANGES = [
   { id: '7', label: '7 ngày qua', days: 6 },
@@ -14,7 +15,7 @@ const RANGES = [
   { id: '90', label: '90 ngày qua', days: 89 },
 ];
 
-export function DashboardView({ notify, refreshKey, onNavigate }: ViewProps & { onNavigate: (t: ActiveTab) => void }) {
+export function DashboardView({ notify, can, refreshKey, onNavigate }: ViewProps & { onNavigate: (t: ActiveTab) => void }) {
   const [range, setRange] = useState('30');
   const days = RANGES.find(r => r.id === range)!.days;
   const to = today();
@@ -41,6 +42,7 @@ export function DashboardView({ notify, refreshKey, onNavigate }: ViewProps & { 
             <Button variant="secondary" onClick={() => { void reload(); notify('Đã làm mới số liệu'); }} disabled={loading}>
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Làm mới
             </Button>
+            {can('canExportData') && <ExportButton defaultKind="order-items" notify={notify} label="Báo cáo Excel" />}
           </>
         }
       />

@@ -30,14 +30,14 @@ describe('safeName', () => {
 describe('file routes without a database', () => {
   it('upload is rejected (auth or 503, never a silent 200)', async () => {
     const r = await request(app)
-      .post('/api/files?entityType=patient&entityId=p1')
+      .post('/api/files?entityType=customer&entityId=p1')
       .set('Content-Type', 'application/pdf')
       .set('x-filename', 'a.pdf')
       .send(Buffer.from('%PDF-1.4 test'));
     expect([401, 403, 503]).toContain(r.status);
   });
   it('list is auth-gated (never leaks a 200)', async () => {
-    const r = await request(app).get('/api/files?entityType=patient&entityId=p1');
+    const r = await request(app).get('/api/files?entityType=customer&entityId=p1');
     expect([200, 401, 403, 503]).toContain(r.status);
     if (r.status === 200) expect(r.body.files).toEqual([]);
   });

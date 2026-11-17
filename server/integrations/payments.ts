@@ -33,7 +33,7 @@ export function vietQrBankInfo() {
   return {
     bankCode: process.env.VIETQR_BANK_CODE || 'MB',
     accountNumber: process.env.VIETQR_ACCOUNT_NUMBER || '0338886868',
-    accountName: process.env.VIETQR_ACCOUNT_NAME || 'BENH VIEN DKT VITHOSPITAL'
+    accountName: process.env.VIETQR_ACCOUNT_NAME || 'CONG TY VITFOOD'
   };
 }
 
@@ -94,8 +94,12 @@ export function parseWebhookPayload(body: any): BankTxn[] {
   })).filter((t) => t.amount > 0);
 }
 
-/** Pull an invoice code like "HD-2026-8801" out of a bank transfer description. */
-export function extractInvoiceCode(description: string): string | null {
-  const m = String(description || '').toUpperCase().match(/HD[-\s]?\d{2,4}[-\s]?\d{3,6}/);
-  return m ? m[0].replace(/\s/g, '-').replace(/-+/g, '-') : null;
+/**
+ * Pull an order code out of a bank transfer memo and normalise it to the stored
+ * form "DH-YYMMDD-NNNN". Banks often strip dashes or swap them for spaces, so
+ * "DH2611170001", "dh 261117 0001" and "DH-261117-0001" all match.
+ */
+export function extractOrderCode(description: string): string | null {
+  const m = String(description || '').toUpperCase().match(/(?<![A-Z0-9])DH[-\s]?(\d{6})[-\s]?(\d{4})(?!\d)/);
+  return m ? `DH-${m[1]}-${m[2]}` : null;
 }

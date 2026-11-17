@@ -190,18 +190,46 @@ function CheckoutModal({ visit, onClose, notify, onDone }: { visit: Visit; onClo
   const [outcome, setOutcome] = useState(visit.orderId ? 'Có đơn' : 'Không có đơn');
   const [notes, setNotes] = useState('');
   const [collected, setCollected] = useState(0);
+  const [method, setMethod] = useState('Tiền mặt');
+  const [debt, setDebt] = useState<number | null>(null);
   const { busy, run } = useAction(notify);
+  useEffect(() => {
+    crm.customers.get(visit.customerId).then(r => setDebt(r.customer.outstandingDebt || 0)).catch(() => setDebt(null));
+  }, [visit.customerId]);
+
+  const submit = async () => {
+    const r = await run(() => crm.visits.checkOut(visit.id, { outcome, notes: notes || undefined, collectedAmount: collected || undefined, collectionMethod: method }));
+    if (!r) return;
+    const c = r.collection;
+    if (c && c.allocations.length) {
+      const total = c.allocations.reduce((s, a) => s + a.amount, 0);
+      notify(`Đã thu ${vnd(total)} — trừ vào ${c.allocations.map(a => a.orderCode).join(', ')}${c.unallocated ? ` · thừa ${vnd(c.unallocated)} chưa ghi nhận` : ''}`);
+    } else if (c && c.unallocated) {
+      notify(`Khách không còn công nợ — ${vnd(c.unallocated)} chưa ghi nhận`);
+    } else {
+      notify('Đã hoàn thành viếng thăm');
+    }
+    onDone(); onClose();
+  };
+
   return (
     <Modal open onClose={onClose} title={`Kết thúc viếng thăm · ${visit.customerName}`}
-      footer={<><Button variant="secondary" onClick={onClose}>Huỷ</Button><Button disabled={busy}
-        onClick={async () => { const r = await run(() => crm.visits.checkOut(visit.id, { outcome, notes: notes || undefined, collectedAmount: collected || undefined }), 'Đã hoàn thành viếng thăm'); if (r) { onDone(); onClose(); } }}>Hoàn thành</Button></>}>
+      footer={<><Button variant="secondary" onClick={onClose}>Huỷ</Button><Button disabled={busy} onClick={submit}>Hoàn thành</Button></>}>
       <div className="space-y-3">
         <Field label="Kết quả">
           <Select value={outcome} onChange={e => setOutcome(e.target.value)}>
             {['Có đơn', 'Không có đơn', 'Khách còn hàng', 'Chủ cửa hàng vắng', 'Đã thu nợ', 'Đã trưng bày', 'Khiếu nại / phản hồi'].map(o => <option key={o}>{o}</option>)}
           </Select>
         </Field>
-        <Field label="Tiền thu nợ tại điểm (đ)" hint="Ghi nhận thu tiền vào từng đơn tại mục Công nợ"><MoneyInput value={collected} onChange={setCollected} /></Field>
+        <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
+          <Field label="Tiền thu nợ tại điểm (đ)" hint={debt === null ? 'Tự trừ vào các đơn còn nợ, cũ nhất trước' : `Công nợ hiện tại ${vnd(debt)} · tự trừ vào đơn cũ nhất trước`}>
+            <MoneyInput value={collected} onChange={setCollected} />
+          </Field>
+          <Field label="Hình thức">
+            <Select value={method} onChange={e => setMethod(e.target.value)}>{['Tiền mặt', 'Chuyển khoản', 'VietQR'].map(m => <option key={m}>{m}</option>)}</Select>
+          </Field>
+        </div>
+        {debt !== null && collected > debt && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">Số tiền lớn hơn công nợ — phần thừa {vnd(collected - debt)} sẽ không được ghi nhận.</div>}
         <Field label="Ghi chú (tồn kho, đối thủ, trưng bày…)"><Textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)} /></Field>
       </div>
     </Modal>

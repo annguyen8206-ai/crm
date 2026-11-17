@@ -8,6 +8,7 @@ import {
 } from './ui';
 import { CustomerFormModal } from './CustomerForm';
 import { OrderFormModal } from './OrderForm';
+import { ExportButton } from './ExportButton';
 
 type TypeFilter = 'ALL' | 'B2B' | 'B2C';
 
@@ -40,9 +41,10 @@ export function CustomersView({ notify, can, userName, refreshKey }: ViewProps) 
       <PageHeader
         title="Khách hàng"
         subtitle="Khách sỉ B2B (NPP, đại lý, điểm bán) và người tiêu dùng B2C"
-        actions={can('canManageCustomers') && (
-          <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus className="w-4 h-4" /> Thêm khách hàng</Button>
-        )}
+        actions={<>
+          {can('canExportData') && <ExportButton defaultKind="customers" notify={notify} />}
+          {can('canManageCustomers') && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus className="w-4 h-4" /> Thêm khách hàng</Button>}
+        </>}
       />
 
       <div className="flex flex-col lg:flex-row gap-2 lg:items-center">

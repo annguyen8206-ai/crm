@@ -104,6 +104,58 @@ const MIGRATIONS: { id: string; sql: string }[] = [
       CREATE INDEX IF NOT EXISTS file_attachments_created_idx ON file_attachments (created_at DESC);
     `,
   },
+  {
+    id: '003_fmcg_read_model',
+    sql: `
+      -- Consumer-goods edition: the healthcare read-model tables are derived
+      -- copies only (the JSONB snapshot keeps any legacy data), so they can go.
+      DROP TABLE IF EXISTS patients, appointments, invoices CASCADE;
+
+      CREATE TABLE IF NOT EXISTS customers (
+        id TEXT PRIMARY KEY,
+        code TEXT, type TEXT, name TEXT, phone TEXT, email TEXT, province TEXT,
+        channel TEXT, price_tier TEXT, branch_id TEXT, assigned_rep TEXT, status TEXT,
+        loyalty_tier TEXT, loyalty_points INTEGER, credit_limit BIGINT,
+        total_orders INTEGER, total_revenue BIGINT, outstanding_debt BIGINT,
+        last_order_date TEXT, created_at TEXT,
+        raw JSONB NOT NULL, synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS customers_phone_idx  ON customers (phone);
+      CREATE INDEX IF NOT EXISTS customers_type_idx   ON customers (type);
+      CREATE INDEX IF NOT EXISTS customers_branch_idx ON customers (branch_id);
+
+      CREATE TABLE IF NOT EXISTS products (
+        id TEXT PRIMARY KEY,
+        sku TEXT, name TEXT, brand TEXT, category TEXT, unit TEXT, status TEXT,
+        stock INTEGER, retail_price BIGINT, created_at TEXT,
+        raw JSONB NOT NULL, synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS products_sku_idx ON products (sku);
+
+      CREATE TABLE IF NOT EXISTS orders (
+        id TEXT PRIMARY KEY,
+        code TEXT, customer_id TEXT, customer_name TEXT, customer_type TEXT,
+        branch_id TEXT, channel TEXT, sales_rep TEXT, status TEXT, payment_status TEXT,
+        subtotal BIGINT, discount_amount BIGINT, total BIGINT, paid_amount BIGINT,
+        due_date TEXT, created_at TEXT, delivered_at TEXT,
+        raw JSONB NOT NULL, synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS orders_customer_idx ON orders (customer_id);
+      CREATE INDEX IF NOT EXISTS orders_status_idx   ON orders (status);
+      CREATE INDEX IF NOT EXISTS orders_created_idx  ON orders (created_at);
+      CREATE INDEX IF NOT EXISTS orders_rep_idx      ON orders (sales_rep);
+
+      -- One row per order line, for product-level sales reporting in SQL.
+      CREATE TABLE IF NOT EXISTS order_items (
+        id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL, product_id TEXT, sku TEXT, name TEXT,
+        quantity INTEGER, unit_price BIGINT, discount_percent NUMERIC, line_total BIGINT,
+        synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS order_items_order_idx   ON order_items (order_id);
+      CREATE INDEX IF NOT EXISTS order_items_product_idx ON order_items (product_id);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

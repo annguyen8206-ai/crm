@@ -7,6 +7,7 @@ import type {
   CustomerRecord, ProductRecord, OrderRecord, VisitRecord, OrderStatus, PriceTier, B2BChannel, SalesTarget,
 } from '../commerce-types';
 import { PRICE_TIERS, CHANNEL_DEFAULT_TIER } from '../commerce-types';
+import { evaluatePromotion, localYmd } from '../promotions';
 import {
   buildOrderItems, orderTotals, paymentStatusOf, approvalReasons, customerStats, receivables, isRevenueOrder,
   pointsToCredit, tierForPoints, computeRfm, repurchaseDue, inactiveAccounts, distanceMeters,
@@ -61,6 +62,54 @@ function adjustStock(order: OrderRecord, sign: 1 | -1): void {
     const p = dbStore.products.find(x => x.id === it.productId);
     if (p && typeof p.stock === 'number') p.stock = Math.max(0, p.stock + sign * it.quantity);
   }
+}
+
+/**
+ * Apply a payment to an order: caps at the outstanding balance, updates payment
+ * status, credits loyalty points and refreshes customer stats. Shared by the
+ * manual payment endpoint and the bank-webhook reconciler.
+ */
+export function recordOrderPayment(
+  o: OrderRecord, amount: number, method: string, reference: string | undefined, by: string,
+): { ok: true; applied: number; excess: number } | { ok: false; error: string } {
+  if (o.status === 'Đã huỷ' || o.status === 'Trả hàng') return { ok: false, error: 'Đơn đã huỷ / trả hàng' };
+  const amt = Math.round(Number(amount));
+  if (!Number.isFinite(amt) || amt <= 0) return { ok: false, error: 'Số tiền không hợp lệ' };
+  const balance = Math.max(0, o.total - o.paidAmount);
+  if (balance <= 0) return { ok: false, error: 'Đơn đã thanh toán đủ' };
+  const applied = Math.min(amt, balance);
+  const at = nowIso();
+  o.payments.push({ id: `pay-${Date.now()}-${Math.floor(Math.random() * 1000)}`, amount: applied, method, reference, at, by });
+  o.paidAmount += applied;
+  o.paymentStatus = paymentStatusOf(o.total, o.paidAmount);
+  o.updatedAt = at;
+  creditPoints(o);
+  recomputeCustomer(o.customerId);
+  return { ok: true, applied, excess: amt - applied };
+}
+
+/**
+ * Net a lump-sum collection (e.g. cash taken on a field visit) against the
+ * customer's open orders, oldest due date first. Returns what went where and
+ * any amount left over (more than the customer owed).
+ */
+export function allocateCollection(
+  customerId: string, amount: number, method: string, reference: string, by: string,
+): { allocations: Array<{ orderId: string; orderCode: string; amount: number }>; unallocated: number } {
+  let left = Math.max(0, Math.round(amount));
+  const open = receivables(dbStore.orders.filter(o => o.customerId === customerId))
+    .sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : a.orderCode < b.orderCode ? -1 : 1));
+  const allocations: Array<{ orderId: string; orderCode: string; amount: number }> = [];
+  for (const row of open) {
+    if (left <= 0) break;
+    const o = dbStore.orders.find(x => x.id === row.orderId);
+    if (!o) continue;
+    const r = recordOrderPayment(o, Math.min(left, row.balance), method, reference, by);
+    if ('error' in r) continue;
+    allocations.push({ orderId: o.id, orderCode: o.code, amount: r.applied });
+    left -= r.applied;
+  }
+  return { allocations, unallocated: left };
 }
 
 const CUSTOMER_EDITABLE: Array<keyof CustomerRecord> = [
@@ -343,9 +392,30 @@ export function registerCommerceRoutes(app: Express): void {
     } catch (e: any) {
       return res.status(400).json({ error: e.message });
     }
-    const totals = orderTotals(items, num(body.discountAmount) || 0, num(body.shippingFee) || 0);
+    // Promotion (pre-approved by marketing → excluded from the rep-discount check).
+    let promotionCode: string | undefined;
+    let promotionDiscount = 0;
+    const promoCode = str(body.promotionCode, 50)?.toUpperCase();
+    if (promoCode) {
+      const promo = dbStore.promotions.find(p => p.code === promoCode);
+      if (!promo) return res.status(400).json({ error: `Không có chương trình ${promoCode}` });
+      const r = evaluatePromotion(promo, { customer: c, items, products: dbStore.products, orders: dbStore.orders, today: localYmd() });
+      if ('reason' in r) return res.status(400).json({ error: `CTKM ${promoCode}: ${r.reason}` });
+      promotionCode = promo.code;
+      promotionDiscount = r.discount;
+      items = [...items, ...r.giftItems];
+      for (const g of r.giftItems) {
+        const p = dbStore.products.find(x => x.id === g.productId);
+        if (p && typeof p.stock === 'number' && p.stock < g.quantity) return res.status(400).json({ error: `Không đủ hàng tặng ${p.sku} (tồn ${p.stock})` });
+      }
+    }
+    const manualDiscount = num(body.discountAmount) || 0;
+    const totals = orderTotals(items, manualDiscount + promotionDiscount, num(body.shippingFee) || 0);
     const upfront = Math.min(totals.total, Math.max(0, num(body.payment?.amount) || 0));
-    const reasons = approvalReasons(c, c.outstandingDebt || 0, { items, ...totals, paidAmount: upfront });
+    const reasons = approvalReasons(c, c.outstandingDebt || 0, {
+      items, ...totals, paidAmount: upfront,
+      discountAmount: Math.max(0, totals.discountAmount - promotionDiscount),
+    });
     const createdAt = nowIso();
     const o: OrderRecord = {
       id: `ord-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -357,7 +427,8 @@ export function registerCommerceRoutes(app: Express): void {
       priceTier: c.priceTier,
       items,
       ...totals,
-      promotionCode: str(body.promotionCode, 50),
+      promotionCode,
+      promotionDiscount: promotionDiscount || undefined,
       paidAmount: upfront,
       paymentStatus: paymentStatusOf(totals.total, upfront),
       payments: upfront > 0 ? [{ id: `pay-${Date.now()}`, amount: upfront, method: str(body.payment?.method) || 'Tiền mặt', reference: str(body.payment?.reference), at: createdAt, by: actor(req) }] : [],
@@ -429,18 +500,12 @@ export function registerCommerceRoutes(app: Express): void {
     const o = dbStore.orders.find(x => x.id === req.params.id);
     if (!o) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
     if (!canAccessBranch(req, o.branchId)) return res.status(403).json({ error: 'Đơn hàng thuộc chi nhánh khác' });
-    if (o.status === 'Đã huỷ' || o.status === 'Trả hàng') return res.status(400).json({ error: 'Đơn đã huỷ / trả hàng' });
     const amount = Math.round(Number(req.body?.amount));
     const balance = o.total - o.paidAmount;
-    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Số tiền không hợp lệ' });
-    if (amount > balance + 0.5) return res.status(400).json({ error: `Số tiền vượt quá công nợ còn lại (${balance.toLocaleString('vi-VN')}đ)` });
-    const at = nowIso();
-    o.payments.push({ id: `pay-${Date.now()}`, amount, method: str(req.body?.method) || 'Chuyển khoản', reference: str(req.body?.reference), at, by: actor(req) });
-    o.paidAmount += amount;
-    o.paymentStatus = paymentStatusOf(o.total, o.paidAmount);
-    o.updatedAt = at;
-    creditPoints(o);
-    recomputeCustomer(o.customerId);
+    // Manual entry: refuse an overpayment outright (likely a typo) rather than capping it.
+    if (Number.isFinite(amount) && amount > balance + 0.5) return res.status(400).json({ error: `Số tiền vượt quá công nợ còn lại (${balance.toLocaleString('vi-VN')}đ)` });
+    const r = recordOrderPayment(o, amount, str(req.body?.method) || 'Chuyển khoản', str(req.body?.reference), actor(req));
+    if ('error' in r) return res.status(400).json({ error: r.error });
     res.json({ success: true, order: o });
   });
 
@@ -545,14 +610,23 @@ export function registerCommerceRoutes(app: Express): void {
     v!.outcome = str(b.outcome, 200);
     v!.notes = str(b.notes, 2000) ?? v!.notes;
     if (b.orderId && dbStore.orders.some(o => o.id === b.orderId)) v!.orderId = b.orderId;
-    v!.collectedAmount = Math.max(0, num(b.collectedAmount) || 0) || undefined;
+    // Cash collected on the visit is netted against the outlet's oldest open orders.
+    const collected = Math.max(0, Math.round(num(b.collectedAmount) || 0));
+    let collection: ReturnType<typeof allocateCollection> | undefined;
+    if (collected > 0) {
+      collection = allocateCollection(v!.customerId, collected, str(b.collectionMethod) || 'Tiền mặt', `Viếng thăm ${v!.id}`, actor(req));
+      v!.collectedAmount = collected - collection.unallocated || undefined;
+      if (collection.unallocated > 0) {
+        v!.notes = [v!.notes, `Thu thừa ${collection.unallocated.toLocaleString('vi-VN')}đ so với công nợ — chưa ghi nhận.`].filter(Boolean).join('\n');
+      }
+    }
     if (Array.isArray(b.stockCheck)) {
       v!.stockCheck = b.stockCheck
         .filter((s: any) => s && s.productId && Number.isFinite(Number(s.quantity)))
         .map((s: any) => ({ productId: String(s.productId), quantity: Number(s.quantity) }));
     }
     if (Array.isArray(b.photoFileIds)) v!.photoFileIds = b.photoFileIds.map(String).slice(0, 10);
-    res.json({ success: true, visit: v });
+    res.json({ success: true, visit: v, collection });
   });
 
   app.put('/api/visits/:id', requirePerm('canManageVisits'), (req, res) => {

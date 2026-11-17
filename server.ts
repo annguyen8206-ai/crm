@@ -12,24 +12,19 @@ import { logIntegrationsStatus } from "./server/integrations";
 import { initSettings } from "./server/settings";
 import { ensureAuditSchema, recordAudit } from "./server/audit";
 import { requestLogger, errorHandler, installProcessLogging } from "./server/logger";
-import { startReminderScheduler, registerReminderRoutes } from "./server/reminders";
 import { registerPublicRoutes } from "./server/routes/public";
 import { registerSystemRoutes } from "./server/routes/system";
 import { registerInboxRoutes } from "./server/routes/inbox";
 import { registerCollectionRoutes } from "./server/routes/collections";
-import { registerPatientRoutes } from "./server/routes/patients";
-import { registerAppointmentRoutes } from "./server/routes/appointments";
 import { registerCareRoutes } from "./server/routes/care";
 import { registerSalesRoutes } from "./server/routes/sales";
-import { registerBillingRoutes } from "./server/routes/billing";
-import { registerCommsRoutes } from "./server/routes/comms";
-import { registerAiRoutes } from "./server/routes/ai";
-import { registerExportRoutes } from "./server/routes/export";
 import { registerNotificationRoutes } from "./server/routes/notifications";
 import { registerReportRoutes, startDailyReportScheduler } from "./server/daily-report";
 import { registerBulkMessagingRoutes } from "./server/routes/messaging-bulk";
 import { registerFileRoutes } from "./server/routes/files";
 import { registerCommerceRoutes } from "./server/routes/commerce";
+import { registerPromotionRoutes } from "./server/routes/promotions";
+import { registerExportRoutes } from "./server/routes/export";
 
 dotenv.config();
 
@@ -86,6 +81,14 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   // Structured access log (non-GET / errors / slow requests only).
   app.use(requestLogger);
 
+  // API responses are per-user and change constantly: never let the browser (or a
+  // proxy) cache them. Without this, Express ETags turn repeat GETs into 304s.
+  app.use('/api', (_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
+  app.set('etag', false);
+
   // Persist every successful write request after handlers complete, and notify
   // connected CRM clients so their views refresh in real time.
   app.use((req, res, next) => {
@@ -104,7 +107,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   app.use((req, _res, next) => {
     if (req.path.startsWith("/api") && req.method !== "GET") {
       const userHeader = req.headers["x-user-id"] as string || "system";
-      const userNameHeader = decodeURIComponent(req.headers["x-user-name"] as string || "Nhân viên VitHospital");
+      const userNameHeader = decodeURIComponent(req.headers["x-user-name"] as string || "Nhân viên");
       const roleHeader = decodeURIComponent(req.headers["x-user-role"] as string || "Staff");
       const safeBody = { ...req.body };
       for (const key of ['password', 'password_hash', 'token', 'accessToken', 'secret', 'apiKey']) delete safeBody[key];
@@ -139,21 +142,15 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   registerInboxRoutes(app);
   registerCollectionRoutes(app);
   registerCommerceRoutes(app);
-  registerPatientRoutes(app);
-  registerAppointmentRoutes(app);
+  registerPromotionRoutes(app);
+  registerExportRoutes(app);
   registerCareRoutes(app);
   registerSalesRoutes(app);
-  registerBillingRoutes(app);
-  registerCommsRoutes(app);
-  registerAiRoutes(app);
-  registerExportRoutes(app);
   registerNotificationRoutes(app);
   registerReportRoutes(app);
   registerBulkMessagingRoutes(app);
   registerFileRoutes(app);
-  registerReminderRoutes(app);
 
-  startReminderScheduler();
   startDailyReportScheduler();
 
   // Unknown /api/* path → JSON 404 (not the SPA HTML fallback below).
@@ -184,7 +181,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
 
 async function startServer() {
   installProcessLogging();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
   const isProd = process.env.NODE_ENV === 'production';
   const authState = authStatus();
   console.log('=======================================================');
@@ -244,7 +241,7 @@ async function startServer() {
   const app = await createApp();
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`=======================================================`);
-    console.log(`VitHospital Healthcare Management Server running on port ${PORT}`);
+    console.log(`VitCRM server running on port ${PORT}`);
     console.log(`Live Backend Endpoints ready on http://0.0.0.0:${PORT}/api/health`);
     console.log(`=======================================================`);
   });

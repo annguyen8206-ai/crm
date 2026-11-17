@@ -12,6 +12,7 @@
     "start": "node dist/server.cjs",
     "init:auth": "node scripts/init-auth.mjs",
     "reset:data": "node scripts/reset-data.mjs",
+    "seed:demo": "tsx scripts/seed-demo.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",

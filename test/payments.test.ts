@@ -1,22 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseWebhookPayload,
-  extractInvoiceCode,
+  extractOrderCode,
   vietQrBankInfo,
   verifyWebhookAuth,
   paymentsWebhookConfigured,
 } from '../server/integrations/payments';
 
-describe('extractInvoiceCode', () => {
-  it('pulls a normalised HD code out of a transfer memo', () => {
-    expect(extractInvoiceCode('CK TT VIEN PHI HD-2026-8801 CHUYEN KHOAN')).toBe('HD-2026-8801');
-    expect(extractInvoiceCode('thanh toan HD 2026 8801')).toBe('HD-2026-8801');
-    expect(extractInvoiceCode('hd20268801')).toBe('HD20268801');
+describe('extractOrderCode', () => {
+  it('normalises the order code however the bank mangles the dashes', () => {
+    expect(extractOrderCode('NPP MINH PHAT TT DH-261117-0001')).toBe('DH-261117-0001');
+    expect(extractOrderCode('thanh toan dh 261117 0001')).toBe('DH-261117-0001');
+    expect(extractOrderCode('MBVCB.123.DH2611170001.CT tu 0123')).toBe('DH-261117-0001');
   });
-  it('returns null when there is no code', () => {
-    expect(extractInvoiceCode('chuyen tien an trua')).toBeNull();
-    expect(extractInvoiceCode('')).toBeNull();
-    expect(extractInvoiceCode(undefined as unknown as string)).toBeNull();
+  it('returns null when there is no (complete) code', () => {
+    expect(extractOrderCode('chuyen tien an trua')).toBeNull();
+    expect(extractOrderCode('DH-261117-01')).toBeNull();
+    expect(extractOrderCode('DH-261117-000123')).toBeNull();
+    expect(extractOrderCode('')).toBeNull();
+    expect(extractOrderCode(undefined as unknown as string)).toBeNull();
   });
 });
 

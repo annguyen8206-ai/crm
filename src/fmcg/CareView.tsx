@@ -27,7 +27,7 @@ export function CareView({ notify, can, userName, refreshKey }: ViewProps) {
   const [selected, setSelected] = useState<any | null>(null);
   const { data, error, loading, reload } = useLoad(() => crm.tickets.list(), [refreshKey]);
   const all = data?.tickets || [];
-  const rows = all.filter(t => (tab === 'all' || isOpen(t)) && (!q || `${t.ticketCode} ${t.patientName} ${t.patientPhone} ${t.description}`.toLowerCase().includes(q.toLowerCase())));
+  const rows = all.filter(t => (tab === 'all' || isOpen(t)) && (!q || `${t.ticketCode} ${t.orderCode || ''} ${t.patientName} ${t.patientPhone} ${t.description}`.toLowerCase().includes(q.toLowerCase())));
 
   return (
     <div className="space-y-4">
@@ -51,7 +51,7 @@ export function CareView({ notify, can, userName, refreshKey }: ViewProps) {
               <tbody className="divide-y divide-slate-100">
                 {rows.map(t => (
                   <tr key={t.id} onClick={() => setSelected(t)} className="hover:bg-slate-50 cursor-pointer">
-                    <Td><div className="font-semibold">{t.ticketCode}</div><div className="text-xs text-slate-400 truncate max-w-56">{t.description}</div></Td>
+                    <Td><div className="font-semibold">{t.ticketCode}</div><div className="text-xs text-slate-400 truncate max-w-56">{t.orderCode ? `${t.orderCode} · ` : ''}{t.description}</div></Td>
                     <Td><div>{t.patientName}</div><div className="text-xs text-slate-400">{t.patientPhone}</div></Td>
                     <Td className="text-xs">{t.category}</Td>
                     <Td className="text-xs">{t.priority}</Td>
@@ -93,7 +93,7 @@ function CreateTicketModal({ open, onClose, notify, userName, onDone }: { open: 
     const r = await run(() => crm.tickets.create({
       patientId: customer.id, patientName: customer.name, patientPhone: customer.phone, branchId: customer.branchId,
       category, priority, department: 'Phòng CSKH', assignedStaff: userName,
-      description: orderCode ? `[Đơn ${orderCode}] ${description}` : description,
+      description, orderCode: orderCode.trim() || undefined,
       slaDeadline: localStamp(new Date(Date.now() + hours * 3_600_000)),
     }), 'Đã tạo phiếu CSKH');
     if (r) { onDone(); onClose(); }
@@ -132,7 +132,7 @@ function TicketModal({ ticket, onClose, notify, canEdit, onDone }: { ticket: any
       footer={canEdit ? <><Button variant="secondary" onClick={onClose}>Đóng</Button><Button disabled={busy} onClick={async () => { if (await run(() => crm.tickets.update(ticket.id, { status, resolution, compensationVoucher: voucher }), 'Đã cập nhật phiếu')) onDone(); }}>Lưu</Button></> : undefined}>
       <div className="space-y-3 text-sm">
         <div><b>{ticket.patientName}</b> · {ticket.patientPhone}</div>
-        <div className="text-xs text-slate-500">Tạo {ticket.createdAt} · {ticket.priority} · hạn {ticket.slaDeadline} · phụ trách {ticket.assignedStaff}{ticket.resolvedAt ? ` · xong ${ticket.resolvedAt}` : ''}</div>
+        <div className="text-xs text-slate-500">Tạo {ticket.createdAt} · {ticket.priority} · hạn {ticket.slaDeadline} · phụ trách {ticket.assignedStaff}{ticket.orderCode ? ` · đơn ${ticket.orderCode}` : ''}{ticket.resolvedAt ? ` · xong ${ticket.resolvedAt}` : ''}</div>
         <p className="bg-slate-50 rounded-xl p-3 whitespace-pre-wrap">{ticket.description}</p>
         {canEdit ? (
           <>

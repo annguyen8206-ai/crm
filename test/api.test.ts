@@ -72,9 +72,12 @@ describe('integration settings endpoint', () => {
   });
 });
 
-describe('public electronic-queue lookup', () => {
-  it('404s for an unknown queue code', async () => {
-    const res = await request(app).get('/api/queue/DOES-NOT-EXIST');
-    expect(res.status).toBe(404);
+describe('removed healthcare endpoints', () => {
+  it('are no longer publicly reachable', async () => {
+    for (const path of ['/api/queue/A-001', '/api/portal/me']) {
+      const res = await request(app).get(path);
+      expect(res.status).not.toBe(200);
+    }
+    expect((await request(app).post('/api/portal/auth/request-otp').send({ phone: '0900000000' })).status).not.toBe(200);
   });
 });

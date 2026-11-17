@@ -9,22 +9,16 @@ dotenv.config();
 
 
 export type DbSnapshot = {
-  patients: unknown[];
-  appointments: unknown[];
   tickets: unknown[];
   leads: unknown[];
-  invoices: unknown[];
-  followUps: unknown[];
-  recalls: unknown[];
   znsLogs: unknown[];
-  voipCalls: unknown[];
-  csatFeedbacks: unknown[];
   conversations: unknown[];
   messages: unknown[];
   customers: unknown[];
   products: unknown[];
   orders: unknown[];
   visits: unknown[];
+  promotions: unknown[];
   collections: Record<string, unknown[]>;
 };
 
@@ -214,38 +208,43 @@ export async function checkDatabase(): Promise<{ configured: boolean; connected:
   }
 }
 
-function createSnapshot(): DbSnapshot {
+const SNAPSHOT_KEYS = [
+  'tickets', 'leads', 'znsLogs', 'conversations', 'messages',
+  'customers', 'products', 'orders', 'visits', 'promotions', 'collections',
+] as const satisfies ReadonlyArray<keyof DbSnapshot>;
+
+/** Exported for tests. Unknown (legacy) keys are written back verbatim. */
+export function createSnapshot(): DbSnapshot & Record<string, unknown> {
   return {
-    patients: dbStore.patients,
-    appointments: dbStore.appointments,
+    // Legacy keys first so a current key can never be shadowed by one.
+    ...dbStore.legacy,
+    // auditLogs is NOT snapshotted — it lives in the append-only audit_log table.
     tickets: dbStore.tickets,
     leads: dbStore.leads,
-    invoices: dbStore.invoices,
-    followUps: dbStore.followUps,
-    recalls: dbStore.recalls,
     znsLogs: dbStore.znsLogs,
-    voipCalls: dbStore.voipCalls,
-    csatFeedbacks: dbStore.csatFeedbacks,
-    // auditLogs is NOT snapshotted — it lives in the append-only audit_log table.
     conversations: dbStore.conversations,
     messages: dbStore.messages,
     customers: dbStore.customers,
     products: dbStore.products,
     orders: dbStore.orders,
     visits: dbStore.visits,
+    promotions: dbStore.promotions,
     collections: dbStore.collections
   };
 }
 
-function restoreStore(snapshot: Partial<DbSnapshot>): void {
+/** Exported for tests. */
+export function restoreStore(snapshot: Record<string, unknown>): void {
   const store = dbStore as unknown as Record<string, unknown>;
-  const source = snapshot as Record<keyof DbSnapshot, unknown>;
-  for (const key of Object.keys(createSnapshot()) as Array<keyof DbSnapshot>) {
-    const value = source[key];
+  const known = new Set<string>(SNAPSHOT_KEYS);
+  const legacy: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(snapshot || {})) {
+    if (!known.has(key)) { legacy[key] = value; continue; }
     if (key === 'collections') {
       if (value && typeof value === 'object' && !Array.isArray(value)) store[key] = value;
     } else if (Array.isArray(value)) {
       store[key] = value;
     }
   }
+  dbStore.legacy = legacy;
 }

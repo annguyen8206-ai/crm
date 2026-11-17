@@ -316,36 +316,6 @@ export async function updateStaff(id: string, input: {
   return rowToStaff(rows[0]);
 }
 
-/** Patient-portal tokens: OTP-based, scoped 'portal', carry the patient id.
- *  TTL: `remember` → PORTAL_REMEMBER_TTL (default 30d); otherwise
- *  PORTAL_TOKEN_TTL (default 12h). */
-export function issuePortalToken(patientId: string, phone: string, remember = false): string {
-  if (!jwtSecret) throw new Error('Máy chủ chưa cấu hình JWT_SECRET');
-  const ttl = remember
-    ? (process.env.PORTAL_REMEMBER_TTL || '30d')
-    : (process.env.PORTAL_TOKEN_TTL || '12h');
-  return jwt.sign({ sub: patientId, scope: 'portal', phone }, jwtSecret, { expiresIn: ttl as any });
-}
-
-export function verifyPortalToken(token: string): { patientId: string; phone: string } | null {
-  if (!jwtSecret || !token) return null;
-  try {
-    const p = jwt.verify(token, jwtSecret) as any;
-    if (p?.scope !== 'portal' || !p?.sub) return null;
-    return { patientId: String(p.sub), phone: String(p.phone || '') };
-  } catch {
-    return null;
-  }
-}
-
-export function requirePortalAuth(req: Request, res: Response, next: NextFunction): void {
-  const token = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : '';
-  const claims = verifyPortalToken(token);
-  if (!claims) { res.status(401).json({ error: 'Phiên đăng nhập cổng khách hàng không hợp lệ' }); return; }
-  (req as any).portalPatientId = claims.patientId;
-  next();
-}
-
 /** Verify a STAFF session bearer token. Rejects portal / pre-2fa tokens. */
 export function verifySessionToken(token: string): AuthUser | null {
   if (!jwtSecret || !token) return null;

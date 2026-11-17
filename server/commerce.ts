@@ -93,7 +93,7 @@ export function approvalReasons(
   if (customer.type === 'B2B' && (customer.creditLimit || 0) > 0 && unpaid > 0 && currentDebt + unpaid > (customer.creditLimit || 0)) {
     reasons.push(`Vượt hạn mức công nợ: ${fmt(currentDebt + unpaid)} / ${fmt(customer.creditLimit || 0)}`);
   }
-  const maxLine = Math.max(0, ...order.items.map(i => i.discountPercent));
+  const maxLine = Math.max(0, ...order.items.filter(i => !i.isGift).map(i => i.discountPercent));
   if (maxLine > DISCOUNT_APPROVAL_THRESHOLD) reasons.push(`Chiết khấu dòng ${maxLine}% > ${DISCOUNT_APPROVAL_THRESHOLD}%`);
   if (order.subtotal > 0 && (order.discountAmount / order.subtotal) * 100 > DISCOUNT_APPROVAL_THRESHOLD) {
     reasons.push(`Chiết khấu đơn ${((order.discountAmount / order.subtotal) * 100).toFixed(1)}% > ${DISCOUNT_APPROVAL_THRESHOLD}%`);

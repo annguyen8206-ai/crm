@@ -132,6 +132,8 @@ export interface OrderItem {
   unitPrice: number;
   discountPercent: number;
   lineTotal: number;
+  /** Free goods from a promotion — excluded from the rep-discount approval check. */
+  isGift?: boolean;
 }
 
 export interface OrderPayment {
@@ -156,8 +158,9 @@ export interface OrderRecord {
   priceTier: PriceTier;
   items: OrderItem[];
   subtotal: number;          // sum of line totals
-  discountAmount: number;    // order-level discount
+  discountAmount: number;    // order-level discount (manual + promotion)
   promotionCode?: string;
+  promotionDiscount?: number; // part of discountAmount granted by the promotion
   shippingFee: number;
   total: number;
   paidAmount: number;

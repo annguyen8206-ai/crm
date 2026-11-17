@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Pencil, Archive } from 'lucide-react';
 import { crm, type Product } from './api';
+import { ExportButton } from './ExportButton';
 import {
   PageHeader, Card, Input, Select, Textarea, Button, Badge, Loading, ErrorBox, Empty, Modal, Field, MoneyInput,
   Table, Th, Td, useLoad, useAction, vnd, PRICE_TIER_LABELS, type PriceTier, type ViewProps,
@@ -29,7 +30,10 @@ export function ProductsView({ notify, can, refreshKey }: ViewProps) {
       <PageHeader
         title="Sản phẩm & Bảng giá"
         subtitle="Danh mục SKU, giá theo từng kênh (lẻ, NPP, đại lý, GT, MT), chu kỳ mua lại"
-        actions={canEdit && <Button onClick={() => setEditing('new')}><Plus className="w-4 h-4" /> Thêm sản phẩm</Button>}
+        actions={<>
+          {can('canExportData') && <ExportButton defaultKind="products" notify={notify} />}
+          {canEdit && <Button onClick={() => setEditing('new')}><Plus className="w-4 h-4" /> Thêm sản phẩm</Button>}
+        </>}
       />
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">

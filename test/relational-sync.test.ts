@@ -8,7 +8,7 @@ describe('relational-sync column specs', () => {
     }
   });
 
-  it('covers the four high-churn collections', () => {
-    expect(__specs.map(s => s.table).sort()).toEqual(['appointments', 'invoices', 'patients', 'tickets']);
+  it('covers the commerce collections and tickets', () => {
+    expect(__specs.map(s => s.table).sort()).toEqual(['customers', 'order_items', 'orders', 'products', 'tickets']);
   });
 });

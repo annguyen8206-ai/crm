@@ -7,6 +7,7 @@ import {
   PAYMENT_METHODS, PRICE_TIER_LABELS, type ViewProps,
 } from './ui';
 import { OrderFormModal } from './OrderForm';
+import { ExportButton } from './ExportButton';
 
 const STATUS_TABS = ['ALL', 'Chờ duyệt', 'Đã xác nhận', 'Đang giao', 'Đã giao', 'Đã huỷ', 'Trả hàng'] as const;
 type StatusTab = typeof STATUS_TABS[number];
@@ -18,7 +19,10 @@ export function OrdersView({ notify, can, userName, refreshKey }: ViewProps) {
       <PageHeader
         title="Đơn hàng & Công nợ"
         subtitle="Đơn bán sỉ B2B và bán lẻ B2C, duyệt đơn, giao hàng, thu tiền"
-        actions={<Tabs value={section} onChange={setSection} items={[{ id: 'orders', label: 'Đơn hàng' }, { id: 'receivables', label: 'Công nợ phải thu' }]} />}
+        actions={<>
+          <Tabs value={section} onChange={setSection} items={[{ id: 'orders', label: 'Đơn hàng' }, { id: 'receivables', label: 'Công nợ phải thu' }]} />
+          {can('canExportData') && <ExportButton defaultKind={section === 'orders' ? 'orders' : 'receivables'} notify={notify} />}
+        </>}
       />
       {section === 'orders'
         ? <OrdersList notify={notify} can={can} userName={userName} refreshKey={refreshKey} />
@@ -168,7 +172,9 @@ export function OrderDrawer({ order: o, onClose, onChanged, notify, can }: {
         </Table>
         <div className="px-4 py-3 text-sm grid grid-cols-2 gap-y-1 max-w-xs ml-auto">
           <span className="text-slate-500">Tạm tính</span><span className="text-right tabular-nums">{vnd(o.subtotal)}</span>
-          {o.discountAmount > 0 && <><span className="text-slate-500">Chiết khấu</span><span className="text-right tabular-nums">-{vnd(o.discountAmount)}</span></>}
+          {!!o.promotionDiscount && <><span className="text-emerald-700">KM {o.promotionCode}</span><span className="text-right tabular-nums text-emerald-700">-{vnd(o.promotionDiscount)}</span></>}
+          {o.discountAmount - (o.promotionDiscount || 0) > 0 && <><span className="text-slate-500">Chiết khấu</span><span className="text-right tabular-nums">-{vnd(o.discountAmount - (o.promotionDiscount || 0))}</span></>}
+          {o.promotionCode && !o.promotionDiscount && <><span className="text-emerald-700">KM {o.promotionCode}</span><span className="text-right text-emerald-700">Tặng hàng</span></>}
           {o.shippingFee > 0 && <><span className="text-slate-500">Phí giao</span><span className="text-right tabular-nums">{vnd(o.shippingFee)}</span></>}
           <span className="font-bold">Tổng</span><span className="text-right tabular-nums font-bold">{vnd(o.total)}</span>
         </div>

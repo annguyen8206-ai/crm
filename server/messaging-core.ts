@@ -1,4 +1,4 @@
-import { dbStore, ConversationRecord, MessageRecord, VoipCallRecord } from './store';
+import { dbStore, ConversationRecord, MessageRecord } from './store';
 import { persistStore } from './database';
 import { emitChange } from './events';
 import { fetchProfile, type IncomingMessage } from './integrations';
@@ -28,9 +28,9 @@ export async function ingestIncoming(msg: IncomingMessage): Promise<{ conversati
       status: 'open',
       createdAt: new Date().toISOString()
     };
-    // Link to an existing patient by phone if the display name looks like one.
-    const patient = dbStore.patients.find(p => p.phone && msg.text && msg.text.replace(/\D/g, '').includes(p.phone.replace(/\D/g, '')));
-    if (patient) conv.patientId = patient.id;
+    // Link to an existing customer when the first message contains their phone.
+    const customer = findCustomerByPhoneInText(msg.text);
+    if (customer) conv.patientId = customer.id;
     dbStore.conversations.unshift(conv);
   } else if (!conv.displayName || conv.displayName === placeholderName(msg)) {
     // Conversation was created before a valid OA token was available — retry now.
@@ -69,24 +69,12 @@ export async function ingestIncoming(msg: IncomingMessage): Promise<{ conversati
   return { conversation: conv, message: record };
 }
 
-/** Ingest an inbound call (screen-pop) from the VoIP webhook. */
-export function ingestInboundCall(from: string, to: string, callId: string) {
-  const patient = dbStore.patients.find(p => phoneMatches(p.phone, from)) || null;
-  const now = new Date();
-  const call: VoipCallRecord = {
-    id: callId || `call-in-${Date.now()}`,
-    callType: 'INBOUND_HOTLINE',
-    patientId: patient?.id || '',
-    patientName: patient?.name || 'Khách chưa có hồ sơ',
-    patientPhone: from,
-    agentStaffName: '',
-    agentExtension: to || 'hotline',
-    startTime: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-    durationSeconds: 0,
-    status: 'Đang đổ chuông (gọi đến)'
-  };
-  if (!dbStore.voipCalls.some(c => c.id === call.id)) dbStore.voipCalls.unshift(call);
-  emitChange({ type: 'incoming-call', call, patient });
-  void persistStore();
-  return { call, patient };
+/** Find a customer whose phone (9+ digits, last 9 compared) appears in a message. */
+export function findCustomerByPhoneInText(text: string) {
+  const runs = (String(text || '').replace(/[\s.\-()]/g, '').match(/\+?\d{9,12}/g) || []);
+  for (const run of runs) {
+    const c = dbStore.customers.find(x => x.phone && phoneMatches(x.phone, run));
+    if (c) return c;
+  }
+  return undefined;
 }

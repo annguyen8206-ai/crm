@@ -11,7 +11,7 @@ import { recordAudit } from '../audit';
 import { log } from '../logger';
 
 /**
- * File attachments for patients / tickets / invoices. Bytes live on disk under
+ * File attachments for customers / orders / visits / tickets. Bytes live on disk under
  * UPLOAD_DIR (default <cwd>/uploads); metadata in the `file_attachments` table.
  * Upload uses a raw body (no multipart dependency): the client POSTs the file
  * bytes with `x-filename` + Content-Type headers.
@@ -22,7 +22,7 @@ import { log } from '../logger';
 
 const UPLOAD_DIR = resolve(process.env.UPLOAD_DIR || join(process.cwd(), 'uploads'));
 const MAX_BYTES = Math.max(1, Number(process.env.MAX_UPLOAD_MB || 15)) * 1024 * 1024;
-const ENTITIES = new Set(['patient', 'ticket', 'invoice', 'referral', 'partnerPayout', 'conversation']);
+const ENTITIES = new Set(['customer', 'order', 'visit', 'product', 'ticket', 'conversation']);
 
 const EXT: Record<string, string> = {
   'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',

@@ -5,9 +5,9 @@
  *   npm run reset:data -- --yes     # no prompt (CI / scripts)
  *
  * Keeps: auth_users (accounts), the vitcrm_store row itself.
- * Clears: patients, appointments, tickets, leads, invoices, follow-ups, recalls,
- *         zns logs, voip calls, csat, audit logs, conversations, messages, and
- *         every module collection (branches, campaigns, partners, ...).
+ * Clears: customers, products, orders, visits, tickets, leads, zns logs,
+ *         conversations, messages, every module collection (branches,
+ *         campaigns, salesTargets, ...) — and any legacy healthcare keys.
  *
  * Run this once on an environment that still has the demo/seed rows.
  */
@@ -16,9 +16,8 @@ import pg from 'pg';
 import readline from 'node:readline';
 
 const EMPTY_SNAPSHOT = {
-  patients: [], appointments: [], tickets: [], leads: [], invoices: [],
-  followUps: [], recalls: [], znsLogs: [], voipCalls: [], csatFeedbacks: [],
-  auditLogs: [], conversations: [], messages: [], collections: {}
+  customers: [], products: [], orders: [], visits: [], promotions: [],
+  tickets: [], leads: [], znsLogs: [], conversations: [], messages: [], collections: {}
 };
 
 async function confirm() {
@@ -46,8 +45,10 @@ async function main() {
   });
   await client.connect();
   await client.query(
+    // Bump the version so a still-running server hits a version conflict on its
+    // next write and reloads this empty state instead of writing its old data back.
     `INSERT INTO vitcrm_store (id, snapshot, updated_at) VALUES (1, $1::jsonb, NOW())
-     ON CONFLICT (id) DO UPDATE SET snapshot = EXCLUDED.snapshot, updated_at = NOW()`,
+     ON CONFLICT (id) DO UPDATE SET snapshot = EXCLUDED.snapshot, version = vitcrm_store.version + 1, updated_at = NOW()`,
     [JSON.stringify(EMPTY_SNAPSHOT)]
   );
   const { rows } = await client.query('SELECT jsonb_object_keys(snapshot) AS k FROM vitcrm_store WHERE id = 1');

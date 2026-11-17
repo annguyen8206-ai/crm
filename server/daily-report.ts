@@ -4,6 +4,7 @@ import { sendEmail } from './integrations';
 import { requireAdmin } from './http-util';
 import { computeNotifications } from './routes/notifications';
 import { log } from './logger';
+import { isRevenueOrder, receivables } from './commerce';
 
 /**
  * End-of-day digest emailed to management.
@@ -13,64 +14,74 @@ import { log } from './logger';
  * Also POST /api/reports/daily/run (admin) to send on demand.
  */
 
-const money = (n: number) => `${n.toLocaleString('vi-VN')} đ`;
+const money = (n: number) => `${Math.round(n).toLocaleString('vi-VN')} đ`;
+/** Local calendar day of an ISO timestamp or "YYYY-MM-DD[ HH:mm]" string. */
+const localDay = (s?: string) => {
+  if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const t = new Date(s.includes('T') ? s : s.replace(' ', 'T'));
+  if (Number.isNaN(t.getTime())) return '';
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+};
 
-export function buildDailyReport(store: typeof dbStore, now = new Date()) {
-  const today = now.toISOString().slice(0, 10);
-  const day30 = now.getTime() - 30 * 86400000;
+type ReportStore = Pick<typeof dbStore, 'orders' | 'customers' | 'products' | 'visits' | 'tickets'>;
 
-  const apptsToday = store.appointments.filter(a => a.date === today && a.status !== 'Đã hủy');
-  const checkedIn = apptsToday.filter(a => a.checkedInAt);
-  const noShow = apptsToday.filter(a => /vắng mặt|no-?show/i.test(a.status || ''));
+export function buildDailyReport(store: ReportStore, now = new Date()) {
+  const today = localDay(now.toISOString());
+  const orders = store.orders || [];
 
-  const paidToday = store.invoices.filter(i =>
-    /đã thanh toán/i.test(i.status || '') && (i.paidAt || '').slice(0, 10) === today);
-  const revenueToday = paidToday.reduce((s, i) => s + (Number(i.patientPayable) || 0), 0);
-  const pendingValue = store.invoices
-    .filter(i => /chờ thanh toán/i.test(i.status || ''))
-    .reduce((s, i) => s + (Number(i.patientPayable) || 0), 0);
+  const ordersToday = orders.filter(o => localDay(o.createdAt) === today && o.status !== 'Đã huỷ');
+  const revenueOrders = ordersToday.filter(isRevenueOrder);
+  const revenueToday = revenueOrders.reduce((s, o) => s + o.total, 0);
+  const revenueB2B = revenueOrders.filter(o => o.customerType === 'B2B').reduce((s, o) => s + o.total, 0);
+  const collectedToday = orders.reduce((s, o) =>
+    s + (o.payments || []).filter(p => localDay(p.at) === today).reduce((x, p) => x + p.amount, 0), 0);
 
-  const newPatients = store.patients.filter(p => {
-    const t = Date.parse((p as any).firstVisitDate || (p as any).createdAt || '');
-    return Number.isFinite(t) && t >= day30;
+  const rec = receivables(orders, now);
+  const receivableTotal = rec.reduce((s, r) => s + r.balance, 0);
+  const overdueTotal = rec.filter(r => r.daysOverdue > 0).reduce((s, r) => s + r.balance, 0);
+
+  const visitsToday = (store.visits || []).filter(v => v.plannedDate === today);
+  const newCustomersToday = (store.customers || []).filter(c => localDay(c.createdAt) === today).length;
+
+  const openTickets = (store.tickets || []).filter(t => /mới tiếp nhận|đang xử lý/i.test(t.status || '')).length;
+  const overdueTickets = (store.tickets || []).filter(t => {
+    if (/giải quyết|đóng/i.test(t.status || '')) return false;
+    const due = Date.parse(String(t.slaDeadline || '').replace(' ', 'T'));
+    return t.isOverdue === true || (Number.isFinite(due) && due < now.getTime());
   }).length;
-
-  const openTickets = store.tickets.filter(t => /mới tiếp nhận|đang xử lý/i.test(t.status || '')).length;
-  const overdueTickets = store.tickets.filter(t =>
-    t.isOverdue === true && !/giải quyết|đóng/i.test(t.status || '')).length;
-  const overdueRecalls = store.recalls.filter(r => (r.daysOverdue || 0) > 0).length;
-
-  const alerts = computeNotifications(store, now.getTime());
 
   return {
     date: today,
     kpis: {
-      apptsToday: apptsToday.length,
-      checkedIn: checkedIn.length,
-      noShow: noShow.length,
+      ordersToday: ordersToday.length,
+      pendingApproval: orders.filter(o => o.status === 'Chờ duyệt').length,
       revenueToday,
-      pendingValue,
-      newPatients30d: newPatients,
+      revenueB2B,
+      revenueB2C: revenueToday - revenueB2B,
+      collectedToday,
+      receivableTotal,
+      overdueTotal,
+      visitsPlanned: visitsToday.length,
+      visitsDone: visitsToday.filter(v => v.status === 'Hoàn thành').length,
+      newCustomersToday,
       openTickets,
       overdueTickets,
-      overdueRecalls,
-      totalPatients: store.patients.length,
     },
-    alerts,
+    alerts: computeNotifications(store, now.getTime()),
   };
 }
 
 function renderHtml(r: ReturnType<typeof buildDailyReport>): { subject: string; html: string; text: string } {
   const k = r.kpis;
   const rows: Array<[string, string]> = [
-    ['Lịch khám hôm nay', `${k.apptsToday} (đã tiếp đón ${k.checkedIn}, vắng ${k.noShow})`],
-    ['Doanh thu đã thu hôm nay', money(k.revenueToday)],
-    ['Công nợ chờ thu', money(k.pendingValue)],
-    ['Hồ sơ mới (30 ngày)', String(k.newPatients30d)],
-    ['Tổng hồ sơ khách hàng', String(k.totalPatients)],
-    ['Ticket đang mở', String(k.openTickets)],
-    ['Ticket quá hạn SLA', String(k.overdueTickets)],
-    ['Tái khám quá hạn', String(k.overdueRecalls)],
+    ['Đơn hàng hôm nay', `${k.ordersToday} (chờ duyệt ${k.pendingApproval})`],
+    ['Doanh số hôm nay', `${money(k.revenueToday)} (B2B ${money(k.revenueB2B)} · B2C ${money(k.revenueB2C)})`],
+    ['Tiền đã thu hôm nay', money(k.collectedToday)],
+    ['Công nợ phải thu', `${money(k.receivableTotal)} (quá hạn ${money(k.overdueTotal)})`],
+    ['Viếng thăm điểm bán', `${k.visitsDone}/${k.visitsPlanned} hoàn thành`],
+    ['Khách hàng mới hôm nay', String(k.newCustomersToday)],
+    ['Phiếu CSKH đang mở', `${k.openTickets} (quá hạn SLA ${k.overdueTickets})`],
   ];
   const tr = rows.map(([a, b]) =>
     `<tr><td style="padding:6px 12px;color:#475569">${a}</td><td style="padding:6px 12px;font-weight:700;text-align:right">${b}</td></tr>`).join('');
@@ -85,7 +96,7 @@ function renderHtml(r: ReturnType<typeof buildDailyReport>): { subject: string; 
       <h2 style="color:#0f172a">Báo cáo cuối ngày · ${r.date}</h2>
       <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-radius:8px">${tr}</table>
       <h3 style="color:#b45309;margin-top:20px">Cần chú ý</h3>${alertList}
-      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Gửi tự động từ VitCRM Healthcare.</p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Gửi tự động từ VitCRM.</p>
     </div>`,
   };
 }

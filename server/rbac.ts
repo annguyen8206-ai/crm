@@ -19,13 +19,8 @@ export type Permission =
   | 'canManageTickets'
   | 'canManageLoyalty'
   | 'canViewFinancialBI'
-  | 'canUseAiTriage'
-  | 'canAdminister'
-  // Legacy healthcare permissions — kept so old routes compile until removed.
-  | 'canViewClinicalEMR'
-  | 'canEditClinicalEMR'
-  | 'canManageAppointments'
-  | 'canManageInsurance';
+  | 'canExportData'          // download customer / order / receivable lists (contains PII)
+  | 'canAdminister';
 
 export type RoleKey =
   | 'admin'
@@ -39,22 +34,21 @@ export type RoleKey =
 const ALL: Permission[] = [
   'canManageCustomers', 'canManageOrders', 'canApproveOrders', 'canManageProducts', 'canManageVisits',
   'canManageB2BContracts', 'canManageMarketing', 'canManageTickets', 'canManageLoyalty',
-  'canViewFinancialBI', 'canUseAiTriage', 'canAdminister',
-  'canViewClinicalEMR', 'canEditClinicalEMR', 'canManageAppointments', 'canManageInsurance',
+  'canViewFinancialBI', 'canExportData', 'canAdminister',
 ];
 
 const PERMISSIONS: Record<RoleKey, Set<Permission>> = {
   admin: new Set(ALL),
   sales_manager: new Set<Permission>([
     'canManageCustomers', 'canManageOrders', 'canApproveOrders', 'canManageVisits',
-    'canManageB2BContracts', 'canManageTickets', 'canManageLoyalty', 'canViewFinancialBI', 'canUseAiTriage',
+    'canManageB2BContracts', 'canManageTickets', 'canManageLoyalty', 'canViewFinancialBI', 'canExportData',
   ]),
   sales_rep: new Set<Permission>([
-    'canManageCustomers', 'canManageOrders', 'canManageVisits', 'canManageB2BContracts', 'canUseAiTriage',
+    'canManageCustomers', 'canManageOrders', 'canManageVisits', 'canManageB2BContracts',
   ]),
-  accountant: new Set<Permission>(['canManageOrders', 'canApproveOrders', 'canViewFinancialBI']),
+  accountant: new Set<Permission>(['canManageOrders', 'canApproveOrders', 'canViewFinancialBI', 'canExportData']),
   cskh_sales_consultant: new Set<Permission>([
-    'canManageCustomers', 'canManageOrders', 'canManageB2BContracts', 'canManageTickets', 'canManageLoyalty', 'canUseAiTriage',
+    'canManageCustomers', 'canManageOrders', 'canManageB2BContracts', 'canManageTickets', 'canManageLoyalty',
   ]),
   marketing_lead: new Set<Permission>(['canManageMarketing', 'canManageLoyalty']),
   viewer: new Set<Permission>([]),

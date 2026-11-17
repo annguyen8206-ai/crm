@@ -4,8 +4,11 @@ import type {
   CustomerRecord as Customer, ProductRecord as Product, OrderRecord as Order, VisitRecord as Visit, SalesTarget,
 } from '../../server/commerce-types';
 import type { RfmRow, ReceivableRow, RepKpi, RepurchaseDue } from '../../server/commerce';
+import type { PromotionRecord as Promotion } from '../../server/promotions';
+import type { OrderItem } from '../../server/commerce-types';
 
-export type { Customer, Product, Order, Visit, SalesTarget, RfmRow, ReceivableRow, RepKpi, RepurchaseDue };
+export type { Customer, Product, Order, Visit, SalesTarget, RfmRow, ReceivableRow, RepKpi, RepurchaseDue, Promotion };
+export interface PromotionOffer { code: string; name: string; discount: number; summary: string; giftItems: OrderItem[] }
 
 const qs = (params?: Record<string, unknown>) => {
   const q = new URLSearchParams();
@@ -73,8 +76,8 @@ export const crm = {
       request<{ visits: Visit[] }>('/visits', post(data)),
     checkIn: (id: string, location?: { lat: number; lng: number; accuracy?: number }, saveAsOutletLocation?: boolean) =>
       request<{ visit: Visit }>(`/visits/${id}/check-in`, post({ location, saveAsOutletLocation })),
-    checkOut: (id: string, data: { outcome?: string; notes?: string; orderId?: string; collectedAmount?: number }) =>
-      request<{ visit: Visit }>(`/visits/${id}/check-out`, post(data)),
+    checkOut: (id: string, data: { outcome?: string; notes?: string; orderId?: string; collectedAmount?: number; collectionMethod?: string }) =>
+      request<{ visit: Visit; collection?: { allocations: Array<{ orderId: string; orderCode: string; amount: number }>; unallocated: number } }>(`/visits/${id}/check-out`, post(data)),
     update: (id: string, data: Partial<Visit>) => request<{ visit: Visit }>(`/visits/${id}`, put(data)),
   },
   dashboard: (from?: string, to?: string) => request<Dashboard>(`/commerce/dashboard${qs({ from, to })}`),
@@ -94,6 +97,13 @@ export const crm = {
     list: () => request<{ tickets: any[]; total: number }>('/tickets'),
     create: (data: any) => request<{ ticket: any }>('/tickets', post(data)),
     update: (id: string, data: any) => request<{ ticket: any }>(`/tickets/${id}`, put(data)),
+  },
+  promotions: {
+    list: () => request<{ promotions: Array<Promotion & { used: number }>; total: number }>('/promotions'),
+    create: (data: Partial<Promotion>) => request<{ promotion: Promotion & { used: number } }>('/promotions', post(data)),
+    update: (id: string, data: Partial<Promotion>) => request<{ promotion: Promotion & { used: number } }>(`/promotions/${id}`, put(data)),
+    evaluate: (customerId: string, items: Array<{ productId: string; quantity: number; discountPercent?: number }>) =>
+      request<{ applicable: PromotionOffer[]; notApplicable: Array<{ code: string; name: string; reason: string }> }>('/promotions/evaluate', post({ customerId, items })),
   },
   messaging: {
     bulk: (data: { channel: 'zns' | 'sms'; recipients: Array<{ phone: string; name?: string; data?: Record<string, string> }>; message?: string; templateType?: string }) =>
