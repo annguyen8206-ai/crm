@@ -1,6 +1,6 @@
 /**
- * Demo data for the consumer-goods CRM (only loaded when SEED_DEMO_DATA=true).
- * Fictional brand "VitFood". Dates are generated relative to "now" with a
+ * Demo data for Pure Essential Oils (only loaded when SEED_DEMO_DATA=true or
+ * `npm run seed:demo`). Customers, deals and orders are fictional. Dates are generated relative to "now" with a
  * seeded PRNG so every boot looks the same shape and stays fresh.
  */
 import type { CustomerRecord, ProductRecord, OrderRecord, VisitRecord, SalesTarget, B2BChannel } from './commerce-types';
@@ -18,24 +18,24 @@ export function buildFmcgDemo(now = new Date()) {
   const pick = <T,>(a: T[]) => a[Math.floor(rnd() * a.length)];
   const today = ymd(now);
 
-  const P = (id: string, sku: string, name: string, category: string, unit: string, le: number, cycle?: number, stock = 500): ProductRecord => ({
-    id, sku, name, brand: 'VitFood', category, unit, packSize: unit === 'Thùng' ? 24 : undefined,
-    prices: { LE: le, NPP: Math.round(le * 0.72), DL1: Math.round(le * 0.78), DL2: Math.round(le * 0.82), GT: Math.round(le * 0.86), MT: Math.round(le * 0.84) },
-    cost: Math.round(le * 0.55), vatRate: 8, repurchaseCycleDays: cycle, stock, status: 'Đang bán', createdAt: addDays(today, -200),
+  const P = (id: string, sku: string, name: string, category: string, unit: string, le: number, cycle?: number, stock = 800, extra: Partial<ProductRecord> = {}): ProductRecord => ({
+    id, sku, name, brand: 'Pure', category, unit, packSize: unit === 'Chai' ? 24 : undefined,
+    prices: { LE: le, NPP: Math.round(le * 0.65), DL1: Math.round(le * 0.72), DL2: Math.round(le * 0.78), GT: Math.round(le * 0.82), MT: Math.round(le * 0.8) },
+    cost: Math.round(le * 0.4), vatRate: 8, repurchaseCycleDays: cycle, stock, status: 'Đang bán', createdAt: addDays(today, -200), ...extra,
   });
   const products: ProductRecord[] = [
-    P('prd-1', 'VF-NS500', 'Nước suối VitFood 500ml', 'Đồ uống', 'Thùng', 120_000, 14),
-    P('prd-2', 'VF-TX330', 'Trà xanh chanh 330ml', 'Đồ uống', 'Thùng', 168_000, 14),
-    P('prd-3', 'VF-ST1L', 'Sữa tươi tiệt trùng 1L', 'Sữa', 'Thùng', 396_000, 10),
-    P('prd-4', 'VF-SC180', 'Sữa chua uống 180ml', 'Sữa', 'Lốc', 32_000, 7),
-    P('prd-5', 'VF-BQ300', 'Bánh quy bơ 300g', 'Bánh kẹo', 'Hộp', 65_000, 30),
-    P('prd-6', 'VF-KD100', 'Kẹo dẻo trái cây 100g', 'Bánh kẹo', 'Gói', 18_000),
-    P('prd-7', 'VF-MG75', 'Mì gói tôm chua cay 75g', 'Thực phẩm khô', 'Thùng', 110_000, 21),
-    P('prd-8', 'VF-NM500', 'Nước mắm cá cơm 500ml', 'Gia vị', 'Chai', 45_000, 45),
-    P('prd-9', 'VF-DA1L', 'Dầu ăn đậu nành 1L', 'Gia vị', 'Chai', 52_000, 30),
-    P('prd-10', 'VF-NG3', 'Nước giặt hương hoa 3kg', 'Hoá phẩm', 'Can', 159_000, 40, 8),
-    P('prd-11', 'VF-RB750', 'Nước rửa bát chanh 750ml', 'Hoá phẩm', 'Chai', 35_000, 30),
-    { ...P('prd-12', 'VF-CF', 'Cà phê hoà tan 3in1 (sắp ra mắt)', 'Đồ uống', 'Hộp', 58_000), status: 'Sắp ra mắt', stock: 0 },
+    P('prd-1', 'PO-LAV10', 'Tinh dầu Oải hương 10ml', 'Tinh dầu nguyên chất', 'Chai', 150_000, 45, 800, { description: 'Thư giãn, dễ ngủ. Nhập khẩu Pháp.' }),
+    P('prd-2', 'PO-SA10', 'Tinh dầu Sả chanh 10ml', 'Tinh dầu nguyên chất', 'Chai', 90_000, 30, 800, { description: 'Khử mùi, đuổi muỗi, thơm phòng.' }),
+    P('prd-3', 'PO-TT10', 'Tinh dầu Tràm trà 10ml', 'Tinh dầu nguyên chất', 'Chai', 120_000, 45, 800, { description: 'Kháng khuẩn, hỗ trợ trị mụn.' }),
+    P('prd-4', 'PO-BH10', 'Tinh dầu Bạc hà 10ml', 'Tinh dầu nguyên chất', 'Chai', 110_000, 45),
+    P('prd-5', 'PO-QUE10', 'Tinh dầu Quế 10ml', 'Tinh dầu nguyên chất', 'Chai', 100_000, 60),
+    P('prd-6', 'PO-TG50', 'Tinh dầu Tràm gió cho bé 50ml', 'Mẹ & bé', 'Chai', 180_000, 30, 800, { description: 'Giữ ấm, phòng cảm cho trẻ sơ sinh.' }),
+    P('prd-7', 'PO-SA100', 'Tinh dầu Sả chanh 100ml', 'Tinh dầu nguyên chất', 'Chai', 390_000, 60),
+    P('prd-8', 'PO-BUOI30', 'Tinh dầu Vỏ bưởi dưỡng tóc 30ml', 'Chăm sóc tóc & da', 'Chai', 160_000, 30),
+    P('prd-9', 'PO-XIT100', 'Xịt phòng hương Sả chanh 100ml', 'Xịt & nến thơm', 'Chai', 85_000, 21),
+    P('prd-10', 'PO-MKT300', 'Máy khuếch tán tinh dầu vân gỗ 300ml', 'Máy khuếch tán', 'Cái', 650_000, undefined, 8, { packSize: undefined }),
+    P('prd-11', 'PO-NEN200', 'Nến thơm tinh dầu Oải hương 200g', 'Xịt & nến thơm', 'Hũ', 220_000, 45),
+    P('prd-12', 'PO-SET5', 'Bộ quà tặng 5 tinh dầu 10ml', 'Quà tặng', 'Hộp', 520_000, undefined, 0, { status: 'Sắp ra mắt' }),
   ];
 
   const reps = ['Nguyễn Văn An', 'Trần Thị Bình', 'Lê Minh Cường'];
@@ -43,19 +43,19 @@ export function buildFmcgDemo(now = new Date()) {
 
   const customers: CustomerRecord[] = [];
   const b2b: Array<[string, B2BChannel, number, number, CustomerRecord['visitFrequency']]> = [
-    ['NPP Minh Phát', 'Nhà phân phối', 500_000_000, 30, 'Hàng tuần'],
-    ['NPP Hải Long', 'Nhà phân phối', 300_000_000, 30, 'Hàng tuần'],
-    ['Đại lý Thành Công', 'Đại lý cấp 1', 120_000_000, 15, 'Hàng tuần'],
-    ['Đại lý Hoa Mai', 'Đại lý cấp 1', 80_000_000, 15, '2 tuần/lần'],
-    ['Đại lý Phúc An', 'Đại lý cấp 2', 40_000_000, 7, '2 tuần/lần'],
-    ['Tạp hoá Cô Ba', 'Tạp hoá (GT)', 40_000_000, 7, 'Hàng tuần'],
-    ['Tạp hoá Anh Tuấn', 'Tạp hoá (GT)', 40_000_000, 7, 'Hàng tuần'],
-    ['Tạp hoá Bà Sáu', 'Tạp hoá (GT)', 25_000_000, 7, 'Hàng tuần'],
-    ['Tạp hoá Hồng Nhung', 'Tạp hoá (GT)', 30_000_000, 7, '2 tuần/lần'],
+    ['NPP Hương Việt', 'Nhà phân phối', 500_000_000, 30, 'Hàng tuần'],
+    ['NPP Thảo Mộc Miền Bắc', 'Nhà phân phối', 300_000_000, 30, 'Hàng tuần'],
+    ['Đại lý An Nhiên', 'Đại lý cấp 1', 120_000_000, 15, 'Hàng tuần'],
+    ['Đại lý Mộc Lan', 'Đại lý cấp 1', 80_000_000, 15, '2 tuần/lần'],
+    ['Đại lý Hương Quê', 'Đại lý cấp 2', 40_000_000, 7, '2 tuần/lần'],
+    ['Nhà thuốc Minh Châu', 'Tạp hoá (GT)', 40_000_000, 7, 'Hàng tuần'],
+    ['Cửa hàng Mẹ & Bé Bống', 'Tạp hoá (GT)', 40_000_000, 7, 'Hàng tuần'],
+    ['Nhà thuốc Phúc Khang', 'Tạp hoá (GT)', 25_000_000, 7, 'Hàng tuần'],
+    ['Shop mỹ phẩm Hồng Nhung', 'Tạp hoá (GT)', 30_000_000, 7, '2 tuần/lần'],
     ['Siêu thị Mini Gia Đình', 'Siêu thị/Chuỗi (MT)', 150_000_000, 45, 'Hàng tháng'],
-    ['Chuỗi CửaHàng Xanh', 'Siêu thị/Chuỗi (MT)', 250_000_000, 45, 'Hàng tháng'],
-    ['Nhà hàng Sen Vàng', 'HoReCa', 20_000_000, 15, '2 tuần/lần'],
-    ['Công ty TNHH Bao Bì Việt', 'Doanh nghiệp', 30_000_000, 30, 'Hàng tháng'],
+    ['Chuỗi nhà thuốc An Tâm', 'Siêu thị/Chuỗi (MT)', 250_000_000, 45, 'Hàng tháng'],
+    ['Spa & Yoga Sen Vàng', 'HoReCa', 20_000_000, 15, '2 tuần/lần'],
+    ['Công ty TNHH Quà Tặng Việt', 'Doanh nghiệp', 30_000_000, 30, 'Hàng tháng'],
   ];
   b2b.forEach(([name, channel, creditLimit, paymentTermDays, visitFrequency], i) => {
     customers.push({
@@ -98,10 +98,13 @@ export function buildFmcgDemo(now = new Date()) {
     const gap = c.type === 'B2B' ? (c.visitFrequency === 'Hàng tuần' ? 7 : c.visitFrequency === '2 tuần/lần' ? 14 : 30) : 12 + Math.floor(rnd() * 25);
     const stopAfter = c.type === 'B2C' && rnd() < 0.3 ? addDays(today, -70 - Math.floor(rnd() * 50)) : today;
     for (let d = addDays(created, Math.floor(rnd() * gap)); d <= stopAfter; d = addDays(d, gap + Math.floor(rnd() * 5) - 2)) {
-      const lines = Array.from({ length: c.type === 'B2B' ? 2 + Math.floor(rnd() * 4) : 1 + Math.floor(rnd() * 3) }, () => ({
-        productId: pick(sellable).id,
-        quantity: c.type === 'B2B' ? (c.channel === 'Nhà phân phối' ? 50 : c.channel?.startsWith('Siêu thị') ? 30 : 3) + Math.floor(rnd() * (c.channel === 'Tạp hoá (GT)' ? 6 : 20)) : 1 + Math.floor(rnd() * 3),
-      }));
+      const lines = Array.from({ length: c.type === 'B2B' ? 2 + Math.floor(rnd() * 4) : 1 + Math.floor(rnd() * 3) }, () => {
+        const p = pick(sellable);
+        const q = c.type === 'B2B' ? (c.channel === 'Nhà phân phối' ? 50 : c.channel?.startsWith('Siêu thị') ? 30 : 3) + Math.floor(rnd() * (c.channel === 'Tạp hoá (GT)' ? 6 : 20)) : 1 + Math.floor(rnd() * 3);
+        // Big-ticket items (diffusers) sell in far smaller quantities than 10ml bottles.
+        const quantity = (p.prices.LE || 0) >= 500_000 ? Math.max(1, Math.round(q / 10)) : q;
+        return { productId: p.id, quantity };
+      });
       const merged = [...new Map(lines.map(l => [l.productId, l])).values()];
       const items = buildOrderItems(merged, products, c.priceTier);
       const t = orderTotals(items, 0, c.type === 'B2C' && rnd() < 0.5 ? 20_000 : 0);
@@ -140,7 +143,7 @@ export function buildFmcgDemo(now = new Date()) {
   }
   // A pending-approval order (over credit limit) for the approvals queue.
   const tapHoa = customers.find(c => c.id === 'cus-b2b-8')!;
-  const bigItems = buildOrderItems([{ productId: 'prd-3', quantity: 20 }, { productId: 'prd-1', quantity: 20 }], products, tapHoa.priceTier);
+  const bigItems = buildOrderItems([{ productId: 'prd-3', quantity: 120 }, { productId: 'prd-1', quantity: 120 }], products, tapHoa.priceTier);
   const bigT = orderTotals(bigItems);
   // Next free per-day number, so orders created later today continue the sequence naturally.
   const todayPrefix = `DH-${today.slice(2, 4)}${today.slice(5, 7)}${today.slice(8, 10)}-`;
@@ -180,14 +183,14 @@ export function buildFmcgDemo(now = new Date()) {
   const lastOrderOf = (id: string) => orders.filter(o => o.customerId === id && o.status === 'Đã giao').at(-1);
   const ticketSpec: Array<[string, string, SupportTicketRecord['priority'], SupportTicketRecord['status'], number, number, string, string?]> = [
     // customer, category, priority, status, created h ago, SLA h, description, resolution
-    ['cus-b2b-6', 'Giao hàng chậm / sai hàng', 'Cao (SLA 2h)', 'Mới tiếp nhận', 0.5, 2, 'Giao thiếu 2 thùng trà xanh so với phiếu xuất kho.'],
-    ['cus-b2c-3', 'Chất lượng sản phẩm', 'Cao (SLA 2h)', 'Đang xử lý', 3, 2, 'Hộp sữa tươi bị phồng, mùi lạ. Lô in trên hộp: L2611. Khách gửi ảnh qua Zalo.'],
-    ['cus-b2b-10', 'Trưng bày & hỗ trợ điểm bán', 'Trung bình (SLA 8h)', 'Đang xử lý', 5, 8, 'Siêu thị cần kệ trưng bày đầu quầy + POSM cho đợt khuyến mãi cuối tháng.'],
-    ['cus-b2c-7', 'Đổi trả hàng', 'Trung bình (SLA 8h)', 'Mới tiếp nhận', 1, 8, 'Đặt nhầm nước giặt 3kg, muốn đổi sang loại 1.8kg.'],
+    ['cus-b2b-6', 'Giao hàng chậm / sai hàng', 'Cao (SLA 2h)', 'Mới tiếp nhận', 0.5, 2, 'Giao thiếu 6 chai tinh dầu Tràm trà 10ml so với phiếu xuất kho.'],
+    ['cus-b2c-3', 'Chất lượng sản phẩm', 'Cao (SLA 2h)', 'Đang xử lý', 3, 2, 'Chai Oải hương 10ml bị rò ở nắp nhỏ giọt, mùi nhạt hơn lần trước. Lô in trên hộp: L2611. Khách gửi ảnh qua Zalo.'],
+    ['cus-b2b-10', 'Trưng bày & hỗ trợ điểm bán', 'Trung bình (SLA 8h)', 'Đang xử lý', 5, 8, 'Siêu thị cần kệ trưng bày + tester và máy khuếch tán mẫu cho quầy tinh dầu.'],
+    ['cus-b2c-7', 'Đổi trả hàng', 'Trung bình (SLA 8h)', 'Mới tiếp nhận', 1, 8, 'Đặt nhầm Sả chanh 100ml, muốn đổi sang chai 10ml + xịt phòng.'],
     ['cus-b2b-3', 'Công nợ / hoá đơn', 'Thấp (SLA 24h)', 'Đang xử lý', 30, 24, 'Đại lý đề nghị xuất lại hoá đơn VAT, sai mã số thuế.'],
     ['cus-b2c-1', 'Giá & khuyến mãi', 'Thấp (SLA 24h)', 'Đã giải quyết', 50, 24, 'Mã giảm giá trên Zalo không áp dụng được.', 'Đã cộng bù 50 điểm thưởng và hướng dẫn lại cách nhập mã.'],
-    ['cus-b2b-12', 'Giao hàng chậm / sai hàng', 'Cao (SLA 2h)', 'Đã giải quyết', 72, 2, 'Nhà hàng cần gấp 10 chai dầu ăn trước 11h.', 'Điều xe giao bổ sung lúc 10h20, khách xác nhận đã nhận.'],
-    ['cus-b2c-11', 'Chất lượng sản phẩm', 'Trung bình (SLA 8h)', 'Đã đóng', 120, 8, 'Bánh quy bị vỡ nhiều trong hộp.', 'Gửi tặng 1 hộp mới, chuyển phản ánh cho bộ phận đóng gói.'],
+    ['cus-b2b-12', 'Giao hàng chậm / sai hàng', 'Cao (SLA 2h)', 'Đã giải quyết', 72, 2, 'Spa cần gấp 10 chai Oải hương cho buổi trị liệu chiều nay.', 'Điều xe giao bổ sung lúc 10h20, khách xác nhận đã nhận.'],
+    ['cus-b2c-11', 'Chất lượng sản phẩm', 'Trung bình (SLA 8h)', 'Đã đóng', 120, 8, 'Máy khuếch tán phun sương yếu sau 2 tuần sử dụng.', 'Đổi máy mới theo bảo hành, hướng dẫn vệ sinh màng rung định kỳ.'],
   ];
   const tickets: SupportTicketRecord[] = ticketSpec.map(([cid, category, priority, status, agoH, slaH, description, resolution], i) => {
     const c = cust(cid);
@@ -205,13 +208,13 @@ export function buildFmcgDemo(now = new Date()) {
 
   // ----------------------------------------------------------- deals pipeline
   const leadSpec: Array<[string, 'B2B' | 'B2C', string, string, number, LeadDealRecord['stage'], number, string, number]> = [
-    ['Chuỗi WinMart+ khu vực Hà Đông', 'B2B', 'Chị Thu Hà - Trưởng ngành hàng', 'Listing 8 SKU đồ uống + sữa vào 40 cửa hàng', 1_200_000_000, 'Đàm phán', 70, 'Hội chợ / Triển lãm', 5],
+    ['Chuỗi nhà thuốc Bình An (32 cửa hàng)', 'B2B', 'Chị Thu Hà - Trưởng ngành hàng', 'Listing 6 SKU tinh dầu + Tràm gió cho bé vào toàn chuỗi', 1_200_000_000, 'Đàm phán', 70, 'Hội chợ / Triển lãm', 5],
     ['NPP Đông Anh', 'B2B', 'Anh Quân - Giám đốc', 'Mở nhà phân phối độc quyền khu vực Đông Anh – Sóc Sơn', 800_000_000, 'Gửi báo giá', 50, 'Giới thiệu', 3],
-    ['Bếp ăn công nghiệp Sao Mai', 'B2B', 'Chị Loan - Bếp trưởng', 'Cung cấp dầu ăn, nước mắm, mì gói hàng tháng', 240_000_000, 'Đã liên hệ', 35, 'Website', 7],
-    ['Tạp hoá Minh Châu', 'B2B', 'Cô Châu', 'Mở điểm bán mới tuyến T4', 25_000_000, 'Mới tiếp nhận', 20, 'Sales thị trường', 1],
-    ['Trường Mầm non Hoa Sen', 'B2B', 'Cô Hiệu trưởng', 'Sữa chua uống cho 300 bé, giao 2 lần/tuần', 180_000_000, 'Chốt thành công (Won)', 100, 'Giới thiệu', -2],
-    ['Công ty CP Phần mềm FPT (quà Tết)', 'B2C', 'Phòng Hành chính', '500 giỏ quà Tết nhân viên', 450_000_000, 'Gửi báo giá', 60, 'Hotline', 4],
-    ['Siêu thị Hapro', 'B2B', 'Anh Tùng', 'Listing nước giặt + nước rửa bát', 300_000_000, 'Thất bại (Lost)', 0, 'Sales thị trường', -10],
+    ['Khách sạn Lotus Garden', 'B2B', 'Chị Loan - Quản lý buồng phòng', 'Tinh dầu + máy khuếch tán cho 120 phòng, cấp hàng hằng tháng', 240_000_000, 'Đã liên hệ', 35, 'Website', 7],
+    ['Cửa hàng Mẹ & Bé Su Su', 'B2B', 'Chị Châu', 'Mở điểm bán mới tuyến T4', 25_000_000, 'Mới tiếp nhận', 20, 'Sales thị trường', 1],
+    ['Hệ thống Spa Thanh Tâm', 'B2B', 'Chị Hạnh - Chủ spa', 'Tinh dầu massage & xông hơi cho 4 cơ sở, giao 2 lần/tháng', 180_000_000, 'Chốt thành công (Won)', 100, 'Giới thiệu', -2],
+    ['Công ty CP Công nghệ Ánh Dương (quà Tết)', 'B2C', 'Phòng Hành chính', '500 bộ quà tặng tinh dầu Tết cho nhân viên', 450_000_000, 'Gửi báo giá', 60, 'Hotline', 4],
+    ['Siêu thị Hoàng Gia', 'B2B', 'Anh Tùng', 'Listing xịt phòng + nến thơm', 300_000_000, 'Thất bại (Lost)', 0, 'Sales thị trường', -10],
   ];
   const leads: LeadDealRecord[] = leadSpec.map(([customerName, type, contactPerson, serviceCategory, expectedValue, stage, probability, source, followIn], i) => ({
     id: `deal-demo-${i + 1}`, customerName, type, contactPerson, phone: `09${String(77_000_000 + i * 31_337).slice(0, 8)}`, email: '',
@@ -223,10 +226,10 @@ export function buildFmcgDemo(now = new Date()) {
   const conversations: ConversationRecord[] = [];
   const messages: MessageRecord[] = [];
   const convSpec: Array<[MessageChannel, string, string | undefined, number, Array<[('in' | 'out'), string]>]> = [
-    ['zalo', 'Nguyễn Thị Lan', 'cus-b2c-1', 1, [['in', 'Shop ơi sữa tươi 1L còn hàng không ạ? Mình lấy 2 thùng giao Cầu Giấy.'], ['out', 'Dạ còn ạ, chị cho em xin địa chỉ cụ thể để em lên đơn nhé.'], ['in', 'Ngõ 20 Cầu Giấy, sđt như Zalo này nhé']]],
-    ['facebook', 'Hoàng Minh Đức', 'cus-b2c-5', 0, [['in', 'Nước giặt hương hoa có loại túi nhỏ không shop?']]],
-    ['zalo', 'Tạp hoá Cô Ba', 'cus-b2b-6', 2, [['in', 'Em ơi tuần này có chương trình gì cho tạp hoá không?'], ['in', 'Cô lấy thêm 5 thùng mì nhé']]],
-    ['facebook', 'Trần Mai Phương', undefined, 1, [['in', 'Mình muốn làm đại lý ở Thái Bình thì liên hệ ai ạ?']]],
+    ['zalo', 'Nguyễn Thị Lan', 'cus-b2c-1', 1, [['in', 'Shop ơi tinh dầu Tràm gió cho bé còn hàng không ạ? Mình lấy 2 chai giao Cầu Giấy.'], ['out', 'Dạ còn ạ, chị cho em xin địa chỉ cụ thể để em lên đơn nhé.'], ['in', 'Ngõ 20 Cầu Giấy, sđt như Zalo này nhé']]],
+    ['facebook', 'Hoàng Minh Đức', 'cus-b2c-5', 0, [['in', 'Máy khuếch tán vân gỗ chạy được bao lâu 1 lần đổ nước vậy shop? Dùng phòng 20m² được không?']]],
+    ['zalo', 'Nhà thuốc Minh Châu', 'cus-b2b-6', 2, [['in', 'Em ơi tuần này có chương trình gì cho nhà thuốc không?'], ['in', 'Chị lấy thêm 10 chai Tràm gió nhé']]],
+    ['facebook', 'Trần Mai Phương', undefined, 1, [['in', 'Mình muốn làm đại lý tinh dầu Pure ở Thái Bình thì liên hệ ai ạ?']]],
   ];
   convSpec.forEach(([channel, displayName, customerId, unread, thread], i) => {
     const convId = `conv-demo-${i + 1}`;
@@ -249,23 +252,23 @@ export function buildFmcgDemo(now = new Date()) {
 
   // ------------------------------------------------------------ campaign log
   const campaigns = [
-    { id: 'cmp-demo-1', name: 'Nhắc mua lại sữa tươi', channel: 'zns', segment: 'Sắp hết hàng', customerType: 'B2C', recipients: 14, message: 'Sữa tươi VitFood của {ten} sắp hết — đặt ngay giảm 5%.', sentAt: `${addDays(today, -3)}T02:00:00.000Z`, sentBy: 'Marketing' },
-    { id: 'cmp-demo-2', name: 'CTKM tạp hoá tháng này', channel: 'sms', segment: 'Tạp hoá (GT)', customerType: 'B2B', recipients: 4, message: 'Mua 10 thùng mì tặng 1 thùng, áp dụng đến cuối tháng.', sentAt: `${addDays(today, -8)}T03:00:00.000Z`, sentBy: 'Marketing' },
+    { id: 'cmp-demo-1', name: 'Nhắc mua lại tinh dầu', channel: 'zns', segment: 'Sắp hết hàng', customerType: 'B2C', recipients: 14, message: 'Chai tinh dầu Pure của {ten} có lẽ sắp hết — đặt lại hôm nay giảm 5%, giao trong ngày.', sentAt: `${addDays(today, -3)}T02:00:00.000Z`, sentBy: 'Marketing' },
+    { id: 'cmp-demo-2', name: 'CTKM nhà thuốc & mẹ bé tháng này', channel: 'sms', segment: 'Tạp hoá (GT)', customerType: 'B2B', recipients: 4, message: 'Mua 10 chai Tràm gió cho bé tặng 1 chai, áp dụng đến cuối tháng.', sentAt: `${addDays(today, -8)}T03:00:00.000Z`, sentBy: 'Marketing' },
   ];
 
   // ------------------------------------------------------------- promotions
   const monthStart = `${today.slice(0, 7)}-01`;
   const promotions: PromotionRecord[] = [
-    { id: 'promo-demo-1', code: 'MI10TANG1', name: 'Mua 10 thùng mì tặng 1 thùng', description: 'Áp dụng cho tạp hoá & đại lý', type: 'gift',
-      buyProductId: 'prd-7', buyQty: 10, giftProductId: 'prd-7', giftQty: 1, customerType: 'B2B', channels: ['Tạp hoá (GT)', 'Đại lý cấp 1', 'Đại lý cấp 2'],
+    { id: 'promo-demo-1', code: 'TRAMGIO10T1', name: 'Mua 10 Tràm gió cho bé tặng 1', description: 'Áp dụng cho nhà thuốc, cửa hàng mẹ & bé, đại lý', type: 'gift',
+      buyProductId: 'prd-6', buyQty: 10, giftProductId: 'prd-6', giftQty: 1, customerType: 'B2B', channels: ['Tạp hoá (GT)', 'Đại lý cấp 1', 'Đại lý cấp 2'],
       startDate: monthStart, endDate: addDays(today, 20), active: true, createdAt: `${monthStart}T01:00:00.000Z`, createdBy: 'Marketing' },
-    { id: 'promo-demo-2', code: 'SUA5', name: 'Giảm 5% ngành Sữa cho NPP', type: 'percent', value: 5, maxDiscount: 5_000_000, minOrderValue: 10_000_000,
-      productIds: ['prd-3', 'prd-4'], customerType: 'B2B', channels: ['Nhà phân phối'],
+    { id: 'promo-demo-2', code: 'NPP5', name: 'Giảm 5% Oải hương & Tràm trà cho NPP', type: 'percent', value: 5, maxDiscount: 5_000_000, minOrderValue: 10_000_000,
+      productIds: ['prd-1', 'prd-3'], customerType: 'B2B', channels: ['Nhà phân phối'],
       startDate: monthStart, endDate: addDays(today, 30), active: true, createdAt: `${monthStart}T01:00:00.000Z`, createdBy: 'Marketing' },
     { id: 'promo-demo-3', code: 'CHAOBAN50K', name: 'Giảm 50k đơn online từ 300k', type: 'amount', value: 50_000, minOrderValue: 300_000,
       customerType: 'B2C', perCustomerLimit: 1, startDate: addDays(today, -10), endDate: addDays(today, 45), active: true,
       createdAt: `${addDays(today, -10)}T01:00:00.000Z`, createdBy: 'Marketing' },
-    { id: 'promo-demo-4', code: 'HE2026', name: 'Hè sảng khoái — giảm 8% đồ uống', type: 'percent', value: 8, productIds: ['prd-1', 'prd-2'],
+    { id: 'promo-demo-4', code: 'HE2026', name: 'Mùa hè không muỗi — giảm 8% Sả chanh & xịt phòng', type: 'percent', value: 8, productIds: ['prd-2', 'prd-7', 'prd-9'],
       customerType: 'ALL', startDate: addDays(today, -150), endDate: addDays(today, -60), active: true,
       createdAt: `${addDays(today, -150)}T01:00:00.000Z`, createdBy: 'Marketing' },
   ];

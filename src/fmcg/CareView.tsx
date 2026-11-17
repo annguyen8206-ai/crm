@@ -137,7 +137,7 @@ function TicketModal({ ticket, onClose, notify, canEdit, onDone }: { ticket: any
         {canEdit ? (
           <>
             <Field label="Trạng thái"><Select value={status} onChange={e => setStatus(e.target.value)}>{STATUSES.map(s => <option key={s}>{s}</option>)}</Select></Field>
-            <Field label="Hướng xử lý"><Textarea rows={3} value={resolution} onChange={e => setResolution(e.target.value)} placeholder="VD: Đổi 1 thùng mới, thu hồi lô lỗi để QA kiểm tra" /></Field>
+            <Field label="Hướng xử lý"><Textarea rows={3} value={resolution} onChange={e => setResolution(e.target.value)} placeholder="VD: Đổi chai mới, thu hồi lô lỗi để QA kiểm tra" /></Field>
             <Field label="Voucher / bồi hoàn"><Input value={voucher} onChange={e => setVoucher(e.target.value)} /></Field>
           </>
         ) : ticket.resolution && <p><b>Xử lý:</b> {ticket.resolution}</p>}

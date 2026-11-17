@@ -43,6 +43,19 @@ describe('buildFmcgDemo', () => {
     }
   });
 
+  it('the pending demo order really is over the customer\'s credit limit', () => {
+    const o = demo.orders.find(x => x.status === 'Chờ duyệt')!;
+    const c = demo.customers.find(x => x.id === o.customerId)!;
+    expect(c.outstandingDebt + o.total).toBeGreaterThan(c.creditLimit!);
+  });
+
+  it('promotions reference products that exist and are on sale', () => {
+    const ids = new Set(demo.products.filter(p => p.status === 'Đang bán').map(p => p.id));
+    for (const p of demo.promotions) {
+      for (const id of [p.buyProductId, p.giftProductId, ...(p.productIds || [])].filter(Boolean)) expect(ids.has(id!)).toBe(true);
+    }
+  });
+
   it('order codes match the bank-memo format the payment webhook expects', () => {
     expect(demo.orders.every(o => /^DH-\d{6}-\d{4}$/.test(o.code))).toBe(true);
   });

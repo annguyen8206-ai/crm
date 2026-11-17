@@ -97,7 +97,7 @@ export const OmnichannelInboxView: React.FC<Props> = ({
   }, [lightbox]);
   const [showSim, setShowSim] = useState(false);
   const [simName, setSimName] = useState('Khách Zalo Demo');
-  const [simText, setSimText] = useState('Shop ơi, sữa tươi 1L còn hàng không ạ?');
+  const [simText, setSimText] = useState('Shop ơi, tinh dầu Oải hương 10ml còn hàng không ạ?');
   const [simChannel, setSimChannel] = useState<'zalo' | 'facebook'>('zalo');
   const endRef = useRef<HTMLDivElement>(null);
 

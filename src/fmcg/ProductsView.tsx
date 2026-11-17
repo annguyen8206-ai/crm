@@ -8,7 +8,7 @@ import {
 } from './ui';
 
 const TIERS: PriceTier[] = ['LE', 'NPP', 'DL1', 'DL2', 'GT', 'MT'];
-const DEFAULT_CATEGORIES = ['Đồ uống', 'Sữa', 'Bánh kẹo', 'Thực phẩm khô', 'Gia vị', 'Hoá phẩm', 'Chăm sóc cá nhân', 'Khác'];
+const DEFAULT_CATEGORIES = ['Tinh dầu nguyên chất', 'Mẹ & bé', 'Chăm sóc tóc & da', 'Xịt & nến thơm', 'Máy khuếch tán', 'Quà tặng', 'Khác'];
 
 export function ProductsView({ notify, can, refreshKey }: ViewProps) {
   const [search, setSearch] = useState('');

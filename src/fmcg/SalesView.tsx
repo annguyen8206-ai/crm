@@ -408,7 +408,7 @@ function DealModal({ open, onClose, notify, userName, onDone }: { open: boolean;
         <Field label="Tên khách / đơn vị" required><Input value={d.customerName} onChange={e => set('customerName', e.target.value)} /></Field>
         <Field label="Người liên hệ"><Input value={d.contactPerson} onChange={e => set('contactPerson', e.target.value)} /></Field>
         <Field label="Điện thoại"><Input value={d.phone} onChange={e => set('phone', e.target.value)} /></Field>
-        <Field label="Nhu cầu / sản phẩm quan tâm" className="sm:col-span-2"><Input value={d.serviceCategory} onChange={e => set('serviceCategory', e.target.value)} placeholder="VD: Listing 12 SKU đồ uống vào chuỗi" /></Field>
+        <Field label="Nhu cầu / sản phẩm quan tâm" className="sm:col-span-2"><Input value={d.serviceCategory} onChange={e => set('serviceCategory', e.target.value)} placeholder="VD: Listing 6 SKU tinh dầu vào chuỗi nhà thuốc" /></Field>
         <Field label="Giá trị dự kiến (đ)"><MoneyInput value={d.expectedValue} onChange={v => set('expectedValue', v)} /></Field>
         <Field label="Xác suất chốt (%)"><Input type="number" min={0} max={100} value={d.probability} onChange={e => set('probability', Number(e.target.value) || 0)} /></Field>
         <Field label="Nguồn"><Select value={d.source} onChange={e => set('source', e.target.value)}>{['Sales thị trường', 'Website', 'Zalo', 'Facebook', 'Hotline', 'Hội chợ / Triển lãm', 'Giới thiệu'].map(s => <option key={s}>{s}</option>)}</Select></Field>
