@@ -17,6 +17,7 @@ import readline from 'node:readline';
 
 const EMPTY_SNAPSHOT = {
   customers: [], products: [], orders: [], visits: [], promotions: [],
+  lots: [], stockMoves: [], inventoryVouchers: [],
   tickets: [], leads: [], znsLogs: [], conversations: [], messages: [], collections: {}
 };
 

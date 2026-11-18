@@ -24,6 +24,7 @@ import { registerFileRoutes } from "./server/routes/files";
 import { registerCommerceRoutes } from "./server/routes/commerce";
 import { registerPromotionRoutes } from "./server/routes/promotions";
 import { registerExportRoutes } from "./server/routes/export";
+import { registerInventoryRoutes } from "./server/routes/inventory";
 
 dotenv.config();
 
@@ -147,6 +148,7 @@ export async function createApp(opts: { serveClient?: boolean } = {}): Promise<e
   registerCollectionRoutes(app);
   registerCommerceRoutes(app);
   registerPromotionRoutes(app);
+  registerInventoryRoutes(app);
   registerExportRoutes(app);
   registerCareRoutes(app);
   registerSalesRoutes(app);

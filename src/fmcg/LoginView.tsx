@@ -85,10 +85,10 @@ export function LoginView({ onLoginSuccess }: { onLoginSuccess: (u: CurrentUser)
           {!preAuth ? (
             <form onSubmit={login} className="space-y-4">
               <h1 className="text-base font-bold text-slate-900">Đăng nhập nhân viên</h1>
-              <Field label="Email hoặc mã nhân viên"><Input autoFocus autoComplete="username" value={identifier} onChange={e => setIdentifier(e.target.value)} required /></Field>
+              <Field label="Email hoặc mã nhân viên"><Input autoFocus autoComplete="username" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={identifier} onChange={e => setIdentifier(e.target.value)} required /></Field>
               <Field label="Mật khẩu">
                 <div className="relative">
-                  <Input type={show ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required className="pr-10" />
+                  <Input type={show ? 'text' : 'password'} autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={password} onChange={e => setPassword(e.target.value)} required className="pr-10" />
                   <button type="button" onClick={() => setShow(s => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 cursor-pointer" aria-label={show ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}>
                     {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>

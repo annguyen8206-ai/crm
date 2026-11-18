@@ -6,6 +6,7 @@
 import type { CustomerRecord, ProductRecord, OrderRecord, VisitRecord, SalesTarget, B2BChannel } from './commerce-types';
 import type { SupportTicketRecord, LeadDealRecord, ConversationRecord, MessageRecord, MessageChannel } from './store';
 import type { PromotionRecord } from './promotions';
+import { receive, type InventoryStore } from './inventory';
 import { CHANNEL_DEFAULT_TIER } from './commerce-types';
 import { buildOrderItems, orderTotals, paymentStatusOf, customerStats, tierForPoints, pointsForAmount, addDays, ymd } from './commerce';
 
@@ -273,5 +274,35 @@ export function buildFmcgDemo(now = new Date()) {
       createdAt: `${addDays(today, -150)}T01:00:00.000Z`, createdBy: 'Marketing' },
   ];
 
-  return { products, customers, orders, visits, salesTargets, tickets, leads, conversations, messages, campaigns, promotions };
+  // -------------------------------------------------------------- warehouse
+  // Two receipts: an older batch (some lots now near expiry, one expired) and a
+  // recent batch with long shelf life. The diffuser has no expiry date.
+  const inv: InventoryStore = { products, lots: [], stockMoves: [], inventoryVouchers: [] };
+  const batch = (code: string, daysAgo: number, partner: string, lines: Array<{ p: ProductRecord; lotNo: string; qty: number; mfg?: number; exp?: number }>) => {
+    const at = `${addDays(today, -daysAgo)}T03:00:00.000Z`;
+    const vLines = lines.map(({ p, lotNo, qty, mfg, exp }) => {
+      const lot = receive(inv, {
+        productId: p.id, lotNo, qty, type: 'Nhập mua', ref: code, by: 'Thủ kho Hoàng Nam', note: partner, at,
+        mfgDate: mfg !== undefined ? addDays(today, mfg) : undefined, expiryDate: exp !== undefined ? addDays(today, exp) : undefined, cost: p.cost,
+      });
+      return { productId: p.id, sku: p.sku, name: p.name, lotId: lot.id, lotNo: lot.lotNo, expiryDate: lot.expiryDate, qty, cost: p.cost };
+    });
+    inv.inventoryVouchers.unshift({ id: `iv-demo-${code}`, code, kind: 'in', reason: 'Nhập mua', partner, lines: vLines, createdBy: 'Thủ kho Hoàng Nam', createdAt: at });
+  };
+  const stamp6 = (daysAgo: number) => addDays(today, -daysAgo).slice(2).replace(/-/g, '');
+  const sellableP = products.filter(p => p.status !== 'Sắp ra mắt');
+  products.find(p => p.id === 'prd-10')!.trackExpiry = false;
+  for (const p of products) p.stock = 0; // stock now comes from the lots below
+  batch(`PN-${stamp6(150)}-01`, 150, 'Nhà máy Pure — Bình Dương', sellableP.map((p, i) => p.id === 'prd-10'
+    ? { p, lotNo: 'MKT-2606', qty: 8 }
+    : { p, lotNo: `L${stamp6(170).slice(0, 4)}-${String(i + 1).padStart(2, '0')}`, qty: p.id === 'prd-4' ? 24 : 300, mfg: -400,
+      // Sả chanh & xịt phòng: cận date; Bạc hà: one small lot already expired; the rest well in date.
+      exp: p.id === 'prd-4' ? -10 : (p.id === 'prd-2' || p.id === 'prd-9') ? 45 : 300 + i * 9 }));
+  batch(`PN-${stamp6(20)}-01`, 20, 'Nhà máy Pure — Bình Dương', sellableP.filter(p => p.id !== 'prd-10').map((p, i) => (
+    { p, lotNo: `L${stamp6(40).slice(0, 4)}-${String(i + 1).padStart(2, '0')}`, qty: p.id === 'prd-4' ? 776 : 500, mfg: -40, exp: 690 + i * 5 })));
+
+  return {
+    products, customers, orders, visits, salesTargets, tickets, leads, conversations, messages, campaigns, promotions,
+    lots: inv.lots, stockMoves: inv.stockMoves, inventoryVouchers: inv.inventoryVouchers,
+  };
 }

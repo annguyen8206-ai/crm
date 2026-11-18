@@ -19,6 +19,9 @@ export type DbSnapshot = {
   orders: unknown[];
   visits: unknown[];
   promotions: unknown[];
+  lots: unknown[];
+  stockMoves: unknown[];
+  inventoryVouchers: unknown[];
   collections: Record<string, unknown[]>;
 };
 
@@ -81,6 +84,9 @@ export async function initializeDatabase(): Promise<void> {
   if (result.rowCount) {
     restoreStore(result.rows[0].snapshot);
     currentVersion = Number(result.rows[0].version) || 0;
+    // Stock that existed before lot tracking becomes an opening lot (once).
+    const { ensureOpeningLots } = await import('./inventory');
+    if (ensureOpeningLots(dbStore)) void persistStore();
   } else {
     await pool.query(
       `INSERT INTO vitcrm_store (id, snapshot, version, updated_at) VALUES (1, $1::jsonb, 0, NOW())
@@ -210,7 +216,8 @@ export async function checkDatabase(): Promise<{ configured: boolean; connected:
 
 const SNAPSHOT_KEYS = [
   'tickets', 'leads', 'znsLogs', 'conversations', 'messages',
-  'customers', 'products', 'orders', 'visits', 'promotions', 'collections',
+  'customers', 'products', 'orders', 'visits', 'promotions',
+  'lots', 'stockMoves', 'inventoryVouchers', 'collections',
 ] as const satisfies ReadonlyArray<keyof DbSnapshot>;
 
 /** Exported for tests. Unknown (legacy) keys are written back verbatim. */
@@ -229,6 +236,9 @@ export function createSnapshot(): DbSnapshot & Record<string, unknown> {
     orders: dbStore.orders,
     visits: dbStore.visits,
     promotions: dbStore.promotions,
+    lots: dbStore.lots,
+    stockMoves: dbStore.stockMoves,
+    inventoryVouchers: dbStore.inventoryVouchers,
     collections: dbStore.collections
   };
 }

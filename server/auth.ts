@@ -188,7 +188,11 @@ export async function loginStaff(identifier: string, password: string): Promise<
   const user = result.rows[0];
   const lockedOut = user?.locked_until && new Date(user.locked_until) > new Date();
 
-  if (!user || user.status !== 'active' || lockedOut || !(await bcrypt.compare(password, user.password_hash))) {
+  // Phone keyboards and copy-paste often add a space at either end of the
+  // password; accept the trimmed form too (passwords are never set with one).
+  const passwordOk = !!user && (await bcrypt.compare(password, user.password_hash)
+    || (password !== password.trim() && await bcrypt.compare(password.trim(), user.password_hash)));
+  if (!user || user.status !== 'active' || lockedOut || !passwordOk) {
     if (user) {
       await pool.query(
         `UPDATE auth_users

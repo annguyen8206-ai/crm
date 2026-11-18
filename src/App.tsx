@@ -17,6 +17,7 @@ const DashboardView = lazy(() => import('./fmcg/DashboardView').then(m => ({ def
 const CustomersView = lazy(() => import('./fmcg/CustomersView').then(m => ({ default: m.CustomersView })));
 const OrdersView = lazy(() => import('./fmcg/OrdersView').then(m => ({ default: m.OrdersView })));
 const ProductsView = lazy(() => import('./fmcg/ProductsView').then(m => ({ default: m.ProductsView })));
+const InventoryView = lazy(() => import('./fmcg/InventoryView').then(m => ({ default: m.InventoryView })));
 const SalesView = lazy(() => import('./fmcg/SalesView').then(m => ({ default: m.SalesView })));
 const MarketingView = lazy(() => import('./fmcg/MarketingView').then(m => ({ default: m.MarketingView })));
 const LoyaltyView = lazy(() => import('./fmcg/LoyaltyView').then(m => ({ default: m.LoyaltyView })));
@@ -240,6 +241,7 @@ export default function App() {
               {activeTab === 'customers' && <CustomersView {...viewProps} />}
               {activeTab === 'orders' && <OrdersView {...viewProps} />}
               {activeTab === 'products' && <ProductsView {...viewProps} />}
+              {activeTab === 'inventory' && <InventoryView {...viewProps} />}
               {activeTab === 'sales' && <SalesView {...viewProps} />}
               {activeTab === 'marketing' && <MarketingView {...viewProps} />}
               {activeTab === 'loyalty' && <LoyaltyView {...viewProps} />}

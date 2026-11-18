@@ -8,6 +8,7 @@ import type {
 } from '../commerce-types';
 import { PRICE_TIERS, CHANNEL_DEFAULT_TIER } from '../commerce-types';
 import { evaluatePromotion, localYmd } from '../promotions';
+import { checkOrderStock, commitOrderStock, releaseOrderStock, receive, StockError } from '../inventory';
 import {
   buildOrderItems, orderTotals, paymentStatusOf, approvalReasons, customerStats, receivables, isRevenueOrder,
   pointsToCredit, tierForPoints, computeRfm, repurchaseDue, inactiveAccounts, distanceMeters,
@@ -57,12 +58,7 @@ function creditPoints(order: OrderRecord): void {
   c.lifetimePoints = (c.lifetimePoints || 0) + pts;
 }
 
-function adjustStock(order: OrderRecord, sign: 1 | -1): void {
-  for (const it of order.items) {
-    const p = dbStore.products.find(x => x.id === it.productId);
-    if (p && typeof p.stock === 'number') p.stock = Math.max(0, p.stock + sign * it.quantity);
-  }
-}
+// Stock now moves by lot (FEFO) — see server/inventory.ts.
 
 /**
  * Apply a payment to an order: caps at the outstanding balance, updates payment
@@ -139,7 +135,7 @@ function sanitizeCustomerPatch(body: any, type: CustomerRecord['type']): Partial
 
 const PRODUCT_EDITABLE: Array<keyof ProductRecord> = [
   'sku', 'barcode', 'name', 'brand', 'category', 'unit', 'packSize', 'prices', 'cost', 'vatRate',
-  'repurchaseCycleDays', 'stock', 'status', 'imageUrl', 'description',
+  'repurchaseCycleDays', 'stock', 'status', 'imageUrl', 'description', 'trackExpiry', 'expiryWarningDays',
 ];
 
 function sanitizeProductPatch(body: any): Partial<ProductRecord> {
@@ -151,9 +147,11 @@ function sanitizeProductPatch(body: any): Partial<ProductRecord> {
       const prices: Partial<Record<PriceTier, number>> = {};
       for (const t of PRICE_TIERS) { const n = num(v?.[t]); if (n !== undefined && n >= 0) prices[t] = n; }
       out.prices = prices;
-    } else if (['packSize', 'cost', 'vatRate', 'repurchaseCycleDays', 'stock'].includes(k)) {
+    } else if (['packSize', 'cost', 'vatRate', 'repurchaseCycleDays', 'stock', 'expiryWarningDays'].includes(k)) {
       const n = num(v);
       (out as any)[k] = n === undefined ? undefined : Math.max(0, n);
+    } else if (k === 'trackExpiry') {
+      out.trackExpiry = v !== false && v !== 'false';
     } else {
       (out as any)[k] = str(v, 2000);
     }
@@ -325,6 +323,10 @@ export function registerCommerceRoutes(app: Express): void {
       createdAt: nowIso(),
     };
     dbStore.products.unshift(p);
+    // An initial stock figure becomes an opening lot on the stock card.
+    const opening = p.stock || 0;
+    p.stock = 0;
+    if (opening > 0) receive(dbStore, { productId: p.id, lotNo: 'TON-DAU', qty: opening, type: 'Tồn đầu kỳ', by: actor(req), note: 'Tồn kho khi tạo sản phẩm' });
     res.status(201).json({ success: true, product: p });
   });
 
@@ -336,6 +338,7 @@ export function registerCommerceRoutes(app: Express): void {
       return res.status(409).json({ error: `SKU ${patch.sku} đã tồn tại` });
     }
     if (patch.prices && !patch.prices.LE) return res.status(400).json({ error: 'Cần giá bán lẻ (LE)' });
+    delete patch.stock; // stock only changes through warehouse vouchers and orders
     Object.assign(p, patch, { updatedAt: nowIso() });
     res.json({ success: true, product: p });
   });
@@ -404,11 +407,11 @@ export function registerCommerceRoutes(app: Express): void {
       promotionCode = promo.code;
       promotionDiscount = r.discount;
       items = [...items, ...r.giftItems];
-      for (const g of r.giftItems) {
-        const p = dbStore.products.find(x => x.id === g.productId);
-        if (p && typeof p.stock === 'number' && p.stock < g.quantity) return res.status(400).json({ error: `Không đủ hàng tặng ${p.sku} (tồn ${p.stock})` });
-      }
     }
+    // Enough non-expired stock for every line (gifts included)? Checked even for
+    // orders that will wait for approval, so nobody approves an order we can't ship.
+    const shortage = checkOrderStock(dbStore, { items });
+    if (shortage) return res.status(400).json({ error: shortage });
     const manualDiscount = num(body.discountAmount) || 0;
     const totals = orderTotals(items, manualDiscount + promotionDiscount, num(body.shippingFee) || 0);
     const upfront = Math.min(totals.total, Math.max(0, num(body.payment?.amount) || 0));
@@ -442,7 +445,7 @@ export function registerCommerceRoutes(app: Express): void {
       createdBy: actor(req),
       createdAt,
     };
-    if (o.status === 'Đã xác nhận') adjustStock(o, -1);
+    if (o.status === 'Đã xác nhận') commitOrderStock(dbStore, o, actor(req));
     dbStore.orders.unshift(o);
     if (o.visitId) {
       const v = dbStore.visits.find(x => x.id === o.visitId);
@@ -457,11 +460,16 @@ export function registerCommerceRoutes(app: Express): void {
     if (!o) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
     if (!canAccessBranch(req, o.branchId)) return res.status(403).json({ error: 'Đơn hàng thuộc chi nhánh khác' });
     if (o.status !== 'Chờ duyệt') return res.status(400).json({ error: `Đơn đang ở trạng thái "${o.status}"` });
+    try {
+      commitOrderStock(dbStore, o, actor(req));
+    } catch (e: any) {
+      if (e instanceof StockError) return res.status(400).json({ error: e.message });
+      throw e;
+    }
     o.status = 'Đã xác nhận';
     o.approvedBy = actor(req);
     o.approvedAt = nowIso();
     o.updatedAt = o.approvedAt;
-    adjustStock(o, -1);
     recomputeCustomer(o.customerId);
     res.json({ success: true, order: o });
   });
@@ -480,7 +488,7 @@ export function registerCommerceRoutes(app: Express): void {
     if (to === 'Đã giao') o.deliveredAt = o.updatedAt;
     if (to === 'Đã huỷ' || to === 'Trả hàng') {
       o.cancelledReason = str(req.body?.reason, 500);
-      if (wasCommitted) adjustStock(o, 1);
+      if (wasCommitted) releaseOrderStock(dbStore, o, to === 'Trả hàng' ? 'Nhập trả hàng' : 'Hoàn kho huỷ đơn', actor(req));
       // Returned goods: take back any loyalty points the order earned.
       if (o.pointsEarned) {
         const c = dbStore.customers.find(x => x.id === o.customerId);

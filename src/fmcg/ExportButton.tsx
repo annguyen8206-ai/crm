@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FileSpreadsheet, Download } from 'lucide-react';
 import { Button, Modal, Field, Select, Input, today, shiftDate } from './ui';
 
-export type ExportKind = 'customers' | 'orders' | 'order-items' | 'receivables' | 'products' | 'visits';
+export type ExportKind = 'customers' | 'orders' | 'order-items' | 'receivables' | 'products' | 'visits' | 'stock-lots' | 'stock-moves';
 
 const REPORTS: Array<{ id: ExportKind; label: string; hint: string; dated: boolean; typed: boolean }> = [
   { id: 'orders', label: 'Danh sách đơn hàng', hint: 'Mỗi đơn 1 dòng: tổng tiền, chiết khấu, KM, đã thu, còn nợ', dated: true, typed: true },
@@ -11,6 +11,8 @@ const REPORTS: Array<{ id: ExportKind; label: string; hint: string; dated: boole
   { id: 'customers', label: 'Danh sách khách hàng', hint: 'Thông tin liên hệ, hạn mức, doanh số, công nợ, hạng hội viên', dated: false, typed: true },
   { id: 'products', label: 'Sản phẩm & bảng giá', hint: 'Giá theo từng kênh, tồn kho', dated: false, typed: false },
   { id: 'visits', label: 'Viếng thăm điểm bán', hint: 'Check-in/out, khoảng cách, kết quả, thu nợ', dated: true, typed: false },
+  { id: 'stock-lots', label: 'Tồn kho theo lô & hạn sử dụng', hint: 'Mỗi lô một dòng: số lô, NSX, HSD, còn bao nhiêu ngày, tình trạng, số lượng, giá trị', dated: false, typed: false },
+  { id: 'stock-moves', label: 'Thẻ kho (nhập – xuất – tồn)', hint: 'Mọi biến động kho theo lô, chứng từ, người thực hiện', dated: true, typed: false },
 ];
 
 async function download(kind: ExportKind, params: Record<string, string | undefined>) {

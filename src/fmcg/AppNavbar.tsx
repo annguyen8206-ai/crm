@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard, Users, ShoppingCart, Package, Briefcase, Megaphone, Award, Headphones, MessageSquare,
-  Bell, LogOut, UserCog, Building2, Plug, ChevronDown,
+  Bell, LogOut, UserCog, Building2, Plug, ChevronDown, Warehouse,
 } from 'lucide-react';
 import type { ActiveTab, Branch, BranchId, CurrentUser } from '../types';
 import { getRoleConfig } from '../utils/rbac';
@@ -12,6 +12,7 @@ export const NAV_ITEMS: Array<{ id: ActiveTab; label: string; icon: React.Compon
   { id: 'orders', label: 'Đơn hàng & Công nợ', icon: ShoppingCart },
   { id: 'sales', label: 'Kinh doanh', icon: Briefcase },
   { id: 'products', label: 'Sản phẩm', icon: Package },
+  { id: 'inventory', label: 'Kho hàng', icon: Warehouse },
   { id: 'marketing', label: 'Marketing', icon: Megaphone },
   { id: 'loyalty', label: 'Hội viên', icon: Award },
   { id: 'care', label: 'CSKH', icon: Headphones },

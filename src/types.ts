@@ -19,6 +19,7 @@ export type ActiveTab =
   | 'customers'
   | 'orders'
   | 'products'
+  | 'inventory'
   | 'sales'
   | 'marketing'
   | 'loyalty'

@@ -5,6 +5,8 @@ export type { CustomerRecord, ProductRecord, OrderRecord, VisitRecord } from './
 import { buildFmcgDemo } from './seed-fmcg';
 import type { PromotionRecord } from './promotions';
 export type { PromotionRecord } from './promotions';
+import type { LotRecord, StockMove, InventoryVoucher } from './inventory';
+export type { LotRecord, StockMove, InventoryVoucher } from './inventory';
 
 /**
  * Customer-care ticket. The `patient*` field names are kept from the original
@@ -139,6 +141,11 @@ class CrmStore {
   visits: VisitRecord[] = [];
   promotions: PromotionRecord[] = [];
 
+  // Warehouse: stock by lot + stock card (see server/inventory.ts)
+  lots: LotRecord[] = [];
+  stockMoves: StockMove[] = [];
+  inventoryVouchers: InventoryVoucher[] = [];
+
   /**
    * Snapshot keys this version no longer uses (e.g. patients / appointments from
    * the healthcare edition). Carried through every persist untouched so pointing
@@ -160,6 +167,9 @@ class CrmStore {
     this.orders = [];
     this.visits = [];
     this.promotions = [];
+    this.lots = [];
+    this.stockMoves = [];
+    this.inventoryVouchers = [];
     this.legacy = {};
   }
 
@@ -198,6 +208,9 @@ export function loadDemoData(now = new Date()): void {
   dbStore.conversations = demo.conversations;
   dbStore.messages = demo.messages;
   dbStore.promotions = demo.promotions;
+  dbStore.lots = demo.lots;
+  dbStore.stockMoves = demo.stockMoves;
+  dbStore.inventoryVouchers = demo.inventoryVouchers;
   dbStore.collections.salesTargets = demo.salesTargets;
   dbStore.collections.campaigns = demo.campaigns;
 }

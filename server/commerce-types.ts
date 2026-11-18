@@ -111,7 +111,9 @@ export interface ProductRecord {
   cost?: number;
   vatRate?: number;          // % — for invoicing only
   repurchaseCycleDays?: number; // typical consumption cycle → repurchase reminder
-  stock?: number;
+  stock?: number;            // derived: total of all lots (see server/inventory.ts)
+  trackExpiry?: boolean;     // false = no expiry date on receipts (e.g. diffusers); default true
+  expiryWarningDays?: number; // "cận date" threshold for this product; default EXPIRY_WARNING_DAYS
   status: ProductStatus;
   imageUrl?: string;
   description?: string;
@@ -177,6 +179,8 @@ export interface OrderRecord {
   cancelledReason?: string;
   visitId?: string;
   pointsEarned?: number;     // loyalty points credited (B2C, once delivered & paid)
+  /** Lots the goods were issued from (FEFO) — lot traceability. */
+  lotAllocations?: Array<{ productId: string; lotId: string; lotNo: string; expiryDate?: string; qty: number }>;
   notes?: string;
   createdBy?: string;
   createdAt: string;         // ISO

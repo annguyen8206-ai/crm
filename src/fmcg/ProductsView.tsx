@@ -176,8 +176,19 @@ function ProductFormModal({ open, editing, categories, onClose, onSaved, notify 
         <div className="grid sm:grid-cols-4 gap-3">
           <Field label="Giá vốn"><MoneyInput value={d.cost} onChange={v => set('cost', v || undefined)} /></Field>
           <Field label="VAT %"><Input type="number" min={0} max={20} value={d.vatRate ?? ''} onChange={e => set('vatRate', Number(e.target.value) || 0)} /></Field>
-          <Field label="Tồn kho"><Input type="number" min={0} value={d.stock ?? ''} onChange={e => set('stock', e.target.value === '' ? undefined : Number(e.target.value))} /></Field>
+          {editing
+            ? <Field label="Tồn kho" hint="Thay đổi qua Kho hàng (nhập / xuất / kiểm kê)"><Input value={(d.stock ?? 0).toLocaleString('vi-VN')} disabled /></Field>
+            : <Field label="Tồn đầu kỳ" hint="Ghi thành lô TON-DAU; nhập theo lô & HSD ở mục Kho hàng"><Input type="number" min={0} value={d.stock ?? ''} onChange={e => set('stock', e.target.value === '' ? undefined : Number(e.target.value))} /></Field>}
           <Field label="Chu kỳ mua lại (ngày)" hint="Dùng để nhắc khách B2C mua lại"><Input type="number" min={0} value={d.repurchaseCycleDays ?? ''} onChange={e => set('repurchaseCycleDays', Number(e.target.value) || undefined)} /></Field>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3 items-end">
+          <label className="flex items-center gap-2 text-sm py-2">
+            <input type="checkbox" checked={d.trackExpiry !== false} onChange={e => set('trackExpiry', e.target.checked)} />
+            Quản lý hạn sử dụng (bắt buộc nhập HSD khi nhập kho)
+          </label>
+          {d.trackExpiry !== false && (
+            <Field label="Cảnh báo cận date trước (ngày)" hint="Mặc định 90 ngày"><Input type="number" min={1} value={d.expiryWarningDays ?? ''} placeholder="90" onChange={e => set('expiryWarningDays', Number(e.target.value) || undefined)} /></Field>
+          )}
         </div>
         <Field label="Mô tả"><Textarea rows={2} value={d.description || ''} onChange={e => set('description', e.target.value)} /></Field>
       </div>

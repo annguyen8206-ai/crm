@@ -164,6 +164,17 @@ export function OrderDrawer({ order: o, onClose, onChanged, notify, can }: {
         <div className="text-slate-400 text-xs">Tạo {fmtDateTime(o.createdAt)} bởi {o.createdBy}{o.approvedBy ? ` · Duyệt bởi ${o.approvedBy}` : ''}{o.deliveredAt ? ` · Giao ${fmtDateTime(o.deliveredAt)}` : ''}</div>
         {o.cancelledReason && <div className="text-rose-600">Lý do: {o.cancelledReason}</div>}
         {o.pointsEarned ? <div className="text-emerald-700">Đã cộng {o.pointsEarned} điểm thưởng</div> : null}
+        {!!o.lotAllocations?.length && (
+          <div className="pt-1">
+            <div className="text-xs font-bold text-slate-500 uppercase">Xuất kho theo lô</div>
+            <ul className="text-xs text-slate-600 mt-1 space-y-0.5">
+              {o.lotAllocations.map((a, i) => {
+                const item = o.items.find(it => it.productId === a.productId);
+                return <li key={i}>{item?.sku || a.productId} · lô <b className="font-mono">{a.lotNo}</b>{a.expiryDate ? ` · HSD ${fmtDate(a.expiryDate)}` : ''} · {a.qty} {item?.unit || ''}</li>;
+              })}
+            </ul>
+          </div>
+        )}
         {o.notes && <div className="bg-slate-50 rounded-lg p-2 text-slate-600">{o.notes}</div>}
       </Card>
 

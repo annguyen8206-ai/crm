@@ -21,7 +21,7 @@ export const ROLE_CONFIGS: Record<RoleKey, RoleConfig> = {
     title: 'Ban Giám đốc / Quản trị hệ thống',
     description: 'Toàn quyền: báo cáo, khách hàng, đơn hàng, sản phẩm & bảng giá, kinh doanh, marketing, loyalty, cấu hình hệ thống.',
     defaultTab: 'dashboard',
-    allowedTabs: ['dashboard', 'customers', 'orders', 'products', 'sales', 'marketing', 'loyalty', 'care', 'inbox'],
+    allowedTabs: ['dashboard', 'customers', 'orders', 'products', 'inventory', 'sales', 'marketing', 'loyalty', 'care', 'inbox'],
     badge: 'bg-purple-100 text-purple-800 border-purple-200',
   },
   sales_manager: {
@@ -29,7 +29,7 @@ export const ROLE_CONFIGS: Record<RoleKey, RoleConfig> = {
     title: 'Quản lý kinh doanh (ASM/RSM)',
     description: 'Quản lý đội sales, duyệt đơn vượt hạn mức/chiết khấu, giao chỉ tiêu, theo dõi công nợ và KPI.',
     defaultTab: 'dashboard',
-    allowedTabs: ['dashboard', 'customers', 'orders', 'products', 'sales', 'loyalty', 'care', 'inbox'],
+    allowedTabs: ['dashboard', 'customers', 'orders', 'products', 'inventory', 'sales', 'loyalty', 'care', 'inbox'],
     badge: 'bg-indigo-100 text-indigo-800 border-indigo-200',
   },
   sales_rep: {
@@ -43,10 +43,18 @@ export const ROLE_CONFIGS: Record<RoleKey, RoleConfig> = {
   accountant: {
     roleKey: 'accountant',
     title: 'Kế toán công nợ',
-    description: 'Ghi nhận thanh toán, đối soát công nợ, duyệt đơn vượt hạn mức, báo cáo doanh thu.',
+    description: 'Ghi nhận thanh toán, đối soát công nợ, duyệt đơn vượt hạn mức, báo cáo doanh thu, nhập xuất kho.',
     defaultTab: 'orders',
-    allowedTabs: ['dashboard', 'orders', 'customers', 'products'],
+    allowedTabs: ['dashboard', 'orders', 'customers', 'products', 'inventory'],
     badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  },
+  warehouse_keeper: {
+    roleKey: 'warehouse_keeper',
+    title: 'Thủ kho',
+    description: 'Nhập kho theo lô và hạn sử dụng, xuất huỷ, kiểm kê, theo dõi hàng cận date, xem đơn cần giao.',
+    defaultTab: 'inventory',
+    allowedTabs: ['inventory', 'products', 'orders'],
+    badge: 'bg-amber-100 text-amber-800 border-amber-200',
   },
   cskh_sales_consultant: {
     roleKey: 'cskh_sales_consultant',
@@ -81,6 +89,7 @@ export const ROLE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'Quản lý kinh doanh', label: 'Quản lý kinh doanh (ASM/RSM)' },
   { value: 'Nhân viên kinh doanh', label: 'Nhân viên kinh doanh / Sales thị trường' },
   { value: 'Kế toán công nợ', label: 'Kế toán công nợ' },
+  { value: 'Thủ kho', label: 'Thủ kho' },
   { value: 'CSKH & Bán hàng online', label: 'CSKH & Bán hàng online' },
   { value: 'Marketing Lead', label: 'Marketing' },
 ];

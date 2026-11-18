@@ -5,6 +5,7 @@ import { scopeList } from '../branch-scope';
 import { receivables } from '../commerce';
 import { PRICE_TIERS, PRICE_TIER_LABELS } from '../commerce-types';
 import { recordAudit } from '../audit';
+import { fefo, lotView, localDay } from '../inventory';
 
 /**
  * Excel-ready CSV exports (UTF-8 with BOM so Excel shows Vietnamese correctly).
@@ -43,10 +44,11 @@ const inRange = (iso: string | undefined, from?: string, to?: string) => {
   return (!from || d >= from) && (!to || d <= to);
 };
 
-const KINDS = ['customers', 'orders', 'order-items', 'receivables', 'products', 'visits'] as const;
+const KINDS = ['customers', 'orders', 'order-items', 'receivables', 'products', 'visits', 'stock-lots', 'stock-moves'] as const;
 type Kind = typeof KINDS[number];
 const FILE_LABEL: Record<Kind, string> = {
   customers: 'khach-hang', orders: 'don-hang', 'order-items': 'chi-tiet-don-hang', receivables: 'cong-no', products: 'san-pham', visits: 'vieng-tham',
+  'stock-lots': 'ton-kho-theo-lo', 'stock-moves': 'the-kho',
 };
 
 export function buildExport(kind: Kind, req: Pick<Request, 'authUser'> & { query: Record<string, unknown> }): { header: string[]; rows: Cell[][] } {
@@ -98,6 +100,24 @@ export function buildExport(kind: Kind, req: Pick<Request, 'authUser'> & { query
         rows: dbStore.products.map(p => [p.sku, p.barcode, p.name, p.brand, p.category, p.unit, p.packSize, ...PRICE_TIERS.map(t => p.prices?.[t]),
           p.cost, p.vatRate, p.stock, p.repurchaseCycleDays, p.status]),
       };
+    case 'stock-lots': {
+      const day = localDay();
+      const rows = dbStore.lots.filter(l => l.qty > 0).sort(fefo).map(l => lotView(dbStore, l, day));
+      return {
+        header: ['SKU', 'Sản phẩm', 'ĐVT', 'Số lô', 'Ngày SX', 'Hạn sử dụng', 'Còn (ngày)', 'Tình trạng', 'Tồn', 'Giá vốn / đv', 'Giá trị tồn', 'Ngày nhập'],
+        rows: rows.map(l => {
+          const cost = l.cost ?? dbStore.products.find(p => p.id === l.productId)?.cost;
+          return [l.sku, l.name, l.unit, l.lotNo, fmt(l.mfgDate), fmt(l.expiryDate), l.daysLeft ?? '', l.status, l.qty, cost, cost != null ? cost * l.qty : undefined, fmt(l.receivedAt)];
+        }),
+      };
+    }
+    case 'stock-moves': {
+      const rows = dbStore.stockMoves.filter(m => inRange(localDay(new Date(m.at)), from, to)).sort((a, b) => a.at.localeCompare(b.at));
+      return {
+        header: ['Thời gian', 'Loại', 'Chứng từ', 'SKU', 'Số lô', 'Hạn sử dụng', 'Nhập', 'Xuất', 'Tồn sau', 'Người thực hiện', 'Ghi chú'],
+        rows: rows.map(m => [fmt(m.at), m.type, m.ref, m.sku, m.lotNo, fmt(m.expiryDate), m.qty > 0 ? m.qty : '', m.qty < 0 ? -m.qty : '', m.balanceAfter, m.by, m.note]),
+      };
+    }
     case 'visits': {
       const rows = scopeList(r, dbStore.visits, v => v.branchId).filter(v => inRange(v.plannedDate, from, to)).sort((a, b) => a.plannedDate.localeCompare(b.plannedDate));
       return {

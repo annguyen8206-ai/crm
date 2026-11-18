@@ -8,6 +8,13 @@ import type { PromotionRecord as Promotion } from '../../server/promotions';
 import type { OrderItem } from '../../server/commerce-types';
 
 export type { Customer, Product, Order, Visit, SalesTarget, RfmRow, ReceivableRow, RepKpi, RepurchaseDue, Promotion };
+import type { LotRecord, StockMove, InventoryVoucher, ExpiryStatus } from '../../server/inventory';
+export type { StockMove, InventoryVoucher, ExpiryStatus };
+export type LotView = LotRecord & { name: string; unit: string; daysLeft: number | null; status: ExpiryStatus };
+export interface StockRow {
+  productId: string; sku: string; name: string; unit: string; status: string; trackExpiry: boolean;
+  total: number; sellable: number; nearExpiry: number; expired: number; lotCount: number; nextExpiry?: string; value: number;
+}
 export interface PromotionOffer { code: string; name: string; discount: number; summary: string; giftItems: OrderItem[] }
 
 const qs = (params?: Record<string, unknown>) => {
@@ -97,6 +104,19 @@ export const crm = {
     list: () => request<{ tickets: any[]; total: number }>('/tickets'),
     create: (data: any) => request<{ ticket: any }>('/tickets', post(data)),
     update: (id: string, data: any) => request<{ ticket: any }>(`/tickets/${id}`, put(data)),
+  },
+  inventory: {
+    summary: () => request<{ rows: StockRow[]; totals: { units: number; value: number; nearExpiryLots: number; expiredLots: number; expiredUnits: number } }>('/inventory/summary'),
+    lots: (p?: { productId?: string; status?: string; includeEmpty?: boolean }) => request<{ lots: LotView[]; total: number }>(`/inventory/lots${qs(p)}`),
+    trace: (lotId: string) => request<{ lot: LotView; moves: StockMove[]; orders: Array<{ id: string; code: string; customerName: string; customerPhone: string; status: string; createdAt: string; qty: number }> }>(`/inventory/lots/${lotId}/trace`),
+    moves: (p?: { productId?: string; lotId?: string; type?: string; from?: string; to?: string; limit?: number }) => request<{ moves: StockMove[]; total: number }>(`/inventory/moves${qs({ limit: 500, ...p })}`),
+    vouchers: () => request<{ vouchers: InventoryVoucher[]; total: number }>('/inventory/vouchers?limit=300'),
+    receipt: (data: { reason: string; partner?: string; note?: string; lines: Array<{ productId: string; lotNo: string; mfgDate?: string; expiryDate?: string; qty: number; cost?: number }> }) =>
+      request<{ voucher: InventoryVoucher }>('/inventory/receipts', post(data)),
+    issue: (data: { reason: string; partner?: string; note?: string; lines: Array<{ lotId: string; qty: number }> }) =>
+      request<{ voucher: InventoryVoucher }>('/inventory/issues', post(data)),
+    count: (data: { note?: string; lines: Array<{ lotId: string; actualQty: number }> }) =>
+      request<{ voucher: InventoryVoucher }>('/inventory/counts', post(data)),
   },
   promotions: {
     list: () => request<{ promotions: Array<Promotion & { used: number }>; total: number }>('/promotions'),

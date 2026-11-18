@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { dbStore } from '../store';
 import { receivables, inactiveAccounts } from '../commerce';
+import { expiryStatus, localDay, EXPIRY_WARNING_DAYS } from '../inventory';
 
 export type Notification = {
   id: string;
@@ -13,7 +14,7 @@ export type Notification = {
 
 const RESOLVED = new Set(['Đã giải quyết', 'Đã đóng']);
 
-type NotifStore = Pick<typeof dbStore, 'tickets' | 'orders' | 'products' | 'customers'>;
+type NotifStore = Pick<typeof dbStore, 'tickets' | 'orders' | 'products' | 'customers'> & Partial<Pick<typeof dbStore, 'lots'>>;
 
 /** Derive actionable alerts from the current store. Pure — exported for tests. */
 export function computeNotifications(store: NotifStore, now = Date.now()): Notification[] {
@@ -78,6 +79,27 @@ export function computeNotifications(store: NotifStore, now = Date.now()): Notif
       id: 'stock-low', severity: 'med', tab: 'products', count: low.length,
       title: `${low.length} sản phẩm sắp hết hàng`,
       detail: low.slice(0, 3).map(p => `${p.sku} (${p.stock})`).join(', '),
+    });
+  }
+
+  // 5b. Lots past expiry still on the shelf / lots close to expiry
+  const today = localDay(nowDate);
+  const liveLots = (store.lots || []).filter(l => l.qty > 0);
+  const productOf = (id: string) => (store.products || []).find(p => p.id === id);
+  const expired = liveLots.filter(l => expiryStatus(l, today, productOf(l.productId)?.expiryWarningDays || EXPIRY_WARNING_DAYS) === 'Hết hạn');
+  if (expired.length) {
+    out.push({
+      id: 'lots-expired', severity: 'high', tab: 'inventory', count: expired.length,
+      title: `${expired.length} lô hàng đã hết hạn còn trong kho`,
+      detail: expired.slice(0, 3).map(l => `${l.sku} lô ${l.lotNo} (${l.qty})`).join(', '),
+    });
+  }
+  const near = liveLots.filter(l => expiryStatus(l, today, productOf(l.productId)?.expiryWarningDays || EXPIRY_WARNING_DAYS) === 'Cận date');
+  if (near.length) {
+    out.push({
+      id: 'lots-near-expiry', severity: 'med', tab: 'inventory', count: near.length,
+      title: `${near.length} lô hàng cận date`,
+      detail: near.sort((a, b) => (a.expiryDate || '').localeCompare(b.expiryDate || '')).slice(0, 3).map(l => `${l.sku} lô ${l.lotNo} HSD ${l.expiryDate}`).join(', '),
     });
   }
 

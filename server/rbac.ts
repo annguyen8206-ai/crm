@@ -20,6 +20,7 @@ export type Permission =
   | 'canManageLoyalty'
   | 'canViewFinancialBI'
   | 'canExportData'          // download customer / order / receivable lists (contains PII)
+  | 'canManageInventory'     // warehouse receipts / issues / stock counts by lot
   | 'canAdminister';
 
 export type RoleKey =
@@ -29,12 +30,13 @@ export type RoleKey =
   | 'accountant'
   | 'cskh_sales_consultant'
   | 'marketing_lead'
+  | 'warehouse_keeper'
   | 'viewer';
 
 const ALL: Permission[] = [
   'canManageCustomers', 'canManageOrders', 'canApproveOrders', 'canManageProducts', 'canManageVisits',
   'canManageB2BContracts', 'canManageMarketing', 'canManageTickets', 'canManageLoyalty',
-  'canViewFinancialBI', 'canExportData', 'canAdminister',
+  'canViewFinancialBI', 'canExportData', 'canManageInventory', 'canAdminister',
 ];
 
 const PERMISSIONS: Record<RoleKey, Set<Permission>> = {
@@ -46,7 +48,8 @@ const PERMISSIONS: Record<RoleKey, Set<Permission>> = {
   sales_rep: new Set<Permission>([
     'canManageCustomers', 'canManageOrders', 'canManageVisits', 'canManageB2BContracts',
   ]),
-  accountant: new Set<Permission>(['canManageOrders', 'canApproveOrders', 'canViewFinancialBI', 'canExportData']),
+  accountant: new Set<Permission>(['canManageOrders', 'canApproveOrders', 'canViewFinancialBI', 'canExportData', 'canManageInventory']),
+  warehouse_keeper: new Set<Permission>(['canManageInventory', 'canExportData']),
   cskh_sales_consultant: new Set<Permission>([
     'canManageCustomers', 'canManageOrders', 'canManageB2BContracts', 'canManageTickets', 'canManageLoyalty',
   ]),
@@ -62,6 +65,8 @@ export function roleKeyOf(role: string | undefined | null): RoleKey {
       /\b(asm|rsm|sup)\b/.test(r)) return 'sales_manager';
   if (r.includes('admin') || r.includes('quản trị') || r.includes('giám đốc') || r.includes('lãnh đạo') || r.includes('hđqt') || r === 'it' || r.includes('công nghệ') || r.includes('hệ thống')) return 'admin';
   if (r === 'accountant' || r.includes('kế toán') || r.includes('công nợ') || r.includes('accountant')) return 'accountant';
+  // "kho" as a whole word only — "khoa", "tài khoản" must not match.
+  if (r === 'warehouse_keeper' || /(^|[\s,/(-])kho($|[\s,/)-])/.test(r) || r.includes('warehouse') || r.includes('logistics')) return 'warehouse_keeper';
   if (r === 'sales_rep' || r.includes('nhân viên kinh doanh') || r.includes('nvkd') || r.includes('nhân viên bán hàng') ||
       r.includes('thị trường') || r.includes('sales rep') || r.includes('sale thị trường')) return 'sales_rep';
   if (r.includes('marketing') || r.includes('tiếp thị')) return 'marketing_lead';
