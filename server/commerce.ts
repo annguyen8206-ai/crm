@@ -388,6 +388,8 @@ export function repKpis(
 
 export function commerceDashboard(
   customers: CustomerRecord[], orders: OrderRecord[], products: ProductRecord[], from: string, to: string, now = new Date(),
+  /** Quantity that can still be sold (excludes expired lots). Defaults to product.stock. */
+  sellableOf: (p: ProductRecord) => number | undefined = p => p.stock,
 ) {
   const inRange = (o: OrderRecord) => { const d = o.createdAt.slice(0, 10); return d >= from && d <= to; };
   const rangeOrders = orders.filter(inRange);
@@ -438,7 +440,8 @@ export function commerceDashboard(
     receivableTotal: rec.reduce((s, r) => s + r.balance, 0),
     overdueTotal: rec.filter(r => r.daysOverdue > 0).reduce((s, r) => s + r.balance, 0),
     aging,
-    lowStock: products.filter(p => p.status === 'Đang bán' && typeof p.stock === 'number' && p.stock <= 10)
-      .map(p => ({ id: p.id, sku: p.sku, name: p.name, stock: p.stock })),
+    lowStock: products.filter(p => p.status === 'Đang bán')
+      .map(p => ({ id: p.id, sku: p.sku, name: p.name, stock: sellableOf(p) }))
+      .filter((p): p is { id: string; sku: string; name: string; stock: number } => typeof p.stock === 'number' && p.stock <= 10),
   };
 }

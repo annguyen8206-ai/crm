@@ -8,7 +8,7 @@ import type {
 } from '../commerce-types';
 import { PRICE_TIERS, CHANNEL_DEFAULT_TIER } from '../commerce-types';
 import { evaluatePromotion, localYmd } from '../promotions';
-import { checkOrderStock, commitOrderStock, releaseOrderStock, receive, StockError } from '../inventory';
+import { checkOrderStock, commitOrderStock, releaseOrderStock, receive, sellableQty, StockError } from '../inventory';
 import {
   buildOrderItems, orderTotals, paymentStatusOf, approvalReasons, customerStats, receivables, isRevenueOrder,
   pointsToCredit, tierForPoints, computeRfm, repurchaseDue, inactiveAccounts, distanceMeters,
@@ -346,7 +346,11 @@ export function registerCommerceRoutes(app: Express): void {
   app.delete('/api/products/:id', requirePerm('canManageProducts'), (req, res) => {
     const idx = dbStore.products.findIndex(x => x.id === req.params.id);
     if (idx < 0) return res.status(404).json({ error: 'Không tìm thấy sản phẩm' });
-    if (dbStore.orders.some(o => o.items.some(i => i.productId === req.params.id))) {
+    // Sold, or has warehouse history (lots / stock card): archive, never delete —
+    // deleting would orphan its lots and break the stock card and lot trace.
+    const id = req.params.id;
+    if (dbStore.orders.some(o => o.items.some(i => i.productId === id)) ||
+        dbStore.lots.some(l => l.productId === id) || dbStore.stockMoves.some(m => m.productId === id)) {
       dbStore.products[idx].status = 'Ngừng bán';
       return res.json({ success: true, archived: true, product: dbStore.products[idx] });
     }
@@ -658,7 +662,8 @@ export function registerCommerceRoutes(app: Express): void {
     const seesAll = hasPerm(req.authUser?.role, 'canViewFinancialBI');
     if (!seesAll) orders = orders.filter(o => o.salesRep === actor(req) || o.createdBy === actor(req));
     const customers = scopeList(req, dbStore.customers, c => c.branchId);
-    res.json({ ...commerceDashboard(customers, orders, dbStore.products, from, to), scope: seesAll ? 'company' : 'mine' });
+    const sellable = (p: ProductRecord) => (dbStore.lots.some(l => l.productId === p.id) ? sellableQty(dbStore, p.id) : p.stock);
+    res.json({ ...commerceDashboard(customers, orders, dbStore.products, from, to, new Date(), sellable), scope: seesAll ? 'company' : 'mine' });
   });
 
   app.get('/api/commerce/kpi', (req, res) => {

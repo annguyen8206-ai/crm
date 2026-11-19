@@ -9,11 +9,24 @@ export interface ApiResponse<T> {
   success?: boolean;
 }
 
+/**
+ * Branch picked in the navbar selector. Sent as `X-View-Branch` so the server
+ * narrows lists / dashboards to it (server/branch-scope.ts). 'ALL' = no filter.
+ */
+let viewBranchId = 'ALL';
+export function setViewBranch(id: string | null | undefined): void {
+  viewBranchId = id || 'ALL';
+}
+export function viewBranchHeaders(): Record<string, string> {
+  return viewBranchId && viewBranchId !== 'ALL' ? { 'X-View-Branch': viewBranchId } : {};
+}
+
 export async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('vitcrm_access_token') : null;
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...viewBranchHeaders(),
     ...(options.headers || {})
   };
 

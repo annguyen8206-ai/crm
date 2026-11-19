@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileSpreadsheet, Download } from 'lucide-react';
 import { Button, Modal, Field, Select, Input, today, shiftDate } from './ui';
+import { viewBranchHeaders } from '../utils/apiClient';
 
 export type ExportKind = 'customers' | 'orders' | 'order-items' | 'receivables' | 'products' | 'visits' | 'stock-lots' | 'stock-moves';
 
@@ -19,7 +20,7 @@ async function download(kind: ExportKind, params: Record<string, string | undefi
   const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
   const token = localStorage.getItem('vitcrm_access_token');
-  const res = await fetch(`/api/export/${kind}${q.toString() ? `?${q}` : ''}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const res = await fetch(`/api/export/${kind}${q.toString() ? `?${q}` : ''}`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...viewBranchHeaders() } });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Xuất báo cáo thất bại (${res.status})`);
   const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || `vitcrm-${kind}.csv`;
   const url = URL.createObjectURL(await res.blob());

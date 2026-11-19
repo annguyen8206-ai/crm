@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { branchScope, scopeList, canAccessBranch, enforceBranchOnCreate } from '../server/branch-scope';
+import { branchScope, scopeList, canAccessBranch, enforceBranchOnCreate, viewBranch } from '../server/branch-scope';
 
 const req = (role: string, branchId: string | null): any => ({ authUser: { role, branchId } });
 const rows = [
@@ -30,6 +30,25 @@ describe('scopeList', () => {
   it('keeps only the matching branch and hides branch-less rows', () => {
     const out = scopeList(req('Chuyên viên Tiếp đón', 'hn-central'), rows, r => r.branchId);
     expect(out.map(r => r.id)).toEqual(['a']);
+  });
+});
+
+describe('view branch (navbar selector, X-View-Branch)', () => {
+  const withView = (role: string, branchId: string | null, view: string): any => ({ authUser: { role, branchId }, headers: { 'x-view-branch': view } });
+  it('narrows lists for an unrestricted user', () => {
+    expect(viewBranch(withView('Ban Giám Đốc', 'ALL', 'hn-caugiay'))).toBe('hn-caugiay');
+    expect(scopeList(withView('Ban Giám Đốc', 'ALL', 'hn-caugiay'), rows, r => r.branchId).map(r => r.id)).toEqual(['b']);
+  });
+  it('"ALL" or no header means no filter', () => {
+    expect(scopeList(withView('Ban Giám Đốc', 'ALL', 'ALL'), rows, r => r.branchId)).toHaveLength(4);
+    expect(viewBranch(req('Ban Giám Đốc', 'ALL'))).toBeNull();
+  });
+  it('never widens a branch-locked user', () => {
+    const out = scopeList(withView('Chuyên viên Tiếp đón', 'hn-central', 'hn-caugiay'), rows, r => r.branchId);
+    expect(out.map(r => r.id)).toEqual(['a']);
+  });
+  it('does not block opening a single record of another branch', () => {
+    expect(canAccessBranch(withView('Ban Giám Đốc', 'ALL', 'hn-central'), 'hn-caugiay')).toBe(true);
   });
 });
 

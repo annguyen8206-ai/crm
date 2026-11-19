@@ -22,13 +22,26 @@ export function branchScope(req: Request): string | null {
   return b;
 }
 
-/** Filter a list to the request's branch. No-op when unrestricted. */
+/**
+ * The branch an unrestricted user picked in the navbar branch selector
+ * (`X-View-Branch` header). It only NARROWS lists — it never widens what a
+ * branch-locked user may see, and it does not affect per-record access checks
+ * (so a head-office user can still open a record linked from another branch).
+ */
+export function viewBranch(req: Request): string | null {
+  const raw = req.headers?.['x-view-branch'];
+  const b = String(Array.isArray(raw) ? raw[0] : raw || '').trim().slice(0, 80);
+  if (!b || b.toUpperCase() === 'ALL') return null;
+  return b;
+}
+
+/** Filter a list to the request's branch (lock, else the selected view branch). */
 export function scopeList<T>(
   req: Request,
   rows: T[],
   getBranch: (r: T) => string | undefined | null
 ): T[] {
-  const scope = branchScope(req);
+  const scope = branchScope(req) ?? viewBranch(req);
   if (!scope) return rows;
   return rows.filter(r => String(getBranch(r) || '') === scope);
 }

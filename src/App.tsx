@@ -5,7 +5,7 @@
 
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
-import { apiClient } from './utils/apiClient';
+import { apiClient, setViewBranch } from './utils/apiClient';
 import { getRoleConfig, isTabAllowedForRole, can as roleCan, type Permission } from './utils/rbac';
 import type { ActiveTab, Branch, BranchId, CurrentUser } from './types';
 import { LoginView } from './fmcg/LoginView';
@@ -39,7 +39,14 @@ export default function App() {
     setActiveTabState(t);
     try { localStorage.setItem(TAB_KEY, t); } catch { /* storage unavailable */ }
   }, []);
-  const [currentBranchId, setCurrentBranchId] = useState<BranchId>('ALL');
+  const [currentBranchId, setCurrentBranchIdState] = useState<BranchId>('ALL');
+  // The navbar branch picker filters every list/dashboard: set the request header
+  // first, then bump refreshKey so the open view reloads with the new scope.
+  const setCurrentBranchId = useCallback((b: BranchId) => {
+    setViewBranch(b);
+    setCurrentBranchIdState(b);
+    setRefreshKey(k => k + 1);
+  }, []);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [staff, setStaff] = useState<CurrentUser[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -177,6 +184,7 @@ export default function App() {
 
   const logout = () => {
     apiClient.auth.logout();
+    setCurrentBranchId('ALL');
     setUser(null);
     setConversations([]); setInboxMessages([]); setSelectedConversationId(null);
     notify('Đã đăng xuất');

@@ -63,6 +63,31 @@ describe('customers', () => {
   });
 });
 
+describe('products', () => {
+  it('archives (not deletes) a product that has warehouse history, even with no orders', async () => {
+    const p = await seedProduct(); // stock: 100 → opening lot TON-DAU
+    const r = await request(app).delete(`/api/products/${p.id}`).set(as('admin'));
+    expect(r.body).toMatchObject({ success: true, archived: true });
+    expect(dbStore.products.find(x => x.id === p.id)?.status).toBe('Ngừng bán');
+    expect(dbStore.lots.every(l => dbStore.products.some(x => x.id === l.productId))).toBe(true);
+  });
+
+  it('really deletes a product with no orders and no stock history', async () => {
+    const p = await seedProduct({ stock: 0 });
+    const r = await request(app).delete(`/api/products/${p.id}`).set(as('admin'));
+    expect(r.body).toEqual({ success: true });
+    expect(dbStore.products).toHaveLength(0);
+  });
+
+  it('dashboard low-stock ignores expired lots', async () => {
+    const p = await seedProduct({ stock: 0 });
+    dbStore.lots.push({ id: 'lot-x', productId: p.id, sku: p.sku, lotNo: 'L1', expiryDate: '2000-01-01', qty: 500, receivedAt: '2000-01-01T00:00:00Z' });
+    p.stock = 500;
+    const r = await request(app).get('/api/commerce/dashboard').set(as('admin'));
+    expect(r.body.lowStock).toEqual([expect.objectContaining({ sku: p.sku, stock: 0 })]);
+  });
+});
+
 describe('orders', () => {
   it('prices by tier, confirms, decrements stock and tracks debt', async () => {
     const p = await seedProduct();
