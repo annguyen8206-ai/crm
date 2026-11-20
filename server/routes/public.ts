@@ -18,7 +18,7 @@ import { registerPublicOptOut } from './messaging-bulk';
 import { registerPublicFileDownload } from './files';
 import { recordOrderPayment } from './commerce';
 import { APP_NAME } from '../brand';
-import { isAdmin } from '../rbac';
+import { isAdmin, hasPerm } from '../rbac';
 
 /** Routes reachable WITHOUT a staff bearer token (verified by shared secret,
  *  signed webhook, or nothing). Registered before `app.use('/api', requireAuth)`. */
@@ -255,7 +255,13 @@ export function registerPublicRoutes(app: Express): void {
     res.flushHeaders?.();
     res.write(`retry: 3000\n\n`);
     res.write(`event: ready\ndata: {"ok":true}\n\n`);
-    const onChange = (evt: unknown) => res.write(`data: ${JSON.stringify(evt)}\n\n`);
+    // Chat messages / calls carry customer content: only inbox staff receive them.
+    const inbox = hasPerm(user.role, 'canUseInbox');
+    const PRIVATE = new Set(['message', 'conversation', 'incoming-call']);
+    const onChange = (evt: any) => {
+      if (!inbox && PRIVATE.has(evt?.type)) return;
+      res.write(`data: ${JSON.stringify(evt)}\n\n`);
+    };
     bus.on('change', onChange);
     const keepAlive = setInterval(() => res.write(`: ping\n\n`), 25000);
     req.on('close', () => { clearInterval(keepAlive); bus.off('change', onChange); });

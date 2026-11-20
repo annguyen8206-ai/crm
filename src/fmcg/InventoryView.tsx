@@ -34,7 +34,7 @@ export function InventoryView(props: ViewProps) {
     <div className="space-y-4">
       <PageHeader title="Kho hàng" subtitle="Tồn kho theo lô, hạn sử dụng, phiếu nhập – xuất, kiểm kê, truy xuất lô"
         actions={<>
-          {can('canExportData') && <ExportButton defaultKind="stock-lots" notify={notify} />}
+          {can('canExportData') && <ExportButton can={can} defaultKind="stock-lots" notify={notify} />}
           {manage && <>
             <Button onClick={() => setDialog({ kind: 'receipt' })}><PackagePlus className="w-4 h-4" /> Nhập kho</Button>
             <Button variant="secondary" onClick={() => setDialog({ kind: 'issue' })}><PackageMinus className="w-4 h-4" /> Xuất kho</Button>

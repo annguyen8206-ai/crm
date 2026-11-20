@@ -4,10 +4,11 @@ import { emitChange } from '../events';
 import { sendReply, type Channel } from '../integrations';
 import { ingestIncoming } from '../messaging-core';
 import { pageOf } from '../http-util';
+import { requirePerm } from '../rbac';
 
 /** Authenticated omnichannel inbox (read / reply / assign) + provider simulate. */
 export function registerInboxRoutes(app: Express): void {
-  app.get('/api/conversations', (req, res) => {
+  app.get('/api/conversations', requirePerm('canUseInbox'), (req, res) => {
     const { channel, status } = req.query;
     let list = [...dbStore.conversations];
     if (channel && typeof channel === 'string') list = list.filter(c => c.channel === channel);
@@ -21,7 +22,7 @@ export function registerInboxRoutes(app: Express): void {
     });
   });
 
-  app.get('/api/conversations/:id/messages', (req, res) => {
+  app.get('/api/conversations/:id/messages', requirePerm('canUseInbox'), (req, res) => {
     const conv = dbStore.conversations.find(c => c.id === req.params.id);
     if (!conv) return res.status(404).json({ error: 'Không tìm thấy hội thoại' });
     const messages = dbStore.messages
@@ -34,7 +35,7 @@ export function registerInboxRoutes(app: Express): void {
     res.json({ conversation: conv, messages });
   });
 
-  app.post('/api/conversations/:id/reply', async (req, res) => {
+  app.post('/api/conversations/:id/reply', requirePerm('canUseInbox'), async (req, res) => {
     const conv = dbStore.conversations.find(c => c.id === req.params.id);
     if (!conv) return res.status(404).json({ error: 'Không tìm thấy hội thoại' });
     const text = String(req.body?.text || '').trim();
@@ -69,7 +70,7 @@ export function registerInboxRoutes(app: Express): void {
     res.status(dispatch.ok ? 200 : 502).json({ success: dispatch.ok, mode: dispatch.mode, message: record, error: dispatch.error });
   });
 
-  app.put('/api/conversations/:id', (req, res) => {
+  app.put('/api/conversations/:id', requirePerm('canUseInbox'), (req, res) => {
     const conv = dbStore.conversations.find(c => c.id === req.params.id);
     if (!conv) return res.status(404).json({ error: 'Không tìm thấy hội thoại' });
     const { status, assignedStaff, patientId } = req.body || {};
@@ -81,7 +82,7 @@ export function registerInboxRoutes(app: Express): void {
   });
 
   // Inject a fake inbound message to test the pipeline without a real provider.
-  app.post('/api/webhooks/:channel/simulate', async (req, res) => {
+  app.post('/api/webhooks/:channel/simulate', requirePerm('canUseInbox'), async (req, res) => {
     const channel = req.params.channel as Channel;
     if (channel !== 'zalo' && channel !== 'facebook') return res.status(400).json({ error: 'channel phải là zalo hoặc facebook' });
     const { externalUserId, senderName, text, attachments } = req.body || {};

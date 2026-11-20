@@ -104,11 +104,11 @@ export default function App() {
     return () => window.removeEventListener('vitcrm:unauthorized', onUnauthorized);
   }, [notify]);
 
-  const loadShared = useCallback(async () => {
+  const loadShared = useCallback(async (withInbox: boolean) => {
     const [col, notif, conv] = await Promise.all([
       apiClient.collections.get('branches').catch(() => ({ items: [] as any[] })),
       apiClient.notifications.list().catch(() => ({ notifications: [] as any[] })),
-      apiClient.conversations.list().catch(() => ({ conversations: [] as any[] })),
+      withInbox ? apiClient.conversations.list().catch(() => ({ conversations: [] as any[] })) : Promise.resolve({ conversations: [] as any[] }),
     ]);
     setBranches((col.items || []) as Branch[]);
     setNotifications((notif as any).notifications || []);
@@ -128,7 +128,7 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    void loadShared();
+    void loadShared(roleCan(user.role, 'canUseInbox'));
     if (getRoleConfig(user.role).roleKey === 'admin') void loadStaff();
   }, [user, loadShared, loadStaff]);
 

@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import { dbStore } from '../store';
 import { receivables, inactiveAccounts } from '../commerce';
 import { expiryStatus, localDay, EXPIRY_WARNING_DAYS } from '../inventory';
+import { hasPerm, type Permission } from '../rbac';
 
 export type Notification = {
   id: string;
@@ -117,9 +118,24 @@ export function computeNotifications(store: NotifStore, now = Date.now()): Notif
   return out.sort((a, b) => order[a.severity] - order[b.severity]);
 }
 
+/** Who may see each alert (its detail names customers / debts / lots). Unlisted → everyone. */
+const NOTIFICATION_PERM: Record<string, Permission> = {
+  'orders-pending': 'canViewOrders',
+  'debt-overdue': 'canViewReceivables',
+  'tickets-overdue': 'canManageTickets',
+  'tickets-new': 'canManageTickets',
+  'lots-expired': 'canViewInventory',
+  'lots-near-expiry': 'canViewInventory',
+  'outlets-inactive': 'canViewSales',
+};
+
+export function notificationsForRole(list: Notification[], role: string | undefined): Notification[] {
+  return list.filter(n => !NOTIFICATION_PERM[n.id] || hasPerm(role, NOTIFICATION_PERM[n.id]));
+}
+
 export function registerNotificationRoutes(app: Express): void {
-  app.get('/api/notifications', (_req, res) => {
-    const notifications = computeNotifications(dbStore);
+  app.get('/api/notifications', (req, res) => {
+    const notifications = notificationsForRole(computeNotifications(dbStore), req.authUser?.role);
     res.json({
       notifications,
       total: notifications.reduce((n, x) => n + x.count, 0),

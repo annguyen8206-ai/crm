@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FileSpreadsheet, Download } from 'lucide-react';
 import { Button, Modal, Field, Select, Input, today, shiftDate } from './ui';
 import { viewBranchHeaders } from '../utils/apiClient';
+import { EXPORT_VIEW_PERM } from '../../server/rbac';
 
 export type ExportKind = 'customers' | 'orders' | 'order-items' | 'receivables' | 'products' | 'visits' | 'stock-lots' | 'stock-moves';
 
@@ -32,14 +33,20 @@ async function download(kind: ExportKind, params: Record<string, string | undefi
 }
 
 /** "Xuất Excel" button + dialog. Render only for roles with canExportData. */
-export function ExportButton({ defaultKind, notify, label = 'Xuất Excel' }: { defaultKind: ExportKind; notify: (m: string) => void; label?: string }) {
+export function ExportButton({ defaultKind, notify, can, label = 'Xuất Excel' }: {
+  defaultKind: ExportKind; notify: (m: string) => void; can: (perm: string) => boolean; label?: string;
+}) {
+  // Only the reports this role may also VIEW (server enforces the same table).
+  const reports = REPORTS.filter(r => !EXPORT_VIEW_PERM[r.id] || can(EXPORT_VIEW_PERM[r.id]!));
+  const initial = reports.some(r => r.id === defaultKind) ? defaultKind : reports[0]?.id;
   const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<ExportKind>(defaultKind);
+  const [kind, setKind] = useState<ExportKind>(initial || defaultKind);
   const [from, setFrom] = useState(shiftDate(today(), -29));
   const [to, setTo] = useState(today());
   const [type, setType] = useState('');
   const [busy, setBusy] = useState(false);
-  const report = REPORTS.find(r => r.id === kind)!;
+  const report = reports.find(r => r.id === kind) || reports[0];
+  if (!report) return null;
 
   const run = async () => {
     setBusy(true);
@@ -56,13 +63,13 @@ export function ExportButton({ defaultKind, notify, label = 'Xuất Excel' }: { 
 
   return (
     <>
-      <Button variant="secondary" onClick={() => { setKind(defaultKind); setOpen(true); }}><FileSpreadsheet className="w-4 h-4" /> {label}</Button>
+      <Button variant="secondary" onClick={() => { setKind(initial); setOpen(true); }}><FileSpreadsheet className="w-4 h-4" /> {label}</Button>
       {open && (
         <Modal open onClose={() => setOpen(false)} title="Xuất báo cáo Excel"
           footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Huỷ</Button><Button disabled={busy} onClick={run}><Download className="w-4 h-4" /> Tải file</Button></>}>
           <div className="space-y-3">
             <Field label="Báo cáo" hint={report.hint}>
-              <Select value={kind} onChange={e => setKind(e.target.value as ExportKind)}>{REPORTS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</Select>
+              <Select value={kind} onChange={e => setKind(e.target.value as ExportKind)}>{reports.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</Select>
             </Field>
             {report.dated && (
               <div className="grid grid-cols-2 gap-3">

@@ -145,13 +145,16 @@ export async function authTableReady(): Promise<boolean> {
   }
 }
 
+/** Default job title per role key (used when no title is typed). */
 const ROLE_TITLES: Record<string, string> = {
-  admin: 'Quản trị viên hệ thống',
-  doctor: 'Bác sĩ',
-  receptionist: 'Chuyên viên Tiếp đón',
-  cskh: 'Chuyên viên CSKH',
-  sales: 'Chuyên viên Kinh doanh',
-  marketing: 'Chuyên viên Marketing'
+  admin: 'Quản trị hệ thống',
+  sales_manager: 'Quản lý kinh doanh',
+  sales_rep: 'Nhân viên kinh doanh',
+  accountant: 'Kế toán công nợ',
+  warehouse_keeper: 'Thủ kho',
+  cskh_sales_consultant: 'CSKH & Bán hàng online',
+  marketing_lead: 'Marketing',
+  viewer: 'Chỉ xem',
 };
 
 function rowToAuthUser(user: any): AuthUser {
@@ -273,7 +276,7 @@ export async function createStaff(input: {
 }): Promise<StaffRecord> {
   if (!pool) throw new Error('Máy chủ chưa cấu hình DATABASE_URL nên chưa thể tạo tài khoản.');
   if (!input.email || !input.password || !input.name) throw new Error('Email, mật khẩu và tên là bắt buộc');
-  const role = input.role || 'receptionist';
+  const role = input.role || 'viewer';
   const roleTitle = input.roleTitle || ROLE_TITLES[role] || role;
   const id = `user-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   const hash = await bcrypt.hash(input.password, 12);

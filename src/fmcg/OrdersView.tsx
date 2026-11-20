@@ -13,15 +13,17 @@ const STATUS_TABS = ['ALL', 'Chờ duyệt', 'Đã xác nhận', 'Đang giao', '
 type StatusTab = typeof STATUS_TABS[number];
 
 export function OrdersView({ notify, can, userName, refreshKey }: ViewProps) {
-  const [section, setSection] = useState<'orders' | 'receivables'>('orders');
+  const [picked, setSection] = useState<'orders' | 'receivables'>('orders');
+  const seesDebt = can('canViewReceivables');
+  const section = seesDebt ? picked : 'orders';
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Đơn hàng & Công nợ"
+        title={seesDebt ? 'Đơn hàng & Công nợ' : 'Đơn hàng'}
         subtitle="Đơn bán sỉ B2B và bán lẻ B2C, duyệt đơn, giao hàng, thu tiền"
         actions={<>
-          <Tabs value={section} onChange={setSection} items={[{ id: 'orders', label: 'Đơn hàng' }, { id: 'receivables', label: 'Công nợ phải thu' }]} />
-          {can('canExportData') && <ExportButton defaultKind={section === 'orders' ? 'orders' : 'receivables'} notify={notify} />}
+          {seesDebt && <Tabs value={section} onChange={setSection} items={[{ id: 'orders', label: 'Đơn hàng' }, { id: 'receivables', label: 'Công nợ phải thu' }]} />}
+          {can('canExportData') && <ExportButton can={can} defaultKind={section === 'orders' ? 'orders' : 'receivables'} notify={notify} />}
         </>}
       />
       {section === 'orders'

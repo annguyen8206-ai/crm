@@ -29,7 +29,7 @@ const text = (v: unknown, max = 500) => (v == null ? '' : String(v).trim().slice
 
 /** Sales pipeline: B2B (new outlets, distributors, chain listings) and large B2C deals. */
 export function registerSalesRoutes(app: Express): void {
-  app.get('/api/leads', (req, res) => {
+  app.get('/api/leads', requirePerm('canManageB2BContracts'), (req, res) => {
     const { stage, type, assignedStaff } = req.query;
     let filtered = dbStore.leads.map(l => ({ ...l, stage: normalizeStage(l.stage) || l.stage }));
 

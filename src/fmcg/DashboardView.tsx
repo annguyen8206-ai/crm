@@ -42,7 +42,7 @@ export function DashboardView({ notify, can, refreshKey, onNavigate }: ViewProps
             <Button variant="secondary" onClick={() => { void reload(); notify('Đã làm mới số liệu'); }} disabled={loading}>
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Làm mới
             </Button>
-            {can('canExportData') && <ExportButton defaultKind="order-items" notify={notify} label="Báo cáo Excel" />}
+            {can('canExportData') && <ExportButton can={can} defaultKind="order-items" notify={notify} label="Báo cáo Excel" />}
           </>
         }
       />

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { apiClient } from '../utils/apiClient';
-import { ROLE_OPTIONS, getRoleConfig } from '../utils/rbac';
+import { ROLE_OPTIONS, DEFAULT_STAFF_ROLE, getRoleConfig, roleKeyOf, roleLabel } from '../utils/rbac';
+import { isRoleKey } from '../../server/rbac';
 import type { Branch, CurrentUser } from '../types';
 import { Modal, Field, Input, Select, Button, Badge, Empty, Table, Th, Td, useAction } from './ui';
 
@@ -15,8 +16,10 @@ export function StaffAdminModal({ open, onClose, staff, branches, onChanged, not
   const save = async () => {
     const s = editing!;
     if (!s.name?.trim() || !s.email?.trim()) return notify('Nhập họ tên và email');
+    // Older accounts hold a free-text role: saving converts it to the role key shown in the picker.
+    const role = roleKeyOf(s.role || DEFAULT_STAFF_ROLE);
     const payload = {
-      name: s.name.trim(), role: s.role || ROLE_OPTIONS[3].value, roleTitle: s.role || ROLE_OPTIONS[3].value,
+      name: s.name.trim(), role, roleTitle: s.roleTitle?.trim() || roleLabel(role),
       staffCode: s.staffCode || null, department: s.department || null, phone: s.phone || null,
       branchId: s.branchId && s.branchId !== 'ALL' ? s.branchId : null, status: s.status || 'active',
       twoFactorEnabled: !!s.twoFactorEnabled,
@@ -34,11 +37,14 @@ export function StaffAdminModal({ open, onClose, staff, branches, onChanged, not
           <div className="grid sm:grid-cols-2 gap-3">
             <Field label="Họ tên" required><Input value={editing.name || ''} onChange={e => setEditing({ ...editing, name: e.target.value })} /></Field>
             <Field label="Email đăng nhập" required><Input type="email" disabled={!!editing.id} value={editing.email || ''} onChange={e => setEditing({ ...editing, email: e.target.value })} /></Field>
-            <Field label="Vai trò">
-              <Select value={editing.role || ROLE_OPTIONS[3].value} onChange={e => setEditing({ ...editing, role: e.target.value })}>
+            <Field label="Vai trò (quyết định quyền)" required
+              hint={editing.role && !isRoleKey(editing.role) ? `Tài khoản cũ ghi "${editing.role}" — đang hiểu là vai trò này. Bấm Lưu để chốt.` : undefined}>
+              <Select value={roleKeyOf(editing.role || DEFAULT_STAFF_ROLE)} onChange={e => setEditing({ ...editing, role: e.target.value })}>
                 {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                {editing.role && !ROLE_OPTIONS.some(r => r.value === editing.role) && <option value={editing.role}>{editing.role}</option>}
               </Select>
+            </Field>
+            <Field label="Chức danh" hint="Chỉ để hiển thị, không ảnh hưởng quyền">
+              <Input placeholder={roleLabel(editing.role || DEFAULT_STAFF_ROLE)} value={editing.roleTitle || ''} onChange={e => setEditing({ ...editing, roleTitle: e.target.value })} />
             </Field>
             <Field label="Mã nhân viên"><Input value={editing.staffCode || ''} onChange={e => setEditing({ ...editing, staffCode: e.target.value })} /></Field>
             <Field label="Số điện thoại" hint="Dùng nhận OTP qua Zalo/SMS"><Input value={editing.phone || ''} onChange={e => setEditing({ ...editing, phone: e.target.value })} /></Field>
@@ -57,7 +63,7 @@ export function StaffAdminModal({ open, onClose, staff, branches, onChanged, not
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex justify-end"><Button onClick={() => setEditing({ status: 'active', role: ROLE_OPTIONS[3].value, branchId: 'ALL' })}><Plus className="w-4 h-4" /> Thêm nhân viên</Button></div>
+          <div className="flex justify-end"><Button onClick={() => setEditing({ status: 'active', role: DEFAULT_STAFF_ROLE, branchId: 'ALL' })}><Plus className="w-4 h-4" /> Thêm nhân viên</Button></div>
           {staff.length === 0 ? <Empty text="Chưa có tài khoản" /> : (
             <Table>
               <thead className="border-b border-slate-100"><tr><Th>Nhân viên</Th><Th>Vai trò</Th><Th>Chi nhánh</Th><Th>Trạng thái</Th><Th /></tr></thead>
@@ -65,7 +71,11 @@ export function StaffAdminModal({ open, onClose, staff, branches, onChanged, not
                 {staff.map(s => (
                   <tr key={s.id}>
                     <Td><div className="font-semibold">{s.name}</div><div className="text-xs text-slate-400">{s.email}{s.staffCode ? ` · ${s.staffCode}` : ''}</div></Td>
-                    <Td><span className={`inline-block px-2 py-0.5 rounded-md border text-[11px] font-semibold ${getRoleConfig(s.role).badge}`}>{s.role}</span></Td>
+                    <Td>
+                      <span className={`inline-block px-2 py-0.5 rounded-md border text-[11px] font-semibold ${getRoleConfig(s.role).badge}`}>{roleLabel(s.role)}</span>
+                      {s.roleTitle && s.roleTitle !== roleLabel(s.role) && <div className="text-xs text-slate-500 mt-0.5">{s.roleTitle}</div>}
+                      {s.role && !isRoleKey(s.role) && <div className="text-[11px] text-amber-600 mt-0.5">Tài khoản cũ — mở và bấm Lưu để chốt vai trò</div>}
+                    </Td>
                     <Td className="text-xs">{branches.find(b => b.id === s.branchId)?.name || 'Toàn công ty'}</Td>
                     <Td><Badge tone={s.status === 'suspended' ? 'red' : 'green'}>{s.status === 'suspended' ? 'Tạm khoá' : 'Hoạt động'}</Badge></Td>
                     <Td className="text-right"><button onClick={() => setEditing({ ...s, password: '' })} className="p-1.5 text-slate-400 hover:text-blue-600 cursor-pointer" aria-label="Sửa"><Pencil className="w-4 h-4" /></button></Td>

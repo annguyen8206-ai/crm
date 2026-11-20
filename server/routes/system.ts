@@ -7,6 +7,17 @@ import { queryAudit } from '../audit';
 import { requireAdmin, APP_BASE_URL } from '../http-util';
 import { createZaloAuthUrl } from '../zalo-oauth';
 import { getZaloAccessToken, zaloAppSecretProof, zaloAuthHeaders } from '../integrations';
+import { isRoleKey, ROLE_KEYS } from '../rbac';
+
+/**
+ * Staff accounts store one of the fixed role keys (permissions come from it);
+ * the job title is free text in `roleTitle` and never grants anything.
+ */
+export function staffRoleError(body: any, creating: boolean): string | null {
+  const role = body?.role;
+  if (role === undefined) return creating ? 'Chưa chọn vai trò' : null;
+  return isRoleKey(role) ? null : `Vai trò không hợp lệ: "${String(role).slice(0, 60)}". Chọn một trong: ${ROLE_KEYS.join(', ')}`;
+}
 
 /** System / admin routes: audit log, staff accounts, integration status + settings. */
 export function registerSystemRoutes(app: Express): void {
@@ -54,6 +65,8 @@ export function registerSystemRoutes(app: Express): void {
   });
 
   app.post('/api/staff', requireAdmin, async (req, res) => {
+    const roleError = staffRoleError(req.body, true);
+    if (roleError) return res.status(400).json({ error: roleError });
     try {
       const created = await createStaff(req.body || {});
       dbStore.addAuditLog(req.authUser?.id || 'system', req.authUser?.name || '', req.authUser?.role || '', 'CREATE_STAFF', 'Nhân sự', `Tạo tài khoản ${created.email}`);
@@ -64,6 +77,14 @@ export function registerSystemRoutes(app: Express): void {
   });
 
   app.put('/api/staff/:id', requireAdmin, async (req, res) => {
+    const roleError = staffRoleError(req.body, false);
+    if (roleError) return res.status(400).json({ error: roleError });
+    if (req.params.id === req.authUser?.id && req.body?.role !== undefined && req.body.role !== 'admin') {
+      return res.status(400).json({ error: 'Không thể tự bỏ quyền Quản trị của chính mình — nhờ một Quản trị viên khác thực hiện' });
+    }
+    if (req.params.id === req.authUser?.id && req.body?.status === 'suspended') {
+      return res.status(400).json({ error: 'Không thể tự khoá tài khoản của chính mình' });
+    }
     try {
       const updated = await updateStaff(req.params.id, req.body || {});
       dbStore.addAuditLog(req.authUser?.id || 'system', req.authUser?.name || '', req.authUser?.role || '', 'UPDATE_STAFF', 'Nhân sự', `Cập nhật tài khoản ${updated.email}`);

@@ -82,17 +82,26 @@ export const ROLE_CONFIGS: Record<RoleKey, RoleConfig> = {
   },
 };
 
-/** Role values offered when creating staff accounts (free text is still accepted by the server). */
-export const ROLE_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'Ban Giám Đốc', label: 'Ban Giám đốc' },
-  { value: 'Quản Trị Viên Hệ Thống (Admin)', label: 'Quản trị hệ thống (IT)' },
-  { value: 'Quản lý kinh doanh', label: 'Quản lý kinh doanh (ASM/RSM)' },
-  { value: 'Nhân viên kinh doanh', label: 'Nhân viên kinh doanh / Sales thị trường' },
-  { value: 'Kế toán công nợ', label: 'Kế toán công nợ' },
-  { value: 'Thủ kho', label: 'Thủ kho' },
-  { value: 'CSKH & Bán hàng online', label: 'CSKH & Bán hàng online' },
-  { value: 'Marketing Lead', label: 'Marketing' },
+/**
+ * The roles a staff account can hold. The account stores the KEY (permissions
+ * come from it); the job title ("Chức danh") is separate free text.
+ */
+export const ROLE_OPTIONS: Array<{ value: RoleKey; label: string }> = [
+  { value: 'admin', label: 'Quản trị / Ban Giám đốc (toàn quyền)' },
+  { value: 'sales_manager', label: 'Quản lý kinh doanh (ASM/RSM)' },
+  { value: 'sales_rep', label: 'Nhân viên kinh doanh / Sales thị trường' },
+  { value: 'accountant', label: 'Kế toán công nợ' },
+  { value: 'warehouse_keeper', label: 'Thủ kho' },
+  { value: 'cskh_sales_consultant', label: 'CSKH & Bán hàng online' },
+  { value: 'marketing_lead', label: 'Marketing' },
+  { value: 'viewer', label: 'Chỉ xem' },
 ];
+export const DEFAULT_STAFF_ROLE: RoleKey = 'sales_rep';
+
+export function roleLabel(role: string | undefined | null): string {
+  const key = roleKeyOf(role);
+  return ROLE_OPTIONS.find(o => o.value === key)?.label || key;
+}
 
 export function getRoleConfig(role: string | undefined | null): RoleConfig {
   return ROLE_CONFIGS[roleKeyOf(role)];

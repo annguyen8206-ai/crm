@@ -21,6 +21,7 @@ export function CustomersView({ notify, can, userName, refreshKey }: ViewProps) 
   const [editing, setEditing] = useState<Customer | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { data, error, loading, reload } = useLoad(() => crm.customers.list(), [refreshKey]);
+  const seesDebt = can('canViewReceivables');
 
   const all = data?.customers || [];
   const rows = useMemo(() => {
@@ -42,7 +43,7 @@ export function CustomersView({ notify, can, userName, refreshKey }: ViewProps) 
         title="Khách hàng"
         subtitle="Khách sỉ B2B (NPP, đại lý, điểm bán) và người tiêu dùng B2C"
         actions={<>
-          {can('canExportData') && <ExportButton defaultKind="customers" notify={notify} />}
+          {can('canExportData') && <ExportButton can={can} defaultKind="customers" notify={notify} />}
           {can('canManageCustomers') && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus className="w-4 h-4" /> Thêm khách hàng</Button>}
         </>}
       />
@@ -85,7 +86,7 @@ export function CustomersView({ notify, can, userName, refreshKey }: ViewProps) 
                     {c.status !== 'Đang hoạt động' && <Badge tone={c.status === 'Tiềm năng' ? 'sky' : 'slate'}>{c.status}</Badge>}
                     <span className="ml-auto tabular-nums">
                       {c.type === 'B2B'
-                        ? <span className={overLimit ? 'text-rose-600 font-bold' : 'text-slate-500'}>Nợ {shortVnd(c.outstandingDebt)}{c.creditLimit ? ` / ${shortVnd(c.creditLimit)}` : ''}{overLimit ? ' · vượt hạn mức' : ''}</span>
+                        ? !seesDebt ? null : <span className={overLimit ? 'text-rose-600 font-bold' : 'text-slate-500'}>Nợ {shortVnd(c.outstandingDebt)}{c.creditLimit ? ` / ${shortVnd(c.creditLimit)}` : ''}{overLimit ? ' · vượt hạn mức' : ''}</span>
                         : <span className="text-slate-500">{(c.loyaltyPoints || 0).toLocaleString('vi-VN')} điểm</span>}
                     </span>
                   </div>
@@ -94,7 +95,7 @@ export function CustomersView({ notify, can, userName, refreshKey }: ViewProps) 
             }} />
             <Table desktopOnly>
               <thead className="border-b border-slate-100">
-                <tr><Th>Khách hàng</Th><Th>Phân loại</Th><Th>Phụ trách</Th><Th className="text-right">Doanh số</Th><Th className="text-right">Công nợ / Điểm</Th><Th>Mua gần nhất</Th></tr>
+                <tr><Th>Khách hàng</Th><Th>Phân loại</Th><Th>Phụ trách</Th><Th className="text-right">Doanh số</Th><Th className="text-right">{seesDebt ? 'Công nợ / Điểm' : 'Điểm'}</Th><Th>Mua gần nhất</Th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.slice(0, 500).map(c => {
@@ -116,7 +117,7 @@ export function CustomersView({ notify, can, userName, refreshKey }: ViewProps) 
                       <Td className="text-right tabular-nums"><div className="font-semibold">{shortVnd(c.totalRevenue)}</div><div className="text-xs text-slate-400">{c.totalOrders} đơn</div></Td>
                       <Td className="text-right tabular-nums">
                         {c.type === 'B2B'
-                          ? <span className={overLimit ? 'text-rose-600 font-bold' : c.outstandingDebt ? 'text-slate-800' : 'text-slate-400'}>{shortVnd(c.outstandingDebt)}{c.creditLimit ? <span className="text-xs text-slate-400 font-normal"> / {shortVnd(c.creditLimit)}</span> : null}</span>
+                          ? !seesDebt ? <span className="text-slate-400">—</span> : <span className={overLimit ? 'text-rose-600 font-bold' : c.outstandingDebt ? 'text-slate-800' : 'text-slate-400'}>{shortVnd(c.outstandingDebt)}{c.creditLimit ? <span className="text-xs text-slate-400 font-normal"> / {shortVnd(c.creditLimit)}</span> : null}</span>
                           : <span>{(c.loyaltyPoints || 0).toLocaleString('vi-VN')} điểm</span>}
                       </Td>
                       <Td className="text-xs text-slate-500">{fmtDate(c.lastOrderDate)}</Td>
@@ -193,7 +194,7 @@ function CustomerDrawer({ id, onClose, onEdit, onChanged, notify, can, userName,
                   <Info label="Người liên hệ" value={c.contactPerson} />
                   <Info label="MST" value={c.taxCode} />
                   <Info label="Tuyến / tần suất" value={[c.routeName, c.visitFrequency].filter(Boolean).join(' · ')} />
-                  <Info label="Điều khoản" value={`${c.paymentTermDays || 0} ngày · hạn mức ${c.creditLimit ? vnd(c.creditLimit) : 'không giới hạn'}`} />
+                  {can('canViewReceivables') && <Info label="Điều khoản" value={`${c.paymentTermDays || 0} ngày · hạn mức ${c.creditLimit ? vnd(c.creditLimit) : 'không giới hạn'}`} />}
                 </>
               ) : (
                 <>
@@ -210,7 +211,7 @@ function CustomerDrawer({ id, onClose, onEdit, onChanged, notify, can, userName,
             <Stat label="Doanh số" value={shortVnd(c.totalRevenue)} />
             <Stat label="Số đơn" value={c.totalOrders} />
             {c.type === 'B2B'
-              ? <Stat label="Công nợ" value={shortVnd(c.outstandingDebt)} tone={(c.creditLimit || 0) > 0 && c.outstandingDebt > (c.creditLimit || 0) ? 'red' : undefined} />
+              ? !can('canViewReceivables') ? <Stat label="Loại khách" value={<span className="text-base">{c.channel || '—'}</span>} /> : <Stat label="Công nợ" value={shortVnd(c.outstandingDebt)} tone={(c.creditLimit || 0) > 0 && c.outstandingDebt > (c.creditLimit || 0) ? 'red' : undefined} />
               : <Stat label="Điểm" value={(c.loyaltyPoints || 0).toLocaleString('vi-VN')} hint={<TierBadge tier={c.loyaltyTier} />} />}
             <Stat label="Phân khúc" value={<span className="text-base">{data.rfm ? <Badge tone={SEGMENT_TONE[data.rfm.segment]} className="text-xs">{data.rfm.segment}</Badge> : '—'}</span>} hint={data.rfm?.recencyDays != null ? `Mua cách đây ${data.rfm.recencyDays} ngày` : undefined} />
           </div>
@@ -222,7 +223,8 @@ function CustomerDrawer({ id, onClose, onEdit, onChanged, notify, can, userName,
           <Tabs value={tab} onChange={setTab} items={[
             { id: 'overview', label: 'Hoạt động' },
             { id: 'orders', label: `Đơn hàng (${data.orders.length})` },
-            ...(c.type === 'B2B' ? [{ id: 'visits' as const, label: `Viếng thăm (${data.visits.length})` }, { id: 'debt' as const, label: `Công nợ (${data.receivables.length})` }] : []),
+            ...(c.type === 'B2B' ? [{ id: 'visits' as const, label: `Viếng thăm (${data.visits.length})` }] : []),
+            ...(c.type === 'B2B' && can('canViewReceivables') ? [{ id: 'debt' as const, label: `Công nợ (${data.receivables.length})` }] : []),
           ]} />
 
           {tab === 'overview' && (

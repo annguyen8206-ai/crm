@@ -1,6 +1,6 @@
 import type { Express, Request } from 'express';
 import { dbStore } from '../store';
-import { requirePerm } from '../rbac';
+import { requirePerm, hasPerm, EXPORT_VIEW_PERM } from '../rbac';
 import { scopeList } from '../branch-scope';
 import { receivables } from '../commerce';
 import { PRICE_TIERS, PRICE_TIER_LABELS } from '../commerce-types';
@@ -133,6 +133,9 @@ export function registerExportRoutes(app: Express): void {
   app.get('/api/export/:kind', requirePerm('canExportData'), (req, res) => {
     const kind = req.params.kind as Kind;
     if (!KINDS.includes(kind)) return res.status(404).json({ error: `Không có báo cáo "${req.params.kind}"` });
+    // Exporting needs the same right as viewing that data (e.g. Thủ kho: stock + orders, not customers / debt).
+    const needed = EXPORT_VIEW_PERM[kind];
+    if (needed && !hasPerm(req.authUser?.role, needed)) return res.status(403).json({ error: 'Vai trò của bạn không được xuất báo cáo này' });
     const { header, rows } = buildExport(kind, req as any);
     recordAudit({
       userId: req.authUser?.id || '', userName: req.authUser?.name || '', role: req.authUser?.role || '',

@@ -160,6 +160,13 @@ function sanitizeProductPatch(body: any): Partial<ProductRecord> {
   return out;
 }
 
+/** Debt / credit fields are hidden from roles that may not see receivables (Marketing). */
+function customerForRole<T extends CustomerRecord>(req: Request, c: T): T {
+  if (hasPerm(req.authUser?.role, 'canViewReceivables')) return c;
+  const { outstandingDebt: _d, creditLimit: _l, paymentTermDays: _t, ...rest } = c;
+  return rest as T;
+}
+
 /** Allowed manual status transitions → permission needed. */
 const TRANSITIONS: Record<OrderStatus, Partial<Record<OrderStatus, 'canManageOrders' | 'canApproveOrders'>>> = {
   'Chờ duyệt': { 'Đã huỷ': 'canManageOrders' },
@@ -172,7 +179,7 @@ const TRANSITIONS: Record<OrderStatus, Partial<Record<OrderStatus, 'canManageOrd
 
 export function registerCommerceRoutes(app: Express): void {
   // ================================================================ customers
-  app.get('/api/customers', (req, res) => {
+  app.get('/api/customers', requirePerm('canViewCustomers'), (req, res) => {
     const { type, search, status, channel, assignedRep, tag, province } = req.query as Record<string, string | undefined>;
     let rows = scopeList(req, [...dbStore.customers], c => c.branchId);
     if (type === 'B2B' || type === 'B2C') rows = rows.filter(c => c.type === type);
@@ -191,10 +198,10 @@ export function registerCommerceRoutes(app: Express): void {
     }
     rows.sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
     const p = pageOf(rows, req.query);
-    res.json({ customers: p.page, total: p.total, limit: p.limit, offset: p.offset });
+    res.json({ customers: p.page.map(c => customerForRole(req, c)), total: p.total, limit: p.limit, offset: p.offset });
   });
 
-  app.get('/api/customers/rfm', (req, res) => {
+  app.get('/api/customers/rfm', requirePerm('canViewCustomers'), (req, res) => {
     const customers = scopeList(req, dbStore.customers, c => c.branchId);
     const rows = computeRfm(customers, dbStore.orders);
     const segments: Record<string, { B2B: number; B2C: number }> = {};
@@ -202,7 +209,7 @@ export function registerCommerceRoutes(app: Express): void {
     res.json({ rows, segments });
   });
 
-  app.get('/api/customers/:id', (req, res) => {
+  app.get('/api/customers/:id', requirePerm('canViewCustomers'), (req, res) => {
     const c = dbStore.customers.find(x => x.id === req.params.id);
     if (!c) return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
     if (!canAccessBranch(req, c.branchId)) return res.status(403).json({ error: 'Khách hàng thuộc chi nhánh khác' });
@@ -211,7 +218,9 @@ export function registerCommerceRoutes(app: Express): void {
     const rfm = computeRfm(dbStore.customers.filter(x => x.type === c.type), dbStore.orders).find(r => r.customerId === c.id);
     const outlets = c.channel === 'Nhà phân phối' ? dbStore.customers.filter(x => x.parentDistributorId === c.id) : [];
     const tickets = dbStore.tickets.filter(t => t.patientId === c.id || (c.phone && phoneMatches(t.patientPhone, c.phone)));
-    res.json({ customer: c, orders, visits, rfm, receivables: receivables(orders), outlets, tickets });
+    // Debt only for the roles that work with it (Marketing sees purchases, not debt).
+    const debt = hasPerm(req.authUser?.role, 'canViewReceivables') ? receivables(orders) : [];
+    res.json({ customer: customerForRole(req, c), orders, visits, rfm, receivables: debt, outlets: outlets.map(o => customerForRole(req, o)), tickets });
   });
 
   app.post('/api/customers', requirePerm('canManageCustomers'), (req, res) => {
@@ -359,7 +368,7 @@ export function registerCommerceRoutes(app: Express): void {
   });
 
   // ================================================================ orders
-  app.get('/api/orders', (req, res) => {
+  app.get('/api/orders', requirePerm('canViewOrders'), (req, res) => {
     const { status, customerId, type, salesRep, from, to, search, paymentStatus } = req.query as Record<string, string | undefined>;
     let rows = scopeList(req, [...dbStore.orders], o => o.branchId);
     if (isRep(req)) rows = rows.filter(o => o.salesRep === actor(req) || o.createdBy === actor(req));
@@ -379,7 +388,7 @@ export function registerCommerceRoutes(app: Express): void {
     res.json({ orders: p.page, total: p.total, limit: p.limit, offset: p.offset });
   });
 
-  app.get('/api/orders/:id', (req, res) => {
+  app.get('/api/orders/:id', requirePerm('canViewOrders'), (req, res) => {
     const o = dbStore.orders.find(x => x.id === req.params.id || x.code === req.params.id);
     if (!o) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
     if (!canAccessBranch(req, o.branchId)) return res.status(403).json({ error: 'Đơn hàng thuộc chi nhánh khác' });
@@ -521,7 +530,7 @@ export function registerCommerceRoutes(app: Express): void {
     res.json({ success: true, order: o });
   });
 
-  app.get('/api/receivables', (req, res) => {
+  app.get('/api/receivables', requirePerm('canViewReceivables'), (req, res) => {
     let orders = scopeList(req, dbStore.orders, o => o.branchId);
     if (isRep(req)) orders = orders.filter(o => o.salesRep === actor(req));
     const rows = receivables(orders);
@@ -543,7 +552,7 @@ export function registerCommerceRoutes(app: Express): void {
   });
 
   // ================================================================ visits
-  app.get('/api/visits', (req, res) => {
+  app.get('/api/visits', requirePerm('canViewSales'), (req, res) => {
     const { date, from, to, salesRep, status, customerId } = req.query as Record<string, string | undefined>;
     let rows = scopeList(req, [...dbStore.visits], v => v.branchId);
     if (isRep(req)) rows = rows.filter(v => v.salesRep === actor(req));
@@ -666,7 +675,7 @@ export function registerCommerceRoutes(app: Express): void {
     res.json({ ...commerceDashboard(customers, orders, dbStore.products, from, to, new Date(), sellable), scope: seesAll ? 'company' : 'mine' });
   });
 
-  app.get('/api/commerce/kpi', (req, res) => {
+  app.get('/api/commerce/kpi', requirePerm('canViewSales'), (req, res) => {
     const month = String(req.query.month || ymd(new Date()).slice(0, 7)).slice(0, 7);
     const targets = (dbStore.collections.salesTargets || []) as SalesTarget[];
     let rows = repKpis(month, scopeList(req, dbStore.orders, o => o.branchId), scopeList(req, dbStore.visits, v => v.branchId), dbStore.customers, targets);
@@ -674,13 +683,13 @@ export function registerCommerceRoutes(app: Express): void {
     res.json({ month, rows });
   });
 
-  app.get('/api/commerce/repurchase-due', (req, res) => {
+  app.get('/api/commerce/repurchase-due', requirePerm('canViewCustomers'), (req, res) => {
     const ahead = Math.min(60, Math.max(0, Number(req.query.aheadDays) || 7));
     const rows = repurchaseDue(scopeList(req, dbStore.customers, c => c.branchId), dbStore.orders, dbStore.products, new Date(), ahead);
     res.json({ rows, total: rows.length });
   });
 
-  app.get('/api/commerce/inactive-accounts', (req, res) => {
+  app.get('/api/commerce/inactive-accounts', requirePerm('canViewSales'), (req, res) => {
     let rows = inactiveAccounts(scopeList(req, dbStore.customers, c => c.branchId));
     if (isRep(req)) rows = rows.filter(r => r.customer.assignedRep === actor(req));
     res.json({ rows: rows.map(r => ({ ...r.customer, daysSinceLastOrder: r.daysSinceLastOrder, limitDays: r.limit })), total: rows.length });

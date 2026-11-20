@@ -15,6 +15,20 @@ describe('roleKeyOf', () => {
     expect(roleKeyOf('Khối Tư Vấn, Kinh Doanh & CSKH')).toBe('cskh_sales_consultant');
     expect(roleKeyOf('Marketing Lead')).toBe('marketing_lead');
   });
+  it('exact role keys win (new accounts store the key)', () => {
+    for (const k of ['admin', 'sales_manager', 'sales_rep', 'accountant', 'warehouse_keeper', 'cskh_sales_consultant', 'marketing_lead', 'viewer']) {
+      expect(roleKeyOf(k)).toBe(k);
+    }
+  });
+  it('a department word beats a generic "giám đốc" (no accidental full admin)', () => {
+    expect(roleKeyOf('Giám đốc Marketing')).toBe('marketing_lead');
+    expect(roleKeyOf('Phó giám đốc kho')).toBe('warehouse_keeper');
+    expect(roleKeyOf('Giám đốc tài chính - Kế toán trưởng')).toBe('accountant');
+    expect(roleKeyOf('Trưởng nhóm sales')).toBe('sales_manager');
+    expect(roleKeyOf('Thủ quỹ')).toBe('accountant');
+    expect(roleKeyOf('Tổng giám đốc')).toBe('admin');
+    expect(roleKeyOf('Nhân viên kinh doanh hệ thống siêu thị')).toBe('sales_rep');
+  });
   it('defaults unknown roles to least privilege', () => {
     expect(roleKeyOf('người lạ')).toBe('viewer');
     expect(roleKeyOf('')).toBe('viewer');
@@ -47,6 +61,27 @@ describe('hasPerm', () => {
   });
   it('OR semantics: any listed perm is enough', () => {
     expect(hasPerm('Kế toán', 'canManageMarketing', 'canManageOrders')).toBe(true);
+  });
+});
+
+describe('read permissions', () => {
+  it('only inbox roles can use the Zalo / Facebook inbox', () => {
+    expect(hasPerm('sales_manager', 'canUseInbox')).toBe(true);
+    expect(hasPerm('cskh_sales_consultant', 'canUseInbox')).toBe(true);
+    for (const r of ['sales_rep', 'accountant', 'warehouse_keeper', 'marketing_lead', 'viewer']) expect(hasPerm(r, 'canUseInbox')).toBe(false);
+  });
+  it('warehouse keeper sees stock and orders, not customers or debt', () => {
+    expect(hasPerm('warehouse_keeper', 'canViewInventory')).toBe(true);
+    expect(hasPerm('warehouse_keeper', 'canViewOrders')).toBe(true);
+    expect(hasPerm('warehouse_keeper', 'canViewCustomers')).toBe(false);
+    expect(hasPerm('warehouse_keeper', 'canViewReceivables')).toBe(false);
+  });
+  it('marketing sees customers but not debt; viewer sees none of it', () => {
+    expect(hasPerm('marketing_lead', 'canViewCustomers')).toBe(true);
+    expect(hasPerm('marketing_lead', 'canViewReceivables')).toBe(false);
+    for (const p of ['canViewCustomers', 'canViewOrders', 'canViewReceivables', 'canViewInventory', 'canViewSales'] as const) {
+      expect(hasPerm('viewer', p)).toBe(false);
+    }
   });
 });
 

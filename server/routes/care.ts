@@ -37,7 +37,7 @@ export function slaDeadlineFor(priority: SupportTicketRecord['priority'], from =
 
 /** Customer care tickets (complaints, returns, delivery issues) with SLA tracking. */
 export function registerCareRoutes(app: Express): void {
-  app.get('/api/tickets', (req, res) => {
+  app.get('/api/tickets', requirePerm('canManageTickets'), (req, res) => {
     const { status, priority, department, isOverdue, customerId } = req.query;
     let filtered = scopeList(req, [...dbStore.tickets], t => t.branchId);
 

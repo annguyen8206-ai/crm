@@ -29,7 +29,7 @@ function atomically<T>(fn: () => T): T {
 
 /** Warehouse: receipts (PN), issues (PX), stock counts (KK), lots & expiry, stock card. */
 export function registerInventoryRoutes(app: Express): void {
-  app.get('/api/inventory/summary', (_req, res) => {
+  app.get('/api/inventory/summary', requirePerm('canViewInventory'), (_req, res) => {
     const rows = stockSummary(dbStore);
     const today = localDay();
     const live = dbStore.lots.filter(l => l.qty > 0).map(l => lotView(dbStore, l, today));
@@ -45,7 +45,7 @@ export function registerInventoryRoutes(app: Express): void {
     });
   });
 
-  app.get('/api/inventory/lots', (req, res) => {
+  app.get('/api/inventory/lots', requirePerm('canViewInventory'), (req, res) => {
     const { productId, status, includeEmpty } = req.query as Record<string, string | undefined>;
     const today = localDay();
     let rows = dbStore.lots
@@ -57,7 +57,7 @@ export function registerInventoryRoutes(app: Express): void {
   });
 
   /** Lot traceability: every move of one lot, with the orders it went to. */
-  app.get('/api/inventory/lots/:id/trace', (req, res) => {
+  app.get('/api/inventory/lots/:id/trace', requirePerm('canViewInventory'), (req, res) => {
     const lot = dbStore.lots.find(l => l.id === req.params.id);
     if (!lot) return res.status(404).json({ error: 'Không tìm thấy lô hàng' });
     const moves = dbStore.stockMoves.filter(m => m.lotId === lot.id).sort((a, b) => a.at.localeCompare(b.at));
@@ -69,7 +69,7 @@ export function registerInventoryRoutes(app: Express): void {
   });
 
   /** Stock card (thẻ kho). */
-  app.get('/api/inventory/moves', (req, res) => {
+  app.get('/api/inventory/moves', requirePerm('canViewInventory'), (req, res) => {
     const { productId, lotId, type, from, to } = req.query as Record<string, string | undefined>;
     let rows = dbStore.stockMoves;
     if (productId) rows = rows.filter(m => m.productId === productId);
@@ -82,7 +82,7 @@ export function registerInventoryRoutes(app: Express): void {
     res.json({ moves: p.page, total: p.total });
   });
 
-  app.get('/api/inventory/vouchers', (req, res) => {
+  app.get('/api/inventory/vouchers', requirePerm('canViewInventory'), (req, res) => {
     const rows = [...dbStore.inventoryVouchers].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     const p = pageOf(rows, req.query);
     res.json({ vouchers: p.page, total: p.total });

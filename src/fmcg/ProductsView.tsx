@@ -31,7 +31,7 @@ export function ProductsView({ notify, can, refreshKey }: ViewProps) {
         title="Sản phẩm & Bảng giá"
         subtitle="Danh mục SKU, giá theo từng kênh (lẻ, NPP, đại lý, GT, MT), chu kỳ mua lại"
         actions={<>
-          {can('canExportData') && <ExportButton defaultKind="products" notify={notify} />}
+          {can('canExportData') && <ExportButton can={can} defaultKind="products" notify={notify} />}
           {canEdit && <Button onClick={() => setEditing('new')}><Plus className="w-4 h-4" /> Thêm sản phẩm</Button>}
         </>}
       />

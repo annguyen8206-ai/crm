@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import { dbStore } from '../store';
-import { hasPerm, isAdmin, COLLECTION_WRITE_PERM } from '../rbac';
+import { hasPerm, isAdmin, COLLECTION_WRITE_PERM, COLLECTION_READ_PERM } from '../rbac';
 
 const COLLECTION_NAMES = new Set([
   'branches', 'b2bContracts', 'b2cDeals', 'campaigns', 'automationRules',
@@ -13,13 +13,17 @@ const COLLECTION_NAMES = new Set([
 
 /** Generic key→array store for front-end modules without a dedicated typed table. */
 export function registerCollectionRoutes(app: Express): void {
+  // Everything at once (contracts, payouts, targets…) — administrators only.
   app.get('/api/collections', (req, res) => {
+    if (!isAdmin(req.authUser?.role)) return res.status(403).json({ error: 'Chỉ Quản trị viên được tải toàn bộ dữ liệu' });
     res.json({ collections: dbStore.collections });
   });
 
   app.get('/api/collections/:name', (req, res) => {
     const { name } = req.params;
     if (!COLLECTION_NAMES.has(name)) return res.status(404).json({ error: `Collection "${name}" không hợp lệ` });
+    const readPerm = COLLECTION_READ_PERM[name];
+    if (readPerm && !hasPerm(req.authUser?.role, readPerm)) return res.status(403).json({ error: `Vai trò của bạn không được xem "${name}"` });
     res.json({ name, items: dbStore.collections[name] || [] });
   });
 

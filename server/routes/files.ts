@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { pool } from '../database';
 import { verifySessionToken } from '../auth';
-import { isAdmin } from '../rbac';
+import { isAdmin, hasPerm } from '../rbac';
 import { recordAudit } from '../audit';
 import { log } from '../logger';
 
@@ -78,6 +78,10 @@ export function registerFileRoutes(app: Express): void {
     const buf: Buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
 
     if (!ENTITIES.has(entityType) || !entityId) return res.status(400).json({ error: 'Thiếu entityType/entityId hợp lệ' });
+    // Chat attachments are sent to customers over Zalo / Facebook — inbox staff only.
+    if (entityType === 'conversation' && !hasPerm(req.authUser?.role, 'canUseInbox')) {
+      return res.status(403).json({ error: 'Vai trò của bạn không được gửi tệp trong hộp thư' });
+    }
     if (!buf.length) return res.status(400).json({ error: 'Tệp rỗng' });
     if (buf.length > MAX_BYTES) return res.status(413).json({ error: `Tệp vượt ${Math.round(MAX_BYTES / 1024 / 1024)}MB` });
     if (!EXT[mime]) return res.status(415).json({ error: `Định dạng không hỗ trợ: ${mime}` });
