@@ -91,7 +91,8 @@ export function registerSystemRoutes(app: Express): void {
   // People a visit can be assigned to (the "Nhân viên" picker when planning
   // visits). Managers get the active sales staff of their scope; a rep gets
   // only themselves. Names only — no emails / phones.
-  app.get('/api/staff/assignees', requirePerm('canManageVisits'), async (req, res) => {
+  // Also used by the customer form ("Nhân viên phụ trách") and the monthly targets dialog.
+  app.get('/api/staff/assignees', requirePerm('canManageVisits', 'canManageCustomers', 'canApproveOrders'), async (req, res) => {
     try {
       const staff = await listStaff();
       res.json({ assignees: visitAssignees(staff, req.authUser!, branchScope(req)) });

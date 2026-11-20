@@ -7,7 +7,7 @@ import {
   type ViewProps,
 } from './ui';
 import { OrderFormModal } from './OrderForm';
-import { apiClient } from '../utils/apiClient';
+import { RepSelect, useAssignees, isKnownRep } from './RepSelect';
 
 type Section = 'visits' | 'kpi' | 'deals' | 'inactive';
 
@@ -140,7 +140,6 @@ function PlanVisitsModal({ open, onClose, notify, defaultDate, canAssign, userNa
   const [date, setDate] = useState(defaultDate);
   const [purpose, setPurpose] = useState('Lấy đơn');
   const [rep, setRep] = useState(userName);
-  const [assignees, setAssignees] = useState<Array<{ name: string; role: string }>>([]);
   const [showAll, setShowAll] = useState(false);
   const [route, setRoute] = useState('');
   const [q, setQ] = useState('');
@@ -150,10 +149,6 @@ function PlanVisitsModal({ open, onClose, notify, defaultDate, canAssign, userNa
     if (!open) return;
     setSelected(new Set()); setDate(defaultDate); setRep(userName); setQ(''); setRoute(''); setShowAll(false);
     crm.customers.list({ type: 'B2B', status: 'Đang hoạt động' }).then(r => setCustomers(r.customers)).catch(e => notify(e.message));
-    // Pick from real accounts instead of typing a name (a typo = a visit nobody sees).
-    apiClient.staff.assignees()
-      .then(r => setAssignees(r.assignees.map(a => ({ name: a.name, role: a.role }))))
-      .catch(() => setAssignees([{ name: userName, role: 'self' }]));
   }, [open, defaultDate, userName, notify]);
 
   const routes = [...new Set(customers.map(c => c.routeName).filter(Boolean))] as string[];
@@ -161,9 +156,6 @@ function PlanVisitsModal({ open, onClose, notify, defaultDate, canAssign, userNa
   const ownedBy = (c: Customer) => !c.assignedRep || c.assignedRep === rep;
   const list = customers.filter(c => (!route || c.routeName === route) && (!q || c.name.toLowerCase().includes(q.toLowerCase())) && ((canAssign && showAll) || ownedBy(c)));
   const pickRep = (name: string) => { setRep(name); setSelected(new Set()); };
-  const reps = assignees.filter(a => a.role === 'sales_rep');
-  const managers = assignees.filter(a => a.role === 'sales_manager');
-  const self = assignees.find(a => a.role === 'self');
   const toggle = (id: string) => setSelected(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   return (
@@ -176,11 +168,7 @@ function PlanVisitsModal({ open, onClose, notify, defaultDate, canAssign, userNa
           <Field label="Ngày"><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></Field>
           <Field label="Mục đích"><Select value={purpose} onChange={e => setPurpose(e.target.value)}>{VISIT_PURPOSES.map(p => <option key={p}>{p}</option>)}</Select></Field>
           <Field label="Nhân viên đi thăm">
-            <Select value={rep} disabled={!canAssign} onChange={e => pickRep(e.target.value)}>
-              {reps.length > 0 && <optgroup label="Nhân viên kinh doanh">{reps.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}</optgroup>}
-              {managers.length > 0 && <optgroup label="Quản lý kinh doanh">{managers.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}</optgroup>}
-              <option value={self?.name || userName}>{self?.name || userName} (tôi)</option>
-            </Select>
+            <RepSelect value={rep} disabled={!canAssign} onChange={pickRep} />
           </Field>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -269,6 +257,7 @@ function KpiPanel({ notify, can, refreshKey }: ViewProps) {
   const [month, setMonth] = useState(today().slice(0, 7));
   const [targetsOpen, setTargetsOpen] = useState(false);
   const { data, error, loading, reload } = useLoad(() => crm.kpi(month), [month, refreshKey]);
+  const assignees = useAssignees();
   const rows = data?.rows || [];
   const totalRev = rows.reduce((s, r) => s + r.revenue, 0);
   const totalTarget = rows.reduce((s, r) => s + r.revenueTarget, 0);
@@ -293,7 +282,10 @@ function KpiPanel({ notify, can, refreshKey }: ViewProps) {
               <tbody className="divide-y divide-slate-100">
                 {rows.map(r => (
                   <tr key={r.salesRep}>
-                    <Td className="font-semibold">{r.salesRep}</Td>
+                    <Td>
+                      <div className="font-semibold">{r.salesRep}</div>
+                      {!isKnownRep(assignees, r.salesRep) && <div className="text-[11px] text-amber-600">Không khớp tài khoản nào</div>}
+                    </Td>
                     <Td className="min-w-56">
                       <div className="flex justify-between text-xs mb-1"><span className="tabular-nums font-semibold">{shortVnd(r.revenue)}</span><span className="text-slate-400 tabular-nums">{r.revenueTarget ? `${r.achievement}% / ${shortVnd(r.revenueTarget)}` : 'chưa giao'}</span></div>
                       <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${(r.achievement ?? 0) >= 100 ? 'bg-emerald-500' : (r.achievement ?? 0) >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(100, r.achievement ?? 0)}%` }} /></div>
@@ -309,44 +301,96 @@ function KpiPanel({ notify, can, refreshKey }: ViewProps) {
           )}
         </Card>
       )}
-      {targetsOpen && <TargetsModal month={month} reps={rows.map(r => r.salesRep)} onClose={() => setTargetsOpen(false)} notify={notify} onDone={() => void reload()} />}
+      {targetsOpen && <TargetsModal month={month} onClose={() => setTargetsOpen(false)} notify={notify} onDone={() => void reload()} />}
     </>
   );
 }
 
-function TargetsModal({ month, reps, onClose, notify, onDone }: { month: string; reps: string[]; onClose: () => void; notify: (m: string) => void; onDone: () => void }) {
+const prevMonth = (m: string) => {
+  const [y, mo] = m.split('-').map(Number);
+  return mo === 1 ? `${y - 1}-12` : `${y}-${String(mo - 1).padStart(2, '0')}`;
+};
+
+/**
+ * Monthly targets. Rows = every active sales rep / manager account (not
+ * free-typed names); targets saved earlier under a name that matches no
+ * account are shown flagged so they can be removed.
+ */
+function TargetsModal({ month, onClose, notify, onDone }: { month: string; onClose: () => void; notify: (m: string) => void; onDone: () => void }) {
+  const assignees = useAssignees();
   const [all, setAll] = useState<SalesTarget[] | null>(null);
   const [rows, setRows] = useState<SalesTarget[]>([]);
-  const [newRep, setNewRep] = useState('');
+  const [extra, setExtra] = useState('');
   const { busy, run } = useAction(notify);
+
   useEffect(() => {
+    if (!assignees) return;
     crm.collection.get<SalesTarget>('salesTargets').then(items => {
       setAll(items);
       const existing = items.filter(t => t.month === month);
-      const names = [...new Set([...reps, ...existing.map(t => t.salesRep)])];
+      const team = assignees.filter(a => a.role !== 'self').map(a => a.name);
+      const names = [...new Set([...team, ...existing.map(t => t.salesRep)])];
       setRows(names.map(n => existing.find(t => t.salesRep === n) || { salesRep: n, month, revenueTarget: 0, visitTarget: 0 }));
     }).catch(e => notify(e.message));
-  }, [month, reps, notify]);
-  const upd = (i: number, patch: Partial<SalesTarget>) => setRows(rs => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  }, [month, assignees, notify]);
+
+  const upd = (name: string, patch: Partial<SalesTarget>) => setRows(rs => rs.map(r => (r.salesRep === name ? { ...r, ...patch } : r)));
+  const addable = (assignees || []).filter(a => !rows.some(r => r.salesRep === a.name));
+  const last = (all || []).filter(t => t.month === prevMonth(month));
+  const copyLast = () => setRows(rs => rs.map(r => {
+    const p = last.find(t => t.salesRep === r.salesRep);
+    return p && !r.revenueTarget && !r.visitTarget ? { ...r, revenueTarget: p.revenueTarget, visitTarget: p.visitTarget } : r;
+  }));
+  const totalRevenue = rows.reduce((s, r) => s + (r.revenueTarget || 0), 0);
+  const totalVisits = rows.reduce((s, r) => s + (r.visitTarget || 0), 0);
+
   return (
-    <Modal open onClose={onClose} title={`Chỉ tiêu tháng ${month}`}
+    <Modal open onClose={onClose} title={`Giao chỉ tiêu tháng ${month.split('-').reverse().join('/')}`}
       footer={<><Button variant="secondary" onClick={onClose}>Huỷ</Button><Button disabled={busy || !all}
         onClick={async () => {
           const merged = [...(all || []).filter(t => t.month !== month), ...rows.filter(r => r.revenueTarget > 0 || (r.visitTarget || 0) > 0)];
           if (await run(() => crm.collection.save('salesTargets', merged), 'Đã lưu chỉ tiêu')) { onDone(); onClose(); }
-        }}>Lưu</Button></>}>
-      {!all ? <Loading /> : (
+        }}>Lưu chỉ tiêu</Button></>}>
+      {!all || !assignees ? <Loading /> : (
         <div className="space-y-2">
-          {rows.map((r, i) => (
-            <div key={r.salesRep} className="grid grid-cols-[1fr_140px_90px] gap-2 items-center">
-              <span className="text-sm font-semibold truncate">{r.salesRep}</span>
-              <MoneyInput value={r.revenueTarget} onChange={v => upd(i, { revenueTarget: v })} placeholder="Doanh số" />
-              <Input type="number" min={0} value={r.visitTarget || ''} onChange={e => upd(i, { visitTarget: Number(e.target.value) || 0 })} placeholder="Lượt thăm" />
+          {assignees.length <= 1 && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Chưa có tài khoản nào mang vai trò Nhân viên / Quản lý kinh doanh. Tạo hoặc chỉnh vai trò ở <b>Tài khoản nhân viên</b> trước.
             </div>
-          ))}
-          <div className="flex gap-2 pt-2">
-            <Input value={newRep} onChange={e => setNewRep(e.target.value)} placeholder="Thêm nhân viên…" />
-            <Button variant="secondary" onClick={() => { if (newRep.trim() && !rows.some(r => r.salesRep === newRep.trim())) { setRows(rs => [...rs, { salesRep: newRep.trim(), month, revenueTarget: 0, visitTarget: 0 }]); setNewRep(''); } }}>Thêm</Button>
+          )}
+          <div className="grid grid-cols-[1fr_150px_100px_28px] gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 px-0.5">
+            <span>Nhân viên</span><span>Doanh số (đ)</span><span>Lượt viếng thăm</span><span />
+          </div>
+          {rows.map(r => {
+            const unknown = !isKnownRep(assignees, r.salesRep);
+            return (
+              <div key={r.salesRep} className="grid grid-cols-[1fr_150px_100px_28px] gap-2 items-center">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold truncate">{r.salesRep}</div>
+                  {unknown && <div className="text-[11px] text-amber-600">Không khớp tài khoản nào — số liệu sẽ không cộng cho ai</div>}
+                </div>
+                <MoneyInput value={r.revenueTarget} onChange={v => upd(r.salesRep, { revenueTarget: v })} placeholder="0" />
+                <Input type="number" min={0} value={r.visitTarget || ''} onChange={e => upd(r.salesRep, { visitTarget: Number(e.target.value) || 0 })} placeholder="0" />
+                {unknown
+                  ? <button aria-label={`Bỏ ${r.salesRep}`} title="Bỏ dòng này" onClick={() => setRows(rs => rs.filter(x => x.salesRep !== r.salesRep))} className="text-slate-400 hover:text-rose-600 cursor-pointer text-lg leading-none">×</button>
+                  : <span />}
+              </div>
+            );
+          })}
+          <div className="grid grid-cols-[1fr_150px_100px_28px] gap-2 border-t border-slate-100 pt-2 text-sm font-semibold">
+            <span>Tổng đội</span><span className="tabular-nums px-3">{vnd(totalRevenue)}</span><span className="tabular-nums px-3">{totalVisits || '—'}</span><span />
+          </div>
+          <div className="flex flex-wrap gap-2 pt-2">
+            {addable.length > 0 && (
+              <>
+                <Select value={extra} onChange={e => setExtra(e.target.value)} className="flex-1 min-w-48">
+                  <option value="">Thêm người khác…</option>
+                  {addable.map(a => <option key={a.id} value={a.name}>{a.name}{a.role === 'self' ? ' (tôi)' : ''}</option>)}
+                </Select>
+                <Button variant="secondary" disabled={!extra} onClick={() => { setRows(rs => [...rs, { salesRep: extra, month, revenueTarget: 0, visitTarget: 0 }]); setExtra(''); }}>Thêm</Button>
+              </>
+            )}
+            {last.length > 0 && <Button variant="secondary" onClick={copyLast}>Chép từ tháng trước</Button>}
           </div>
         </div>
       )}

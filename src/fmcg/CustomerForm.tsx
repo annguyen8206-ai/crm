@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { crm, type Customer } from './api';
+import { RepSelect } from './RepSelect';
 import { Modal, Field, Input, Select, Textarea, MoneyInput, Button, B2B_CHANNELS, PRICE_TIER_LABELS, useAction } from './ui';
 
 type Draft = Partial<Customer> & { tagsText?: string };
@@ -93,7 +94,9 @@ export function CustomerFormModal({
           <Field label="Địa chỉ" className="sm:col-span-2"><Input value={d.address || ''} onChange={e => set('address', e.target.value)} /></Field>
           <Field label="Tỉnh / Thành phố"><Input value={d.province || ''} onChange={e => set('province', e.target.value)} /></Field>
           <Field label="Quận / Huyện"><Input value={d.district || ''} onChange={e => set('district', e.target.value)} /></Field>
-          <Field label="Nhân viên phụ trách"><Input value={d.assignedRep || ''} onChange={e => set('assignedRep', e.target.value)} /></Field>
+          <Field label="Nhân viên phụ trách" hint="Doanh số của khách được tính cho người này">
+            <RepSelect value={d.assignedRep || ''} allowEmpty onChange={v => set('assignedRep', v)} />
+          </Field>
           <Field label="Trạng thái"><Select value={d.status} onChange={e => set('status', e.target.value as any)}><option>Đang hoạt động</option><option>Tiềm năng</option><option>Ngừng giao dịch</option></Select></Field>
         </div>
 

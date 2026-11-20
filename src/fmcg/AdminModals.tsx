@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { apiClient } from '../utils/apiClient';
 import { ROLE_OPTIONS, DEFAULT_STAFF_ROLE, getRoleConfig, roleKeyOf, roleLabel } from '../utils/rbac';
 import { isRoleKey } from '../../server/rbac';
+import { loadAssignees } from './RepSelect';
 import type { Branch, CurrentUser } from '../types';
 import { Modal, Field, Input, Select, Button, Badge, Empty, Table, Th, Td, useAction } from './ui';
 
@@ -27,7 +28,7 @@ export function StaffAdminModal({ open, onClose, staff, branches, onChanged, not
     const r = s.id
       ? await run(() => apiClient.staff.update(s.id!, { ...payload, ...(s.password ? { password: s.password } : {}) }), 'Đã cập nhật tài khoản')
       : await run(() => apiClient.staff.create({ ...payload, email: s.email!.trim(), password: s.password || '' } as any), 'Đã tạo tài khoản');
-    if (r) { setEditing(null); onChanged(); }
+    if (r) { setEditing(null); onChanged(); void loadAssignees(true); }
   };
 
   return (
