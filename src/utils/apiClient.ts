@@ -101,6 +101,10 @@ export const apiClient = {
     },
     async update(id: string, data: Record<string, unknown>) {
       return request<{ success: boolean; staff: any }>(`/staff/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    },
+    /** Sales staff a visit can be assigned to (managers: their team; reps: themselves). */
+    async assignees() {
+      return request<{ assignees: Array<{ id: string; name: string; role: 'sales_rep' | 'sales_manager' | 'self'; branchId: string | null }> }>('/staff/assignees');
     }
   },
 

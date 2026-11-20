@@ -7,7 +7,31 @@ import { queryAudit } from '../audit';
 import { requireAdmin, APP_BASE_URL } from '../http-util';
 import { createZaloAuthUrl } from '../zalo-oauth';
 import { getZaloAccessToken, zaloAppSecretProof, zaloAuthHeaders } from '../integrations';
-import { isRoleKey, ROLE_KEYS } from '../rbac';
+import { isRoleKey, ROLE_KEYS, roleKeyOf, requirePerm } from '../rbac';
+import { branchScope } from '../branch-scope';
+
+export interface Assignee { id: string; name: string; role: 'sales_rep' | 'sales_manager' | 'self'; branchId: string | null }
+
+/**
+ * Who may receive a visit plan from `me`: active sales reps and sales managers
+ * (in `scope` when the caller is branch-locked), always including the caller.
+ * A sales rep may only plan for themselves.
+ */
+export function visitAssignees(
+  staff: Array<{ id: string; name: string; role: string; branchId?: string | null; status?: string | null }>,
+  me: { id: string; name: string; role: string },
+  scope: string | null,
+): Assignee[] {
+  const self: Assignee = { id: me.id, name: me.name, role: 'self', branchId: null };
+  if (roleKeyOf(me.role) === 'sales_rep') return [self];
+  const out = staff
+    .filter(s => s.id !== me.id && s.status !== 'suspended')
+    .map(s => ({ s, key: roleKeyOf(s.role) }))
+    .filter(({ s, key }) => (key === 'sales_rep' || key === 'sales_manager') && (!scope || s.branchId === scope))
+    .map(({ s, key }) => ({ id: s.id, name: s.name, role: key as Assignee['role'], branchId: s.branchId ?? null }))
+    .sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name, 'vi') : a.role === 'sales_rep' ? -1 : 1));
+  return [...out, self];
+}
 
 /**
  * Staff accounts store one of the fixed role keys (permissions come from it);
@@ -61,6 +85,18 @@ export function registerSystemRoutes(app: Express): void {
       res.json({ staff: await listStaff() });
     } catch (e: any) {
       res.status(500).json({ error: 'Lỗi tải danh sách tài khoản', details: e.message });
+    }
+  });
+
+  // People a visit can be assigned to (the "Nhân viên" picker when planning
+  // visits). Managers get the active sales staff of their scope; a rep gets
+  // only themselves. Names only — no emails / phones.
+  app.get('/api/staff/assignees', requirePerm('canManageVisits'), async (req, res) => {
+    try {
+      const staff = await listStaff();
+      res.json({ assignees: visitAssignees(staff, req.authUser!, branchScope(req)) });
+    } catch (e: any) {
+      res.status(500).json({ error: 'Không tải được danh sách nhân viên', details: e.message });
     }
   });
 

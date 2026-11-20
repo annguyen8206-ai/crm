@@ -7,7 +7,7 @@ import { registerInboxRoutes } from '../server/routes/inbox';
 import { registerExportRoutes } from '../server/routes/export';
 import { registerCollectionRoutes } from '../server/routes/collections';
 import { notificationsForRole } from '../server/routes/notifications';
-import { staffRoleError } from '../server/routes/system';
+import { staffRoleError, visitAssignees } from '../server/routes/system';
 import { dbStore } from '../server/store';
 
 /** Same routes as production, with the session role injected from a test header. */
@@ -106,6 +106,29 @@ describe('notifications', () => {
     expect(notificationsForRole(all, 'warehouse_keeper').map(n => n.id)).toEqual(['orders-pending', 'stock-low', 'lots-expired']);
     expect(notificationsForRole(all, 'viewer').map(n => n.id)).toEqual(['stock-low']);
     expect(notificationsForRole(all, 'admin')).toHaveLength(all.length);
+  });
+});
+
+describe('visit assignee picker', () => {
+  const staff = [
+    { id: 'u1', name: 'Trần Bình', role: 'sales_rep', branchId: 'hn' },
+    { id: 'u2', name: 'An Nguyễn', role: 'Nhân viên kinh doanh', branchId: 'hcm' },
+    { id: 'u3', name: 'Chị Hà', role: 'sales_manager', branchId: 'hn' },
+    { id: 'u4', name: 'Kế toán Lan', role: 'accountant', branchId: 'hn' },
+    { id: 'u5', name: 'Nghỉ việc', role: 'sales_rep', branchId: 'hn', status: 'suspended' },
+    { id: 'm1', name: 'Quản lý', role: 'sales_manager', branchId: null },
+  ];
+  it('a manager gets active sales staff (reps first), then themselves', () => {
+    const r = visitAssignees(staff, { id: 'm1', name: 'Quản lý', role: 'sales_manager' }, null);
+    expect(r.map(a => a.name)).toEqual(['An Nguyễn', 'Trần Bình', 'Chị Hà', 'Quản lý']);
+    expect(r.at(-1)?.role).toBe('self');
+  });
+  it('a branch-locked manager only gets their branch', () => {
+    const r = visitAssignees(staff, { id: 'm1', name: 'Quản lý', role: 'sales_manager' }, 'hn');
+    expect(r.map(a => a.name)).toEqual(['Trần Bình', 'Chị Hà', 'Quản lý']);
+  });
+  it('a sales rep can only plan for themselves', () => {
+    expect(visitAssignees(staff, { id: 'u1', name: 'Trần Bình', role: 'sales_rep' }, null)).toEqual([{ id: 'u1', name: 'Trần Bình', role: 'self', branchId: null }]);
   });
 });
 

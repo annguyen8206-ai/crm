@@ -7,6 +7,7 @@ import {
   type ViewProps,
 } from './ui';
 import { OrderFormModal } from './OrderForm';
+import { apiClient } from '../utils/apiClient';
 
 type Section = 'visits' | 'kpi' | 'deals' | 'inactive';
 
@@ -139,18 +140,30 @@ function PlanVisitsModal({ open, onClose, notify, defaultDate, canAssign, userNa
   const [date, setDate] = useState(defaultDate);
   const [purpose, setPurpose] = useState('Lấy đơn');
   const [rep, setRep] = useState(userName);
+  const [assignees, setAssignees] = useState<Array<{ name: string; role: string }>>([]);
+  const [showAll, setShowAll] = useState(false);
   const [route, setRoute] = useState('');
   const [q, setQ] = useState('');
   const { busy, run } = useAction(notify);
 
   useEffect(() => {
     if (!open) return;
-    setSelected(new Set()); setDate(defaultDate); setRep(userName); setQ(''); setRoute('');
+    setSelected(new Set()); setDate(defaultDate); setRep(userName); setQ(''); setRoute(''); setShowAll(false);
     crm.customers.list({ type: 'B2B', status: 'Đang hoạt động' }).then(r => setCustomers(r.customers)).catch(e => notify(e.message));
+    // Pick from real accounts instead of typing a name (a typo = a visit nobody sees).
+    apiClient.staff.assignees()
+      .then(r => setAssignees(r.assignees.map(a => ({ name: a.name, role: a.role }))))
+      .catch(() => setAssignees([{ name: userName, role: 'self' }]));
   }, [open, defaultDate, userName, notify]);
 
   const routes = [...new Set(customers.map(c => c.routeName).filter(Boolean))] as string[];
-  const list = customers.filter(c => (!route || c.routeName === route) && (!q || c.name.toLowerCase().includes(q.toLowerCase())) && (canAssign || !rep || !c.assignedRep || c.assignedRep === rep));
+  // Outlets the chosen person looks after (plus unassigned ones); a manager can tick "all".
+  const ownedBy = (c: Customer) => !c.assignedRep || c.assignedRep === rep;
+  const list = customers.filter(c => (!route || c.routeName === route) && (!q || c.name.toLowerCase().includes(q.toLowerCase())) && ((canAssign && showAll) || ownedBy(c)));
+  const pickRep = (name: string) => { setRep(name); setSelected(new Set()); };
+  const reps = assignees.filter(a => a.role === 'sales_rep');
+  const managers = assignees.filter(a => a.role === 'sales_manager');
+  const self = assignees.find(a => a.role === 'self');
   const toggle = (id: string) => setSelected(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   return (
@@ -162,13 +175,28 @@ function PlanVisitsModal({ open, onClose, notify, defaultDate, canAssign, userNa
         <div className="grid sm:grid-cols-3 gap-3">
           <Field label="Ngày"><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></Field>
           <Field label="Mục đích"><Select value={purpose} onChange={e => setPurpose(e.target.value)}>{VISIT_PURPOSES.map(p => <option key={p}>{p}</option>)}</Select></Field>
-          <Field label="Nhân viên"><Input value={rep} disabled={!canAssign} onChange={e => setRep(e.target.value)} /></Field>
+          <Field label="Nhân viên đi thăm">
+            <Select value={rep} disabled={!canAssign} onChange={e => pickRep(e.target.value)}>
+              {reps.length > 0 && <optgroup label="Nhân viên kinh doanh">{reps.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}</optgroup>}
+              {managers.length > 0 && <optgroup label="Quản lý kinh doanh">{managers.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}</optgroup>}
+              <option value={self?.name || userName}>{self?.name || userName} (tôi)</option>
+            </Select>
+          </Field>
         </div>
-        <div className="flex gap-2">
-          <Input placeholder="Tìm điểm bán…" value={q} onChange={e => setQ(e.target.value)} />
+        <div className="flex flex-wrap gap-2 items-center">
+          <Input placeholder="Tìm điểm bán…" value={q} onChange={e => setQ(e.target.value)} className="flex-1 min-w-40" />
           {routes.length > 0 && <Select value={route} onChange={e => setRoute(e.target.value)} className="!w-44"><option value="">Mọi tuyến</option>{routes.map(r => <option key={r}>{r}</option>)}</Select>}
           <Button variant="secondary" onClick={() => setSelected(new Set(list.map(c => c.id)))}>Chọn tất cả</Button>
+          {canAssign && (
+            <label className="flex items-center gap-2 text-xs text-slate-600 w-full sm:w-auto">
+              <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} className="w-4 h-4" />
+              Hiện cả điểm bán của người khác
+            </label>
+          )}
         </div>
+        <p className="text-xs text-slate-500">
+          {showAll && canAssign ? 'Đang hiện mọi điểm bán.' : `Điểm bán do ${rep} phụ trách và điểm bán chưa giao cho ai.`}
+        </p>
         <ul className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-80 overflow-y-auto">
           {list.map(c => (
             <li key={c.id}>
